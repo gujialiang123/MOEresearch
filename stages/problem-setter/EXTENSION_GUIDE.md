@@ -232,7 +232,7 @@ requires identifying a recurring signal that currently goes ignored.
 
 ## 4. Adding a new skill
 
-This is the heaviest extension. Read [`SKILLS.md`](../../SKILLS.md) for
+This is the heaviest extension. Read [`docs/skills/README.md`](../../docs/skills/README.md) for
 design principles first.
 
 ### When to add one
@@ -255,7 +255,7 @@ it reusable across Stage 2 and Stage 3 too.
    skill caused a missed signal.
 
 4. **Human review and promote** to `.github/skills/<name>/`. Add a row to
-   `SKILLS.md` §6.
+   `docs/skills/README.md` §6.
 
 ### Acceptance criteria
 

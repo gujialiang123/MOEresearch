@@ -92,7 +92,7 @@ its docs are still on disk and referenced from a few places.
 
 | Todo | What |
 |---|---|
-| `update-readme` | Rewrite `README.md` §2 (3-stage diagram → 2-stage), §11 (rule-vs-LLM section needs the Problem-Setter/Solver framing). Both EN and CN. |
+| `update-readme` | Rewrite `../../README.md` §2 (3-stage diagram → 2-stage), §11 (rule-vs-LLM section needs the Problem-Setter/Solver framing). Both EN and CN. |
 | `update-roadmap` | Rewrite `ROADMAP.md` milestones for 2-stage. Current M-numbers are 3-stage-flavored. |
 
 ### Tier 2 — Problem-Setter docs (need new-arch rewrite)
@@ -106,7 +106,7 @@ its docs are still on disk and referenced from a few places.
 
 | Todo | What |
 |---|---|
-| `update-stage3-docs` | Six new files in `stages/problem-solver/`: `README.md`, `AGENT_FLEET.md` (dispatch table), `config-agent/CONTRACT.md`, `scheduler-agent/CONTRACT.md`, `kernel-agent/CONTRACT.md` (port from `/home/t-jialianggu/work/auto-gpu-kernel/template/CLAUDE.md`), `workload-shape-agent/CONTRACT.md`. |
+| `update-stage3-docs` | Six new files in `stages/problem-solver/`: `../../README.md`, `AGENT_FLEET.md` (dispatch table), `config-agent/CONTRACT.md`, `scheduler-agent/CONTRACT.md`, `kernel-agent/CONTRACT.md` (port from `/home/t-jialianggu/work/auto-gpu-kernel/template/CLAUDE.md`), `workload-shape-agent/CONTRACT.md`. |
 
 ### Tier 4 — Skill stubs (design only, no impl)
 
@@ -120,7 +120,7 @@ its docs are still on disk and referenced from a few places.
 | Todo | What |
 |---|---|
 | `docs-arch` | `docs/architecture/agent-vs-harness.md` is referenced from `two-stage-overview.md` but the file isn't created. Either create a stub or remove the link. |
-| (cleanup) | `archive/` needs a `README.md` explaining "these are superseded v0.2 docs". |
+| (cleanup) | `archive/` needs a `../../README.md` explaining "these are superseded v0.2 docs". |
 
 ---
 
@@ -217,7 +217,7 @@ Directory names stay English; human-facing docs are bilingual.
 
 | Doc category | Policy | Examples |
 |---|---|---|
-| **Human-facing reference** | Full bilingual (EN first, CN appended) | `README.md`, `STATUS.md`, `ROADMAP.md`, `docs/architecture/*`, `docs/problem-package/schema.md`, `docs/idea-pool/schema.md`, `SKILLS.md`, `LOGS.md`, `experiments/ideas/README.md` |
+| **Human-facing reference** | Full bilingual (EN first, CN appended) | `../../README.md`, `./restructure-notes.md`, `ROADMAP.md`, `docs/architecture/*`, `docs/problem-package/schema.md`, `docs/idea-pool/schema.md`, `../skills/README.md`, `./log-layout.md`, `experiments/ideas/README.md` |
 | **Agent-facing operational** | English-only (LLM efficiency; minimize context bloat) | All `SKILL.md` files, `stages/problem-setter/{AGENT_CONTRACT, PLAYBOOK, TOOLS, EXTENSION_GUIDE}.md`, `stages/problem-setter/policies/llm_agent.md` (system prompt), all `stages/problem-solver/**/*.md` once written |
 
 The 8 human-facing reference docs are already bilingual as of this
@@ -361,7 +361,7 @@ Idea 池（双向）
 
 | Todo | 干啥 |
 |---|---|
-| `update-readme` | 重写 `README.md` §2（三阶段图 → 二阶段）、§11（rule-vs-LLM 一节要按 Problem-Setter / Solver 框架重写）。中英文都要。 |
+| `update-readme` | 重写 `../../README.md` §2（三阶段图 → 二阶段）、§11（rule-vs-LLM 一节要按 Problem-Setter / Solver 框架重写）。中英文都要。 |
 | `update-roadmap` | 重写 `ROADMAP.md` 里程碑，按二阶段。当前 M 编号是三阶段味的。 |
 
 ### Tier 2 — Problem-Setter 文档（要按新架构重写）
@@ -375,7 +375,7 @@ Idea 池（双向）
 
 | Todo | 干啥 |
 |---|---|
-| `update-stage3-docs` | `stages/problem-solver/` 下 6 份新文件：`README.md`, `AGENT_FLEET.md`（调度表）、`config-agent/CONTRACT.md`、`scheduler-agent/CONTRACT.md`、`kernel-agent/CONTRACT.md`（从 `/home/t-jialianggu/work/auto-gpu-kernel/template/CLAUDE.md` 移植）、`workload-shape-agent/CONTRACT.md`。 |
+| `update-stage3-docs` | `stages/problem-solver/` 下 6 份新文件：`../../README.md`, `AGENT_FLEET.md`（调度表）、`config-agent/CONTRACT.md`、`scheduler-agent/CONTRACT.md`、`kernel-agent/CONTRACT.md`（从 `/home/t-jialianggu/work/auto-gpu-kernel/template/CLAUDE.md` 移植）、`workload-shape-agent/CONTRACT.md`。 |
 
 ### Tier 4 — Skill 框架（只写设计 SKILL.md，不实现）
 
@@ -389,7 +389,7 @@ Idea 池（双向）
 | Todo | 干啥 |
 |---|---|
 | `docs-arch` | `docs/architecture/agent-vs-harness.md` 被 `two-stage-overview.md` 引用了但文件不存在。要么写个占位，要么删 link。 |
-| （清理） | `archive/` 加一份 `README.md` 说明"这些是被取代的 v0.2 文档"。 |
+| （清理） | `archive/` 加一份 `../../README.md` 说明"这些是被取代的 v0.2 文档"。 |
 
 ---
 
@@ -474,7 +474,7 @@ v0.4 够用。需要时再加更专门的（`compile-agent`、`quantization-agen
 
 | 文档类别 | 策略 | 例子 |
 |---|---|---|
-| **人看的参考文档** | 全双语（英文在前，中文追加） | `README.md`、`STATUS.md`、`ROADMAP.md`、`docs/architecture/*`、`docs/problem-package/schema.md`、`docs/idea-pool/schema.md`、`SKILLS.md`、`LOGS.md`、`experiments/ideas/README.md` |
+| **人看的参考文档** | 全双语（英文在前，中文追加） | `../../README.md`、`./restructure-notes.md`、`ROADMAP.md`、`docs/architecture/*`、`docs/problem-package/schema.md`、`docs/idea-pool/schema.md`、`../skills/README.md`、`./log-layout.md`、`experiments/ideas/README.md` |
 | **Agent 用的操作文档** | 仅英文（LLM 效率，减少 context bloat） | 所有 `SKILL.md`、`stages/problem-setter/{AGENT_CONTRACT, PLAYBOOK, TOOLS, EXTENSION_GUIDE}.md`、`stages/problem-setter/policies/llm_agent.md`（system prompt）、`stages/problem-solver/**/*.md`（写时） |
 
 8 份人看的参考文档已经在本 session 完成双语化。Stage-1 的 agent 操作
