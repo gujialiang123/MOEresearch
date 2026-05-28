@@ -1,0 +1,20 @@
+nohup: ignoring input
+2026-05-28 17:50:14 [INFO] regime_suite | === Stage 1 RegimeScout run started at 2026-05-28 17:50:14 ===
+2026-05-28 17:50:14 [INFO] regime_suite | server_config=/home/t-jialianggu/work/EndtoEnd-auto-optimization/configs/moe_qwen3_30b.yaml
+2026-05-28 17:50:14 [INFO] regime_suite | workload_dir=/home/t-jialianggu/work/EndtoEnd-auto-optimization/regime_scout/candidates_moe/finding_b
+2026-05-28 17:50:14 [INFO] regime_suite | mode=quick
+2026-05-28 17:50:14 [INFO] regime_suite | out=/home/t-jialianggu/work/EndtoEnd-auto-optimization/regime_scout/outputs/moe_finding_b_results.jsonl
+2026-05-28 17:50:14 [INFO] regime_suite | run_root=/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/regime_scout/20260528_175014
+2026-05-28 17:50:14 [INFO] regime_suite | wall_budget_s=600 server_start_timeout=600 bench_timeout=600
+2026-05-28 17:50:14 [INFO] regime_suite | 2 workload(s) to run
+2026-05-28 17:50:14 [INFO] regime_suite | ------------------------------------------------------------------------
+2026-05-28 17:50:14 [INFO] regime_suite | [1/2] START workload=finding_b_smoke_n256 regime_hint=sanity run_dir=/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/regime_scout/20260528_175014/run_0001_finding_b_smoke_n256
+2026-05-28 17:51:47 [INFO] regime_suite | [1/2] PASS (93.1s) ttft_p50=43.069870909675956 ttft_p95=93.53807620937005 tpot_p50=10.323662709976945 out_tps=277.19060102722705 req_tps=16.571880864775835 err=None
+2026-05-28 17:51:47 [INFO] regime_suite | ------------------------------------------------------------------------
+2026-05-28 17:51:47 [INFO] regime_suite | [2/2] START workload=finding_b_smoke_n64 regime_hint=sanity run_dir=/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/regime_scout/20260528_175014/run_0002_finding_b_smoke_n64
+2026-05-28 17:53:11 [INFO] regime_suite | [2/2] PASS (84.4s) ttft_p50=46.60415404941887 ttft_p95=92.77079839957875 tpot_p50=10.383280743237423 out_tps=294.0690526617534 req_tps=17.26643978931396 err=None
+2026-05-28 17:53:11 [INFO] regime_suite | ========================================================================
+2026-05-28 17:53:11 [INFO] regime_suite | done in 178s. pass=2 fail=0 skip=0
+2026-05-28 17:53:11 [INFO] regime_suite | results: /home/t-jialianggu/work/EndtoEnd-auto-optimization/regime_scout/outputs/moe_finding_b_results.jsonl
+2026-05-28 17:53:11 [INFO] regime_suite | per-run dirs: /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/regime_scout/20260528_175014
+2026-05-28 17:53:11 [INFO] regime_suite | === Stage 1 RegimeScout run finished at 2026-05-28 17:53:11 ===

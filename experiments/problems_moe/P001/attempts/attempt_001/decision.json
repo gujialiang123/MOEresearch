@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "attempt_id": "attempt_001",
+  "solver_agent": "config-agent",
+  "knob": "max-running-requests",
+  "value": 64,
+  "strategy_id": "S001",
+  "decision": "keep",
+  "reasoning": "Primary metric improved +92.6% \u2265 30.0% threshold; no constraint violations.",
+  "primary_metric": "ttft_p95_ms",
+  "primary_direction": "lower",
+  "primary_baseline": 2282.4782288284036,
+  "primary_new": 168.68310916470364,
+  "primary_delta_pct": 92.60965090338283,
+  "constraint_violations": [],
+  "also_solved": [
+    {
+      "ref": "prefill_long",
+      "metric": "ttft_p95_ms",
+      "delta_pct": 79.71,
+      "note": "Side improvement under the same knob change."
+    }
+  ],
+  "new_findings_filed": [],
+  "verification": {
+    "target": {
+      "baseline": 2282.4782288284036,
+      "new": 168.68310916470364
+    },
+    "neighbors": [
+      {
+        "name": "scheduler_overhead_high_concurrency__con_16",
+        "baseline": 141.59137363312766,
+        "new": 142.54227825440466
+      },
+      {
+        "name": "scheduler_overhead_high_concurrency__con_32",
+        "baseline": 146.93971916567534,
+        "new": 146.40688996296376
+      }
+    ],
+    "controls": [
+      {
+        "name": "prefill_long",
+        "baseline": 944.3081993493252,
+        "new": 191.63282659137622
+      }
+    ]
+  }
+}
