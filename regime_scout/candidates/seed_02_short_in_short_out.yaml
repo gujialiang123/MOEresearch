@@ -1,0 +1,18 @@
+name: short_in_short_out
+regime_hint: scheduler_or_cuda_graph
+source:
+  generated_by: generate_seed_suite
+  seed_index: 2
+dataset:
+  name: random
+  random_input_len: 128
+  random_output_len: 32
+  random_range_ratio: 0.0
+traffic:
+  max_concurrency: 16
+  num_prompts: 160
+cache:
+  mode: cold
+  flush_cache: true
+seed: 1234
+notes: Online serving baseline. Sensitive to CUDA graph and continuous batching.

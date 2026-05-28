@@ -1,0 +1,143 @@
+# Stage 1 seed workloads. 10 hand-picked workloads covering 6 regimes.
+# (Supplement §8 originally listed 12; we drop the 2 custom-jsonl mixed ones for v0.2 MVP.)
+#
+# Each seed has:
+#   name              — unique label
+#   regime_hint       — coarse class for clustering
+#   dataset           — passed to bench_serving (--dataset-name + dataset-specific flags)
+#   traffic           — max_concurrency, num_prompts
+#   cache             — cold | warm (warm = leave radix cache populated between runs)
+#   notes             — why this seed is included
+#
+# All seeds run with --random-range-ratio 0.0 by default to keep variance low for v0.2.
+
+version: 1
+
+defaults:
+  random_range_ratio: 0.0
+  cache_mode: "cold"
+  flush_cache: true            # call /flush_cache before benchmark
+
+seeds:
+
+  - name: "smoke"
+    regime_hint: "sanity"
+    dataset:
+      name: "random"
+      random_input_len: 128
+      random_output_len: 32
+    traffic:
+      max_concurrency: 4
+      num_prompts: 32
+    notes: "Sanity check that the whole harness works."
+
+  - name: "tiny_latency"
+    regime_hint: "scheduler_overhead"
+    dataset:
+      name: "random"
+      random_input_len: 8           # bench_serving requires >=1; keep tiny
+      random_output_len: 4
+    traffic:
+      max_concurrency: 1
+      num_prompts: 32
+    notes: "Exposes scheduler / HTTP / launch overhead. Should be very fast."
+
+  - name: "short_in_short_out"
+    regime_hint: "scheduler_or_cuda_graph"
+    dataset:
+      name: "random"
+      random_input_len: 128
+      random_output_len: 32
+    traffic:
+      max_concurrency: 16
+      num_prompts: 160
+    notes: "Online serving baseline. Sensitive to CUDA graph and continuous batching."
+
+  - name: "scheduler_overhead_high_concurrency"
+    regime_hint: "scheduler_tail"
+    dataset:
+      name: "random"
+      random_input_len: 128
+      random_output_len: 16
+    traffic:
+      max_concurrency: 64
+      num_prompts: 320
+    notes: "High concurrency stress for scheduler tail latency."
+
+  - name: "prefill_medium"
+    regime_hint: "prefill"
+    dataset:
+      name: "random"
+      random_input_len: 4096
+      random_output_len: 16
+    traffic:
+      max_concurrency: 4
+      num_prompts: 64
+    notes: "Medium-long prefill. TTFT-dominated."
+
+  - name: "prefill_long"
+    regime_hint: "prefill_boundary"
+    dataset:
+      name: "random"
+      random_input_len: 16384
+      random_output_len: 16
+    traffic:
+      max_concurrency: 2
+      num_prompts: 16
+    notes: "Long prefill. May trigger chunked-prefill behavior or KV pressure."
+
+  - name: "decode_medium"
+    regime_hint: "decode"
+    dataset:
+      name: "random"
+      random_input_len: 128
+      random_output_len: 512
+    traffic:
+      max_concurrency: 16
+      num_prompts: 160
+    notes: "Decode-heavy. Output throughput is primary signal."
+
+  - name: "decode_heavy"
+    regime_hint: "decode_saturation"
+    dataset:
+      name: "random"
+      random_input_len: 128
+      random_output_len: 1024
+    traffic:
+      max_concurrency: 32
+      num_prompts: 160
+    notes: "High decode load. Tests continuous batching saturation."
+
+  - name: "prefix_reuse_ideal"
+    regime_hint: "prefix_cache"
+    dataset:
+      name: "generated-shared-prefix"
+      gsp_num_groups: 8
+      gsp_prompts_per_group: 32
+      gsp_system_prompt_len: 4096
+      gsp_question_len: 128
+      gsp_output_len: 128
+    traffic:
+      max_concurrency: 16
+      num_prompts: 256
+    cache:
+      mode: "warm"
+      flush_cache: false
+    notes: "High prefix reuse. Radix cache should be very effective."
+
+  - name: "prefix_churn"
+    regime_hint: "cache_churn"
+    dataset:
+      name: "generated-shared-prefix"
+      gsp_num_groups: 128
+      gsp_prompts_per_group: 4
+      gsp_system_prompt_len: 4096
+      gsp_question_len: 128
+      gsp_output_len: 128
+    traffic:
+      max_concurrency: 16
+      num_prompts: 512
+    cache:
+      mode: "warm"
+      flush_cache: false
+    notes: "Many distinct prefixes. Tests radix cache eviction / churn."

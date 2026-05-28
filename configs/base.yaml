@@ -1,0 +1,32 @@
+# SGLang baseline server config for Stage 1 RegimeScout.
+# v0.2 (DESIGN.md §0.G B1): YAML→argv conversion happens in scripts/launch_server.py.
+# Keys map 1:1 to sglang.launch_server CLI flags. Bool=true → append --key; false → omit.
+
+model-path: "/data/hf/models/Qwen3-0.6B"
+served-model-name: "qwen3-0.6b"
+
+host: "127.0.0.1"
+port: 30000
+
+# H200 GPU isolation (set via CUDA_VISIBLE_DEVICES env in launch_server.py).
+# This is NOT a sglang flag; launch_server.py strips it.
+_gpu_id: 0
+
+# Parallelism (single H200 for MVP)
+tensor-parallel-size: 1
+
+# Memory: Qwen3-0.6B is ~1.2GB, plenty of headroom on 143GB H200
+mem-fraction-static: 0.7
+
+# Baseline knobs (subject to Stage 2/3 optimization later)
+schedule-policy: "lpm"
+schedule-conservativeness: 1.0
+max-running-requests: 32
+chunked-prefill-size: -1
+max-prefill-tokens: 16384
+disable-radix-cache: false
+disable-cuda-graph: false
+
+# Server quality-of-life
+log-requests: false
+trust-remote-code: true

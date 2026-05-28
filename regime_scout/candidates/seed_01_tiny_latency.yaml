@@ -1,0 +1,18 @@
+name: tiny_latency
+regime_hint: scheduler_overhead
+source:
+  generated_by: generate_seed_suite
+  seed_index: 1
+dataset:
+  name: random
+  random_input_len: 8
+  random_output_len: 4
+  random_range_ratio: 0.0
+traffic:
+  max_concurrency: 1
+  num_prompts: 32
+cache:
+  mode: cold
+  flush_cache: true
+seed: 1234
+notes: Exposes scheduler / HTTP / launch overhead. Should be very fast.

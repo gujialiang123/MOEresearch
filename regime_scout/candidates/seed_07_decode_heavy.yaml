@@ -1,0 +1,18 @@
+name: decode_heavy
+regime_hint: decode_saturation
+source:
+  generated_by: generate_seed_suite
+  seed_index: 7
+dataset:
+  name: random
+  random_input_len: 128
+  random_output_len: 1024
+  random_range_ratio: 0.0
+traffic:
+  max_concurrency: 32
+  num_prompts: 160
+cache:
+  mode: cold
+  flush_cache: true
+seed: 1234
+notes: High decode load. Tests continuous batching saturation.

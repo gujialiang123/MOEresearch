@@ -1,0 +1,18 @@
+name: prefill_long
+regime_hint: prefill_boundary
+source:
+  generated_by: generate_seed_suite
+  seed_index: 5
+dataset:
+  name: random
+  random_input_len: 16384
+  random_output_len: 16
+  random_range_ratio: 0.0
+traffic:
+  max_concurrency: 2
+  num_prompts: 16
+cache:
+  mode: cold
+  flush_cache: true
+seed: 1234
+notes: Long prefill. May trigger chunked-prefill behavior or KV pressure.

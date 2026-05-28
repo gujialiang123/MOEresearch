@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "classification": "clean_pass",
+  "_classification_enum": [
+    "clean_pass",
+    "near_failure_kv",
+    "near_failure_retract",
+    "partial_success",
+    "load_shed_concurrency",
+    "oom",
+    "server_crash",
+    "benchmark_timeout",
+    "parse_error",
+    "unknown_failure"
+  ],
+  "evidence": {
+    "passed": true,
+    "success_rate": 1.0,
+    "peak_token_usage": 0.0,
+    "retract_events": 0,
+    "concurrency_capped": false,
+    "max_running_requests": 32,
+    "peak_running_reqs": 21,
+    "peak_queue_reqs": 0
+  }
+}

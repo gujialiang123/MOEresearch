@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "idea_id": "R-001",
+  "kind": "observation",
+  "created_at": "2026-05-28 17:32:00",
+  "origin": {
+    "side": "setter",
+    "agent": "rule_based_explore (manual followup)",
+    "session_id": "moe_wave0_20260528_172134",
+    "problem_id": null,
+    "attempt_id": null,
+    "stage1_run_dir": "experiments/tmp/regime_scout/20260528_172134/run_0001_smoke"
+  },
+  "observation": "On Qwen3-30B-A3B MoE, the smoke workload (input_len=128, output_len=32, mc=4, num_prompts=16) shows TTFT p95/p50 = 7.8 (p50=79ms, p95=620ms). This is significantly worse than Qwen3-0.6B's smoke (ratio 4.0). Even tiny workloads on MoE have a heavy warmup/cold-start tail that the v0.4 rule-based scorer doesn't flag because it's classified as clean_pass.",
+  "evidence_files": [
+    "experiments/tmp/regime_scout/20260528_172134/run_0001_smoke/quick_metrics.json",
+    "experiments/tmp/regime_scout/20260528_172134/run_0001_smoke/server.log"
+  ],
+  "key_metrics_observed": [
+    {"metric": "ttft_p50_ms", "where": "smoke (MoE)", "value": 79.27, "expected": "~24 (Qwen3-0.6B baseline)", "gap_pct": 230},
+    {"metric": "ttft_p95_ms", "where": "smoke (MoE)", "value": 620.80, "expected": "~99 (Qwen3-0.6B baseline)", "gap_pct": 527},
+    {"metric": "ttft_p95/p50 ratio", "where": "smoke (MoE)", "value": 7.83, "expected": "~4.0", "gap_pct": 96}
+  ],
+  "hypothesis": "MoE expert routing + first-batch CUDA-graph capture imposes significant warmup cost. On 30B with 128 experts, the first few requests may trigger expert weight loading or routing dispatch overhead that doesn't amortize for tiny workloads. This is a structural MoE characteristic, not a 'bug' per se, but worth studying because it may affect any low-traffic service.",
+  "alternative_explanations": [
+    "Just normal MoE startup behavior — but the gap vs Qwen3-0.6B is larger than expected from raw param count (~50x model but 8x tail ratio)",
+    "Single repeat — could be noise (rule out via 5x repeat / noise baseline)",
+    "Could be cuda_graph capture overhead on the very first decode batch"
+  ],
+  "proposed_workload": null,
+  "suggested_investigation": "Add a regime: 'moe_cold_start_amortization' that varies num_prompts ∈ {4, 16, 64, 256} on input_len=128, output_len=32, mc=4 to see at what point the warmup tail amortizes. If ratio stays > 5 even with 256 prompts, it's a real ongoing issue, not just first-batch noise.",
+  "suggested_action_for_setter": "Add 'moe_cold_start' regime probe; also consider adding a 'warmup-time-vs-steady-state-time' metric to parse_metrics.py.",
+  "priority": "medium",
+  "status": "open",
+  "promoted_to_problem_id": null,
+  "duplicate_of_idea_id": null,
+  "reviewed_by": null,
+  "reviewed_at": null
+}

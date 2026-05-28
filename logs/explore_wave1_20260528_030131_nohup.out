@@ -1,0 +1,9 @@
+nohup: ignoring input
+2026-05-28 03:01:31 [INFO] regime_suite | === Stage 1 RegimeScout run started at 2026-05-28 03:01:31 ===
+2026-05-28 03:01:31 [INFO] regime_suite | server_config=/home/t-jialianggu/work/EndtoEnd-auto-optimization/configs/base.yaml
+2026-05-28 03:01:31 [INFO] regime_suite | workload_dir=/home/t-jialianggu/work/EndtoEnd-auto-optimization/regime_scout/candidates/expanded
+2026-05-28 03:01:31 [INFO] regime_suite | mode=quick
+2026-05-28 03:01:31 [INFO] regime_suite | out=/home/t-jialianggu/work/EndtoEnd-auto-optimization/regime_scout/outputs/raw_results.jsonl
+2026-05-28 03:01:31 [INFO] regime_suite | run_root=/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/regime_scout/20260528_030131
+2026-05-28 03:01:31 [INFO] regime_suite | wall_budget_s=600 server_start_timeout=240 bench_timeout=600
+2026-05-28 03:01:31 [ERROR] regime_suite | no workloads found in /home/t-jialianggu/work/EndtoEnd-auto-optimization/regime_scout/candidates/expanded

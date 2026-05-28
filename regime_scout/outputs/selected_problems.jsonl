@@ -1,0 +1,1 @@
+{"problem_id": "P001", "regime_id": "R_scheduler_tail", "problem_dir": "experiments/problems/P001", "problem_json": "experiments/problems/P001/problem.json", "workload_yaml": "experiments/problems/P001/workload.yaml", "primary_metric": "ttft_p95_ms", "primary_value": 434.23173365881667, "suspicion_score": 0.735, "n_neighbors": 2, "n_controls": 1}

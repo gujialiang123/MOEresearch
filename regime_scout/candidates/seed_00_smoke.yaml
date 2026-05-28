@@ -1,0 +1,18 @@
+name: smoke
+regime_hint: sanity
+source:
+  generated_by: generate_seed_suite
+  seed_index: 0
+dataset:
+  name: random
+  random_input_len: 128
+  random_output_len: 32
+  random_range_ratio: 0.0
+traffic:
+  max_concurrency: 4
+  num_prompts: 32
+cache:
+  mode: cold
+  flush_cache: true
+seed: 1234
+notes: Sanity check that the whole harness works.

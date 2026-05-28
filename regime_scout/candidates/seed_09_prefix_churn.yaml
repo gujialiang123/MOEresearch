@@ -1,0 +1,20 @@
+name: prefix_churn
+regime_hint: cache_churn
+source:
+  generated_by: generate_seed_suite
+  seed_index: 9
+dataset:
+  name: generated-shared-prefix
+  gsp_num_groups: 128
+  gsp_prompts_per_group: 4
+  gsp_system_prompt_len: 4096
+  gsp_question_len: 128
+  gsp_output_len: 128
+traffic:
+  max_concurrency: 16
+  num_prompts: 512
+cache:
+  mode: warm
+  flush_cache: false
+seed: 1234
+notes: Many distinct prefixes. Tests radix cache eviction / churn.

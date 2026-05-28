@@ -1,0 +1,71 @@
+# Reduced MoE seed suite: 5 workloads chosen to expose MoE-relevant signals
+# while keeping wave 0 under ~45 min on a single H200.
+#
+# Compared to seed_suite.yaml (the 0.6B 10-seed canonical set):
+# - num_prompts reduced ~50% per workload (each prompt is ~5× slower on 30B MoE)
+# - prefill_long input cut from 16k → 8k to keep timing predictable
+# - dropped tiny_latency and 2 prefix workloads for budget
+
+version: 1
+
+defaults:
+  random_range_ratio: 0.0
+  cache_mode: "cold"
+  flush_cache: true
+
+seeds:
+
+  - name: "smoke"
+    regime_hint: "sanity"
+    dataset:
+      name: "random"
+      random_input_len: 128
+      random_output_len: 32
+    traffic:
+      max_concurrency: 4
+      num_prompts: 16
+    notes: "MoE sanity baseline"
+
+  - name: "short_in_short_out"
+    regime_hint: "scheduler_or_cuda_graph"
+    dataset:
+      name: "random"
+      random_input_len: 128
+      random_output_len: 32
+    traffic:
+      max_concurrency: 16
+      num_prompts: 64
+    notes: "Online serving baseline on MoE"
+
+  - name: "scheduler_overhead_high_concurrency"
+    regime_hint: "scheduler_tail"
+    dataset:
+      name: "random"
+      random_input_len: 128
+      random_output_len: 16
+    traffic:
+      max_concurrency: 64
+      num_prompts: 128
+    notes: "High concurrency stress; tests MoE expert routing under load"
+
+  - name: "prefill_long"
+    regime_hint: "prefill_boundary"
+    dataset:
+      name: "random"
+      random_input_len: 8192
+      random_output_len: 16
+    traffic:
+      max_concurrency: 2
+      num_prompts: 8
+    notes: "Long prefill stress on MoE"
+
+  - name: "decode_heavy"
+    regime_hint: "decode_saturation"
+    dataset:
+      name: "random"
+      random_input_len: 128
+      random_output_len: 1024
+    traffic:
+      max_concurrency: 16
+      num_prompts: 32
+    notes: "Decode throughput on MoE; expected to be the most interesting"

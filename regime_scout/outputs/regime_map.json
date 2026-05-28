@@ -1,0 +1,204 @@
+{
+  "meta": {
+    "generated_at": "2026-05-28 17:11:09",
+    "server_config": "configs/base.yaml",
+    "model": "/data/hf/models/Qwen3-0.6B",
+    "hardware": "H200"
+  },
+  "clusters": [
+    {
+      "cluster_id": "R_scheduler_tail",
+      "regime_hint": "scheduler_tail",
+      "passed": 3,
+      "failed": 0,
+      "members": [
+        "scheduler_overhead_high_concurrency",
+        "scheduler_overhead_high_concurrency__con_16",
+        "scheduler_overhead_high_concurrency__con_32"
+      ],
+      "passed_members": [
+        "scheduler_overhead_high_concurrency",
+        "scheduler_overhead_high_concurrency__con_16",
+        "scheduler_overhead_high_concurrency__con_32"
+      ],
+      "failed_members": [],
+      "primary_metric": "ttft_p95_ms",
+      "primary_direction": "lower",
+      "median_primary": 95.9777950309217,
+      "max_score": 0.735,
+      "median_ttft_p99_over_p50": 2.9684946099457963,
+      "top_workload_by_score": "scheduler_overhead_high_concurrency"
+    },
+    {
+      "cluster_id": "R_sanity",
+      "regime_hint": "sanity",
+      "passed": 1,
+      "failed": 0,
+      "members": [
+        "smoke"
+      ],
+      "passed_members": [
+        "smoke"
+      ],
+      "failed_members": [],
+      "primary_metric": "ttft_p95_ms",
+      "primary_direction": "lower",
+      "median_primary": 95.9777950309217,
+      "max_score": 0.15,
+      "median_ttft_p99_over_p50": 4.056151395065732,
+      "top_workload_by_score": "smoke"
+    },
+    {
+      "cluster_id": "R_scheduler_or_cuda_graph",
+      "regime_hint": "scheduler_or_cuda_graph",
+      "passed": 1,
+      "failed": 0,
+      "members": [
+        "short_in_short_out"
+      ],
+      "passed_members": [
+        "short_in_short_out"
+      ],
+      "failed_members": [],
+      "primary_metric": "ttft_p95_ms",
+      "primary_direction": "lower",
+      "median_primary": 98.65436461986974,
+      "max_score": 0.15,
+      "median_ttft_p99_over_p50": 2.899257757662474,
+      "top_workload_by_score": "short_in_short_out"
+    },
+    {
+      "cluster_id": "R_prefill",
+      "regime_hint": "prefill",
+      "passed": 1,
+      "failed": 0,
+      "members": [
+        "prefill_medium"
+      ],
+      "passed_members": [
+        "prefill_medium"
+      ],
+      "failed_members": [],
+      "primary_metric": "ttft_p95_ms",
+      "primary_direction": "lower",
+      "median_primary": 49.63170877890658,
+      "max_score": 0.15,
+      "median_ttft_p99_over_p50": 2.7660913981730664,
+      "top_workload_by_score": "prefill_medium"
+    },
+    {
+      "cluster_id": "R_prefill_boundary",
+      "regime_hint": "prefill_boundary",
+      "passed": 1,
+      "failed": 0,
+      "members": [
+        "prefill_long"
+      ],
+      "passed_members": [
+        "prefill_long"
+      ],
+      "failed_members": [],
+      "primary_metric": "ttft_p95_ms",
+      "primary_direction": "lower",
+      "median_primary": 120.05204847082496,
+      "max_score": 0.15,
+      "median_ttft_p99_over_p50": 1.8868690982846594,
+      "top_workload_by_score": "prefill_long"
+    },
+    {
+      "cluster_id": "R_decode",
+      "regime_hint": "decode",
+      "passed": 1,
+      "failed": 0,
+      "members": [
+        "decode_medium"
+      ],
+      "passed_members": [
+        "decode_medium"
+      ],
+      "failed_members": [],
+      "primary_metric": "output_throughput",
+      "primary_direction": "higher",
+      "median_primary": 5759.072000894247,
+      "max_score": 0.15,
+      "median_ttft_p99_over_p50": 5.006933783839331,
+      "top_workload_by_score": "decode_medium"
+    },
+    {
+      "cluster_id": "R_decode_saturation",
+      "regime_hint": "decode_saturation",
+      "passed": 1,
+      "failed": 0,
+      "members": [
+        "decode_heavy"
+      ],
+      "passed_members": [
+        "decode_heavy"
+      ],
+      "failed_members": [],
+      "primary_metric": "output_throughput",
+      "primary_direction": "higher",
+      "median_primary": 10140.716334910716,
+      "max_score": 0.15,
+      "median_ttft_p99_over_p50": 5.418712959995925,
+      "top_workload_by_score": "decode_heavy"
+    },
+    {
+      "cluster_id": "R_prefix_cache",
+      "regime_hint": "prefix_cache",
+      "passed": 1,
+      "failed": 0,
+      "members": [
+        "prefix_reuse_ideal"
+      ],
+      "passed_members": [
+        "prefix_reuse_ideal"
+      ],
+      "failed_members": [],
+      "primary_metric": "ttft_p95_ms",
+      "primary_direction": "lower",
+      "median_primary": 177.30283341370523,
+      "max_score": 0.15,
+      "median_ttft_p99_over_p50": 1.497188258944801,
+      "top_workload_by_score": "prefix_reuse_ideal"
+    },
+    {
+      "cluster_id": "R_cache_churn",
+      "regime_hint": "cache_churn",
+      "passed": 1,
+      "failed": 0,
+      "members": [
+        "prefix_churn"
+      ],
+      "passed_members": [
+        "prefix_churn"
+      ],
+      "failed_members": [],
+      "primary_metric": "ttft_p95_ms",
+      "primary_direction": "lower",
+      "median_primary": 185.39793922100216,
+      "max_score": 0.15,
+      "median_ttft_p99_over_p50": 3.1120030596201826,
+      "top_workload_by_score": "prefix_churn"
+    },
+    {
+      "cluster_id": "R_scheduler_overhead",
+      "regime_hint": "scheduler_overhead",
+      "passed": 1,
+      "failed": 0,
+      "members": [
+        "tiny_latency"
+      ],
+      "passed_members": [
+        "tiny_latency"
+      ],
+      "failed_members": [],
+      "primary_metric": "ttft_p95_ms",
+      "primary_direction": "lower",
+      "median_primary": 13.838351296726612,
+      "max_score": 0.0323,
+      "median_ttft_p99_over_p50": 1.4299400601859664,
+      "top_workload_by_score": "tiny_latency"
+    }
+  ]
+}

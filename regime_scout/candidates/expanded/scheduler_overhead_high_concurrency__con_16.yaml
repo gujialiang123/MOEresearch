@@ -1,0 +1,21 @@
+name: scheduler_overhead_high_concurrency__con_16
+regime_hint: scheduler_tail
+source:
+  generated_by: boundary-expansion
+  parent: /home/t-jialianggu/work/EndtoEnd-auto-optimization/regime_scout/candidates/seed_03_scheduler_overhead_high_concurrency.yaml
+  axis: max_concurrency
+  axis_value: 16
+  strategy: bracket
+dataset:
+  name: random
+  random_input_len: 128
+  random_output_len: 16
+  random_range_ratio: 0.0
+traffic:
+  max_concurrency: 16
+  num_prompts: 160
+cache:
+  mode: cold
+  flush_cache: true
+seed: 1234
+notes: High concurrency stress for scheduler tail latency.

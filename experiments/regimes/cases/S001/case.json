@@ -1,0 +1,112 @@
+{
+  "case_id": "S001",
+  "regime_id": "R_scheduler_tail",
+  "created_at": "2026-05-28 17:11:09",
+  "model_path": "/data/hf/models/Qwen3-0.6B",
+  "hardware": "H200",
+  "sglang_version": null,
+  "baseline_config": "configs/base.yaml",
+  "workload_file": "/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/regimes/cases/S001/workload.yaml",
+  "stage1_run_dir": "/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/regime_scout/20260528_023213/run_0004_scheduler_overhead_high_concurrency",
+  "workload_summary": {
+    "dataset_name": "random",
+    "regime_hint": "scheduler_tail",
+    "max_concurrency": 64,
+    "num_prompts": 320,
+    "cache_mode": "cold"
+  },
+  "symptom": {
+    "type": "score_threshold_or_failure",
+    "metric": "ttft_p95_ms",
+    "direction": "lower",
+    "observed_value": 434.23173365881667,
+    "description": "score 0.735 on ttft_p95_ms"
+  },
+  "evidence": {
+    "status": "pass",
+    "error": null,
+    "components": {
+      "server_log_signal": {
+        "weight": 0.3,
+        "score": 0.7,
+        "evidence": {
+          "contributions": {
+            "concurrency_capped": 0.7
+          },
+          "peak_running_reqs": 31,
+          "peak_queue_reqs": 36,
+          "max_running_requests": 32,
+          "peak_token_usage": 0.0
+        }
+      },
+      "failure_class": {
+        "weight": 0.25,
+        "score": 0.7,
+        "evidence": {
+          "classification": "load_shed_concurrency",
+          "evidence": {
+            "passed": true,
+            "success_rate": 1.0,
+            "peak_token_usage": 0.0,
+            "retract_events": 0,
+            "concurrency_capped": true,
+            "max_running_requests": 32,
+            "peak_running_reqs": 31,
+            "peak_queue_reqs": 36
+          }
+        }
+      },
+      "tail_latency_ratio": {
+        "weight": 0.15,
+        "score": 1.0,
+        "evidence": {
+          "ratios": {
+            "ttft": 3.75,
+            "tpot": 1.45,
+            "itl": 1.53
+          },
+          "max_ratio": 3.75,
+          "max_kind": "ttft",
+          "base_threshold": 3.0,
+          "noise_adjusted_threshold": 3.0
+        }
+      },
+      "local_nonlinearity_primary": {
+        "weight": 0.2,
+        "score": 1.0,
+        "evidence": {
+          "neighbor_workload": "scheduler_overhead_high_concurrency__con_32",
+          "neighbor_dist_log2": 1.0,
+          "neighbor_metric": 121.67238830588758,
+          "this_metric": 434.23173365881667,
+          "ratio_worse_than_nb": 3.569
+        }
+      },
+      "local_nonlinearity_secondary": {
+        "weight": 0.1,
+        "score": 0.0,
+        "evidence": {
+          "reason": "v2 stub"
+        }
+      }
+    }
+  },
+  "diagnostics": {
+    "suspected_categories": [
+      "tail_latency"
+    ]
+  },
+  "suspicion_score": 0.735,
+  "recommended_stage2": {
+    "action": "diagnose_then_fix",
+    "primary_metric": "ttft_p95_ms",
+    "primary_direction": "lower",
+    "minimum_improvement_pct": 10.0,
+    "suggested_first_knobs": [
+      "cuda-graph-max-bs",
+      "max-running-requests",
+      "num-continuous-decode-steps"
+    ]
+  },
+  "frozen": true
+}

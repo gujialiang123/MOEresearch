@@ -1,0 +1,43 @@
+# --------- IDE / editor ---------
+.vscode/
+.idea/
+*.swp
+*~
+
+# --------- Python ---------
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# --------- OS ---------
+.DS_Store
+Thumbs.db
+
+# --------- this project: control files (not artifacts) ---------
+STOP
+PAUSE
+
+# --------- this project: ephemeral run artifacts ---------
+# Per-workload run dirs can be many GB (full server logs + per-request jsonl);
+# they're regenerated on every suite run. We keep the high-level outputs
+# (regime_scout/outputs/, experiments/problems*/, experiments/ideas/,
+# experiments/regimes/*.md, logs/*.log) but not the giant raw dump.
+experiments/tmp/
+
+# --------- this project: scratch ---------
+*.tmp
+*.bak
+*.orig
+/tmp_*
+scratch/
+
+# --------- this project: HF model cache (never check in!) ---------
+# Models live at /data/hf/, never under this repo, but be defensive.
+hf_cache/
+models/

@@ -1,0 +1,44 @@
+nohup: ignoring input
+2026-05-28 02:32:13 [INFO] regime_suite | === Stage 1 RegimeScout run started at 2026-05-28 02:32:13 ===
+2026-05-28 02:32:13 [INFO] regime_suite | server_config=/home/t-jialianggu/work/EndtoEnd-auto-optimization/configs/base.yaml
+2026-05-28 02:32:13 [INFO] regime_suite | workload_dir=/home/t-jialianggu/work/EndtoEnd-auto-optimization/regime_scout/candidates
+2026-05-28 02:32:13 [INFO] regime_suite | mode=quick
+2026-05-28 02:32:13 [INFO] regime_suite | out=/home/t-jialianggu/work/EndtoEnd-auto-optimization/regime_scout/outputs/raw_results.jsonl
+2026-05-28 02:32:13 [INFO] regime_suite | run_root=/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/regime_scout/20260528_023213
+2026-05-28 02:32:13 [INFO] regime_suite | wall_budget_s=3000 server_start_timeout=240 bench_timeout=600
+2026-05-28 02:32:13 [INFO] regime_suite | 10 workload(s) to run
+2026-05-28 02:32:13 [INFO] regime_suite | ------------------------------------------------------------------------
+2026-05-28 02:32:13 [INFO] regime_suite | [1/10] START workload=smoke regime_hint=sanity run_dir=/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/regime_scout/20260528_023213/run_0001_smoke
+2026-05-28 02:33:20 [INFO] regime_suite | [1/10] PASS (67.1s) ttft_p50=24.371734471060336 ttft_p95=98.65602259524167 tpot_p50=3.417223312058731 out_tps=628.5524019773354 req_tps=46.23833761672352 err=None
+2026-05-28 02:33:20 [INFO] regime_suite | ------------------------------------------------------------------------
+2026-05-28 02:33:20 [INFO] regime_suite | [2/10] START workload=tiny_latency regime_hint=scheduler_overhead run_dir=/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/regime_scout/20260528_023213/run_0002_tiny_latency
+2026-05-28 02:34:28 [INFO] regime_suite | [2/10] PASS (67.9s) ttft_p50=11.544477543793619 ttft_p95=13.838351296726612 tpot_p50=1.6675840597599745 out_tps=187.2918799598005 req_tps=65.8608808649848 err=None
+2026-05-28 02:34:28 [INFO] regime_suite | ------------------------------------------------------------------------
+2026-05-28 02:34:28 [INFO] regime_suite | [3/10] START workload=short_in_short_out regime_hint=scheduler_or_cuda_graph run_dir=/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/regime_scout/20260528_023213/run_0003_short_in_short_out
+2026-05-28 02:35:26 [INFO] regime_suite | [3/10] PASS (57.4s) ttft_p50=34.39202741719782 ttft_p95=98.65436461986974 tpot_p50=7.245428572544673 out_tps=1638.8605065741883 req_tps=99.21213812026869 err=None
+2026-05-28 02:35:26 [INFO] regime_suite | ------------------------------------------------------------------------
+2026-05-28 02:35:26 [INFO] regime_suite | [4/10] START workload=scheduler_overhead_high_concurrency regime_hint=scheduler_tail run_dir=/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/regime_scout/20260528_023213/run_0004_scheduler_overhead_high_concurrency
+2026-05-28 02:36:33 [INFO] regime_suite | [4/10] PASS (67.2s) ttft_p50=129.33581543620676 ttft_p95=434.23173365881667 tpot_p50=16.240979961973302 out_tps=1835.319500889858 req_tps=211.33581874226508 err=None
+2026-05-28 02:36:33 [INFO] regime_suite | ------------------------------------------------------------------------
+2026-05-28 02:36:33 [INFO] regime_suite | [5/10] START workload=prefill_medium regime_hint=prefill run_dir=/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/regime_scout/20260528_023213/run_0005_prefill_medium
+2026-05-28 02:37:37 [INFO] regime_suite | [5/10] PASS (64.7s) ttft_p50=32.65179297886789 ttft_p95=49.63170877890658 tpot_p50=4.115513804745638 out_tps=481.9083064732311 req_tps=54.879237747841266 err=None
+2026-05-28 02:37:37 [INFO] regime_suite | ------------------------------------------------------------------------
+2026-05-28 02:37:37 [INFO] regime_suite | [6/10] START workload=prefill_long regime_hint=prefill_boundary run_dir=/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/regime_scout/20260528_023213/run_0006_prefill_long
+2026-05-28 02:38:45 [INFO] regime_suite | [6/10] PASS (67.4s) ttft_p50=72.95289589092135 ttft_p95=120.05204847082496 tpot_p50=2.7085335459560156 out_tps=174.30157842865836 req_tps=18.347534571437723 err=None
+2026-05-28 02:38:45 [INFO] regime_suite | ------------------------------------------------------------------------
+2026-05-28 02:38:45 [INFO] regime_suite | [7/10] START workload=decode_medium regime_hint=decode run_dir=/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/regime_scout/20260528_023213/run_0007_decode_medium
+2026-05-28 02:39:59 [INFO] regime_suite | [7/10] PASS (74.2s) ttft_p50=19.318122533150017 ttft_p95=95.69155256031081 tpot_p50=2.5075460107962457 out_tps=5759.072000894247 req_tps=22.03849513628183 err=None
+2026-05-28 02:39:59 [INFO] regime_suite | ------------------------------------------------------------------------
+2026-05-28 02:39:59 [INFO] regime_suite | [8/10] START workload=decode_heavy regime_hint=decode_saturation run_dir=/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/regime_scout/20260528_023213/run_0008_decode_heavy
+2026-05-28 02:41:14 [INFO] regime_suite | [8/10] PASS (74.6s) ttft_p50=22.87289348896593 ttft_p95=123.19486737251282 tpot_p50=2.7795615719266134 out_tps=10140.716334910716 req_tps=18.56870201748377 err=None
+2026-05-28 02:41:14 [INFO] regime_suite | ------------------------------------------------------------------------
+2026-05-28 02:41:14 [INFO] regime_suite | [9/10] START workload=prefix_reuse_ideal regime_hint=prefix_cache run_dir=/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/regime_scout/20260528_023213/run_0009_prefix_reuse_ideal
+2026-05-28 02:42:30 [INFO] regime_suite | [9/10] PASS (76.5s) ttft_p50=123.2849694788456 ttft_p95=177.30283341370523 tpot_p50=3.904323747168904 out_tps=3282.14293257371 req_tps=25.64174166073211 err=None
+2026-05-28 02:42:30 [INFO] regime_suite | ------------------------------------------------------------------------
+2026-05-28 02:42:30 [INFO] regime_suite | [10/10] START workload=prefix_churn regime_hint=cache_churn run_dir=/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/regime_scout/20260528_023213/run_0010_prefix_churn
+2026-05-28 02:44:02 [INFO] regime_suite | [10/10] PASS (91.3s) ttft_p50=64.79978945571929 ttft_p95=185.39793922100216 tpot_p50=4.559003685667055 out_tps=3125.569010260511 req_tps=24.41850789266024 err=None
+2026-05-28 02:44:02 [INFO] regime_suite | ========================================================================
+2026-05-28 02:44:02 [INFO] regime_suite | done in 708s. pass=10 fail=0 skip=0
+2026-05-28 02:44:02 [INFO] regime_suite | results: /home/t-jialianggu/work/EndtoEnd-auto-optimization/regime_scout/outputs/raw_results.jsonl
+2026-05-28 02:44:02 [INFO] regime_suite | per-run dirs: /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/regime_scout/20260528_023213
+2026-05-28 02:44:02 [INFO] regime_suite | === Stage 1 RegimeScout run finished at 2026-05-28 02:44:02 ===

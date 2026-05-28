@@ -1,0 +1,39 @@
+# SGLang baseline server config for Qwen3-30B-A3B-Instruct-2507 (MoE).
+#
+# Model: Qwen3MoeForCausalLM
+#   - 30B total params, 128 experts, 8 active per token (~3B active)
+#   - 48 layers, hidden 2048, 32 attn heads, 4 KV heads (GQA), max ctx 256k
+#   - Disk size ~57 GB bf16
+#
+# Hardware: single H200 (143 GB). TP=1 fits comfortably.
+#
+# We cap context-length at 32768 since seed workloads use ≤8k input.
+# Lower mem-fraction-static to 0.85 (conservative for a big MoE).
+# Use GPU 0; remember to switch via `_gpu_id` if running concurrently.
+
+model-path: "/data/hf/models/Qwen3-30B-A3B-Instruct-2507"
+served-model-name: "qwen3-30b-a3b-moe"
+
+host: "127.0.0.1"
+port: 30000
+
+_gpu_id: 0
+
+tensor-parallel-size: 1
+
+# MoE-friendly defaults
+mem-fraction-static: 0.85
+context-length: 32768
+
+# Same scheduling / sizing knobs as configs/base.yaml so cross-model
+# comparisons are clean
+schedule-policy: "lpm"
+schedule-conservativeness: 1.0
+max-running-requests: 32
+chunked-prefill-size: -1
+max-prefill-tokens: 16384
+disable-radix-cache: false
+disable-cuda-graph: false
+
+log-requests: false
+trust-remote-code: true

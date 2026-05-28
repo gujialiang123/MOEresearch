@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "primary": {
+    "on": "target",
+    "metric": "ttft_p95_ms",
+    "direction": "lower",
+    "required_improvement_pct": 30.0,
+    "stretch_improvement_pct": 60.0
+  },
+  "constraints": [
+    {
+      "on": "target",
+      "metric": "request_throughput",
+      "direction": "higher",
+      "max_regression_pct": 10.0
+    },
+    {
+      "on": "controls.smoke",
+      "metric": "ttft_p95_ms",
+      "direction": "lower",
+      "max_regression_pct": 5.0
+    },
+    {
+      "on": "any",
+      "metric": "oom",
+      "max": 0
+    },
+    {
+      "on": "any",
+      "metric": "server_crash",
+      "max": 0
+    },
+    {
+      "on": "any",
+      "metric": "failed_requests",
+      "max": 0
+    }
+  ],
+  "verification": {
+    "always_paired_ab": false,
+    "paired_ab_required_when_delta_lt_pct": 5.0,
+    "min_repeats_per_workload_for_keep": 3
+  },
+  "stretch_goals": [
+    "Neighbor workloads also improve or remain unchanged."
+  ]
+}

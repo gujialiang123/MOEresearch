@@ -1,0 +1,54 @@
+# Stage 1 search space (per supplement §7), trimmed for v0.2 MVP.
+# Used by future generate_candidate_workloads.py (boundary search) and Stage 2 fix selection.
+
+version: 1
+
+model:
+  fixed: true
+  source: "configs/base.yaml:model-path"
+
+hardware:
+  target: "H200"
+  fixed_gpu_required: true
+
+budget:
+  max_total_benchmark_runs: 30           # MVP cap (10 seeds + ~20 boundary refinements max)
+  max_stage1_wall_seconds: 5400          # 90 min hard cap
+  max_cases_selected_for_stage2: 5
+
+axes:
+
+  input_len:
+    values: [8, 128, 512, 2048, 4096, 8192, 16384]
+
+  output_len:
+    values: [4, 16, 64, 256, 512, 1024]
+
+  max_concurrency:
+    values: [1, 2, 4, 8, 16, 32, 64]
+
+  cache_mode:
+    values: ["cold", "warm"]
+
+  dataset_type:
+    values: ["random", "generated-shared-prefix"]
+
+  prefix:
+    shared_prefix_len: [0, 2048, 4096]
+    groups: [1, 8, 32, 128]
+    prompts_per_group: [2, 8, 32]
+
+scoring:
+  suspicion_weights:
+    local_nonlinearity:      0.30
+    tail_latency_ratio:      0.25
+    diagnostic_sensitivity:  0.15
+    stack_gap:               0.05
+    failure_nearness:        0.15
+    variance:                0.10
+
+  thresholds:
+    selected_case_score:    0.55
+    high_tail_ratio:         3.0       # p99 / p50 above this contributes to score
+    large_metric_jump:       2.0       # neighbor ratio above this contributes
+    min_repro_repeats:       1         # MVP: single repeat

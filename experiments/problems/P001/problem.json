@@ -1,0 +1,174 @@
+{
+  "schema_version": 1,
+  "problem_id": "P001",
+  "regime_id": "R_scheduler_tail",
+  "created_at": "2026-05-28 17:18:39",
+  "frozen": true,
+  "model_path": "/data/hf/models/Qwen3-0.6B",
+  "hardware": "H200",
+  "sglang_version": null,
+  "sglang_commit": null,
+  "baseline_config": "/home/t-jialianggu/work/EndtoEnd-auto-optimization/configs/base.yaml",
+  "target": {
+    "workload": "workload.yaml",
+    "baseline_metrics": "baseline_metrics.json",
+    "server_features": "server_features.json",
+    "classification": "classification.json",
+    "profile_summary": null,
+    "skip_L4_reason": "v0.4: setter agent did not opt in to deep profile",
+    "repeats": []
+  },
+  "symptom": {
+    "metric": "ttft_p95_ms",
+    "direction": "lower-is-better",
+    "observed_value": 434.23173365881667,
+    "description": "score 0.735 on ttft_p95_ms (load_shed_concurrency)",
+    "magnitude_vs_nearest_neighbor_pct": 352.4
+  },
+  "benchmark_suite": {
+    "target": {
+      "workload": "workload.yaml",
+      "role": "must_improve",
+      "primary_metric": "ttft_p95_ms"
+    },
+    "neighbors": [
+      {
+        "name": "scheduler_overhead_high_concurrency__con_16",
+        "workload": "neighbors/scheduler_overhead_high_concurrency__con_16.yaml",
+        "baseline_metrics": "neighbors/scheduler_overhead_high_concurrency__con_16_baseline_metrics.json",
+        "server_features": "neighbors/scheduler_overhead_high_concurrency__con_16_server_features.json",
+        "classification": "neighbors/scheduler_overhead_high_concurrency__con_16_classification.json",
+        "role": "max_concurrency_neighbor",
+        "axis": "max_concurrency",
+        "axis_value": 16,
+        "expected_after_fix": "small_improvement_or_no_change"
+      },
+      {
+        "name": "scheduler_overhead_high_concurrency__con_32",
+        "workload": "neighbors/scheduler_overhead_high_concurrency__con_32.yaml",
+        "baseline_metrics": "neighbors/scheduler_overhead_high_concurrency__con_32_baseline_metrics.json",
+        "server_features": "neighbors/scheduler_overhead_high_concurrency__con_32_server_features.json",
+        "classification": "neighbors/scheduler_overhead_high_concurrency__con_32_classification.json",
+        "role": "max_concurrency_neighbor",
+        "axis": "max_concurrency",
+        "axis_value": 32,
+        "expected_after_fix": "small_improvement_or_no_change"
+      }
+    ],
+    "controls": [
+      {
+        "name": "short_in_short_out",
+        "workload": "controls/short_in_short_out.yaml",
+        "baseline_metrics": "controls/short_in_short_out_baseline_metrics.json",
+        "server_features": "controls/short_in_short_out_server_features.json",
+        "classification": "controls/short_in_short_out_classification.json",
+        "role": "no_regression_check"
+      }
+    ]
+  },
+  "evidence": {
+    "layers_collected": [
+      "L1",
+      "L2",
+      "L3"
+    ],
+    "key_signals": [
+      {
+        "source": "server_features.json",
+        "field": "concurrency_capped",
+        "value": true,
+        "weight": "high"
+      },
+      {
+        "source": "server_features.json",
+        "field": "peak_queue_reqs",
+        "value": 36,
+        "weight": "high"
+      },
+      {
+        "source": "server_features.json",
+        "field": "max_running_requests",
+        "value": 32,
+        "weight": "high"
+      },
+      {
+        "source": "server_features.json",
+        "field": "peak_token_usage",
+        "value": 0.0,
+        "weight": "medium"
+      },
+      {
+        "source": "classification.json",
+        "field": "classification",
+        "value": "load_shed_concurrency",
+        "weight": "high"
+      },
+      {
+        "source": "baseline_metrics.json",
+        "field": "tail_p99_over_p50",
+        "value": 3.75,
+        "weight": "medium"
+      },
+      {
+        "source": "baseline_metrics.json",
+        "field": "ratio_worse_than_nearest_neighbor",
+        "value": 3.569,
+        "weight": "high"
+      }
+    ],
+    "bias_check": {
+      "repeats_n": 1,
+      "primary_metric_cv_pct": null,
+      "metric_stable": null,
+      "note": "v0.4: single-repeat; setter agent did not opt in to L5 bias removal"
+    },
+    "ruled_out": []
+  },
+  "hypothesis_md": "hypothesis.md",
+  "suggested_strategies": [
+    {
+      "strategy_id": "S001",
+      "kind": "config",
+      "route_to": "config-agent",
+      "knob": "max-running-requests",
+      "direction": "increase",
+      "values_to_try": [
+        64,
+        96,
+        128
+      ],
+      "expected_improvement_pct": 60,
+      "rationale": "If concurrency_capped, raising admission cap should drain the queue.",
+      "risk": "low for v0.4; verify via controls"
+    },
+    {
+      "strategy_id": "S002",
+      "kind": "config",
+      "route_to": "config-agent",
+      "knob": "cuda-graph-max-bs",
+      "direction": "increase",
+      "values_to_try": [
+        64,
+        128
+      ],
+      "expected_improvement_pct": 20,
+      "rationale": "Allows CUDA-graph fast path at higher running req counts.",
+      "risk": "low for v0.4; verify via controls"
+    }
+  ],
+  "rejected_strategies": [],
+  "acceptance_criteria_file": "acceptance_criteria.json",
+  "lineage": {
+    "stage1_run_dir": "/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/regime_scout/20260528_023213/run_0004_scheduler_overhead_high_concurrency",
+    "neighbor_run_dirs": [
+      "/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/regime_scout/20260528_030217/run_0001_scheduler_overhead_high_concurrency__con_16",
+      "/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/regime_scout/20260528_030217/run_0002_scheduler_overhead_high_concurrency__con_32"
+    ],
+    "control_run_dirs": [
+      "/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/regime_scout/20260528_023213/run_0003_short_in_short_out"
+    ],
+    "scoring_record": "regime_scout/outputs/suspicious_cases.jsonl#run_id=run_0004",
+    "noise_baseline": null
+  },
+  "note_v04": "Produced by select_problems.py from v0.3 rule-based scoring + wave-1 boundary expansion. L4 profile and L5 repeats were skipped (agent-decided). attempts/ is empty and awaits solver."
+}
