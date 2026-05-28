@@ -93,9 +93,11 @@ EndtoEnd-auto-optimization/
 │   ├── minimal-repro-shrink/       ← (designed, not implemented)
 │   └── pytorch-profiling/          ← L4 evidence: torch profile + reduce
 ├── experiments/
+│   ├── README.md                   ← index of every experiment + how to reproduce
 │   ├── problems/                   ← Stage A output (dense models)
 │   ├── problems_moe/               ← Stage A output (MoE models)
 │   ├── ideas/                      ← idea pool (bidirectional channel)
+│   ├── regimes/                    ← raw Stage A scout outputs + first-run reports
 │   └── tmp/                        ← per-run scratch (gitignored)
 ├── docs/                           ← all documentation
 │   ├── architecture/
@@ -112,6 +114,7 @@ EndtoEnd-auto-optimization/
 │   │   └── 2026-05-28-progress.md  ← latest progress report
 │   └── development/                ← long-form dev docs
 │       ├── developer-guide.md      ← full design + mental model
+│       ├── history.md              ← project-evolution timeline (v0.1→v0.4)
 │       ├── log-layout.md           ← where every log goes
 │       └── restructure-notes.md    ← history of the 2-stage refactor
 ├── archive/                        ← superseded design drafts
@@ -167,7 +170,36 @@ criteria + every attempt — all in one tarball-able directory. Schema:
 
 ---
 
-## 6. Environment
+## 6. Where to find experiment records & project history
+
+> The recent docs reshuffle moved only the **top-level `.md` files** into
+> `docs/`. Nothing under `experiments/`, `regime_scout/outputs/`,
+> `archive/`, or `.github/skills/` was touched.
+
+### Experiment records (what we have run, what we found)
+
+- **Index page** → [`experiments/README.md`](./experiments/README.md)
+  — table of every run, anatomy of a problem package, how to reproduce
+- Per-run artefacts:
+  - `experiments/problems/P001/` — Qwen3-0.6B problem (validated)
+  - `experiments/problems_moe/P001/{attempts/, solution.md}` — MoE problem + 3 solver attempts
+  - `experiments/ideas/from_setter/idea_001.json` — R-001 (closed, see Finding-B probe)
+  - `experiments/regimes/{STAGE1,MOE_STAGE_A}_REPORT_20260528.md` — first-run reports
+- Raw scout output: `regime_scout/outputs/` (10 files — `raw_results.jsonl`, `regime_map.md`, MoE counterparts, Finding-B probe results)
+- Transient logs / jsonl: `experiments/tmp/` (gitignored — regenerable)
+
+### Project history (how the repo evolved)
+
+- **Timeline doc** → [`docs/development/history.md`](./docs/development/history.md)
+  — v0.1 → v0.2 → v0.4 evolution, lessons learned, commit-by-commit
+- v0.2 design drafts (superseded): [`archive/DESIGN_v0.2.md`](./archive/DESIGN_v0.2.md), [`archive/TWO_STAGE_SUPPLEMENT_v0.2.md`](./archive/TWO_STAGE_SUPPLEMENT_v0.2.md)
+- v0.4 restructure log: [`docs/development/restructure-notes.md`](./docs/development/restructure-notes.md)
+- Boss-facing snapshot: [`docs/reports/2026-05-28-progress.md`](./docs/reports/2026-05-28-progress.md)
+- Git log: `git log --oneline` (5 commits today; full table in `history.md`)
+
+---
+
+## 7. Environment
 
 - Hardware tested: 8× H200 (143 GB each); single-GPU runs use GPU 0.
 - Conda env: `sglang-dev` (sglang 0.5.12.post1, CUDA 12.8).
@@ -180,7 +212,7 @@ If you are on a different machine, edit `configs/*.yaml` and
 
 ---
 
-## 7. License & attribution
+## 8. License & attribution
 
 Internal research code. Co-authored with GitHub Copilot CLI.
 
@@ -278,9 +310,11 @@ EndtoEnd-auto-optimization/
 │   ├── minimal-repro-shrink/       ← （设计了，未实现）
 │   └── pytorch-profiling/          ← L4 证据：torch profile + 归约
 ├── experiments/
+│   ├── README.md                   ← 所有实验的索引 + 复现说明
 │   ├── problems/                   ← Stage A 输出（dense 模型）
 │   ├── problems_moe/               ← Stage A 输出（MoE 模型）
 │   ├── ideas/                      ← idea pool（双向通道）
+│   ├── regimes/                    ← 原始 Stage A 扫描输出 + 首跑报告
 │   └── tmp/                        ← 单次运行的临时数据（gitignore）
 ├── docs/                           ← 全部文档
 │   ├── architecture/
@@ -297,6 +331,7 @@ EndtoEnd-auto-optimization/
 │   │   └── 2026-05-28-progress.md  ← 最新进展报告
 │   └── development/                ← 长篇开发文档
 │       ├── developer-guide.md      ← 完整设计 + 心智模型
+│       ├── history.md              ← 项目演化时间线（v0.1→v0.4）
 │       ├── log-layout.md           ← 所有 log 文件位置
 │       └── restructure-notes.md    ← 2-stage 重构历史
 ├── archive/                        ← 已废弃的设计草案
@@ -352,7 +387,36 @@ EndtoEnd-auto-optimization/
 
 ---
 
-## 6. 环境
+## 6. 实验记录 / 项目历史在哪里
+
+> 最近这次文档大搬家只移动了 **顶层 `.md` 文件**，搬到了 `docs/` 下。
+> `experiments/`、`regime_scout/outputs/`、`archive/`、`.github/skills/`
+> 一个都没动。
+
+### 实验记录（我们跑过什么、发现了什么）
+
+- **索引页** → [`experiments/README.md`](./experiments/README.md)
+  —— 所有 run 的总表、题目包结构剖析、如何复现
+- 单次 run 产物：
+  - `experiments/problems/P001/` —— Qwen3-0.6B 题目（已验证）
+  - `experiments/problems_moe/P001/{attempts/, solution.md}` —— MoE 题目 + 3 次 solver attempt
+  - `experiments/ideas/from_setter/idea_001.json` —— R-001（已关闭，详见 Finding-B 探测）
+  - `experiments/regimes/{STAGE1,MOE_STAGE_A}_REPORT_20260528.md` —— 首跑报告
+- 原始 scout 输出：`regime_scout/outputs/`（10 个文件 —— `raw_results.jsonl`、`regime_map.md`、MoE 对应版本、Finding-B 探测结果）
+- 临时日志 / jsonl：`experiments/tmp/`（gitignore —— 可重新生成）
+
+### 项目历史（仓库怎么演化到今天的）
+
+- **时间线文档** → [`docs/development/history.md`](./docs/development/history.md)
+  —— v0.1 → v0.2 → v0.4 演化、留下的经验、commit-by-commit
+- v0.2 设计草案（已被取代）：[`archive/DESIGN_v0.2.md`](./archive/DESIGN_v0.2.md)、[`archive/TWO_STAGE_SUPPLEMENT_v0.2.md`](./archive/TWO_STAGE_SUPPLEMENT_v0.2.md)
+- v0.4 重构日志：[`docs/development/restructure-notes.md`](./docs/development/restructure-notes.md)
+- 给老板看的进度快照：[`docs/reports/2026-05-28-progress.md`](./docs/reports/2026-05-28-progress.md)
+- Git log：`git log --oneline`（今天 5 个 commit；完整表格在 `history.md`）
+
+---
+
+## 7. 环境
 
 - 测试硬件：8× H200（每张 143 GB）；单卡运行用 GPU 0。
 - Conda 环境：`sglang-dev`（sglang 0.5.12.post1，CUDA 12.8）。
@@ -365,6 +429,6 @@ EndtoEnd-auto-optimization/
 
 ---
 
-## 7. License & 协作
+## 8. License & 协作
 
 内部研究代码。Co-authored with GitHub Copilot CLI.
