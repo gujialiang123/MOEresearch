@@ -1,0 +1,28 @@
+[run_experiment] launching: conda run -n sglang-dev --no-capture-output python -m sglang.launch_server --model-path /data/hf/models/Qwen3-30B-A3B-Instruct-2507 --served-model-name qwen3-30b-a3b-moe --host 127.0.0.1 --port 30000 --tensor-parallel-size 1 --mem-fraction-static 0.85 --context-length 32768 --schedule-policy lpm --schedule-conservativeness 1.0 --max-running-requests 96 --chunked-prefill-size -1 --max-prefill-tokens 16384 --trust-remote-code
+[run_experiment] CUDA_VISIBLE_DEVICES=0
+[run_experiment] CUDA_HOME=/home/t-jialianggu/.conda/envs/sglang-dev
+[run_experiment] server pid=458702
+[wait_ready] tcp closed
+[wait_ready] /v1/models OK
+[run_experiment] server ready in 60.1s
+[run_experiment] benchmark mode=quick ...
+[run_benchmark] argv: conda run -n sglang-dev --no-capture-output python -m sglang.bench_serving --backend sglang --host 127.0.0.1 --port 30000 --model /data/hf/models/Qwen3-30B-A3B-Instruct-2507 --dataset-name random --num-prompts 64 --output-file /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/problems_moe/P001/attempts/attempt_002/verification/neighbors/scheduler_overhead_high_concurrency__con_32/quick_raw.jsonl --output-details --disable-tqdm --seed 1234 --max-concurrency 32 --random-input-len 128 --random-output-len 16 --random-range-ratio 0.0 --flush-cache
+[run_benchmark] HF_HUB_CACHE=/data/hf/gujialiang123/hf_cache/hub
+[run_benchmark] log: /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/problems_moe/P001/attempts/attempt_002/verification/neighbors/scheduler_overhead_high_concurrency__con_32/quick_benchmark.log
+[run_benchmark] exit=0
+{
+  "mode": "quick",
+  "passed": true,
+  "completed": 64,
+  "ttft_p50_ms": 121.17384909652174,
+  "ttft_p95_ms": 150.12947579380125,
+  "ttft_p99_ms": 150.57231911923736,
+  "tpot_p50_ms": 37.26427957216011,
+  "output_throughput": 662.1320556385832,
+  "request_throughput": 75.40293872040806,
+  "oom": false,
+  "crash": false,
+  "parse_error": null
+}
+[run_experiment] parse rc=0 metrics=/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/problems_moe/P001/attempts/attempt_002/verification/neighbors/scheduler_overhead_high_concurrency__con_32/quick_metrics.json
+[run_experiment] killing server pid=458702

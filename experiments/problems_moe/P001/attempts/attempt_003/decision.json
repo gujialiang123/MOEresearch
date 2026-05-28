@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "attempt_id": "attempt_003",
+  "attempt_dir": "/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/problems_moe/P001/attempts/attempt_003",
+  "solver_agent": "config-agent",
+  "knob": "max-running-requests",
+  "value": 128,
+  "strategy_id": "S001",
+  "decision": "keep",
+  "reasoning": "Primary metric improved +92.9% \u2265 30.0% threshold; no constraint violations.",
+  "primary_metric": "ttft_p95_ms",
+  "primary_direction": "lower",
+  "primary_baseline": 2282.4782288284036,
+  "primary_new": 161.65629966417328,
+  "primary_delta_pct": 92.91750967775269,
+  "constraint_violations": [],
+  "also_solved": [
+    {
+      "ref": "prefill_long",
+      "metric": "ttft_p95_ms",
+      "delta_pct": 80.08,
+      "note": "Side improvement under the same knob change."
+    }
+  ],
+  "new_findings_filed": [],
+  "verification": {
+    "target": {
+      "baseline": 2282.4782288284036,
+      "new": 161.65629966417328
+    },
+    "neighbors": [
+      {
+        "name": "scheduler_overhead_high_concurrency__con_16",
+        "baseline": 141.59137363312766,
+        "new": 147.01716385316104
+      },
+      {
+        "name": "scheduler_overhead_high_concurrency__con_32",
+        "baseline": 146.93971916567534,
+        "new": 146.8927685986273
+      }
+    ],
+    "controls": [
+      {
+        "name": "prefill_long",
+        "baseline": 944.3081993493252,
+        "new": 188.06106613483277
+      }
+    ]
+  }
+}

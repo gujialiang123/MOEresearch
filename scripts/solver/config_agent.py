@@ -164,39 +164,11 @@ def evaluate(target_baseline, target_new, neighbors, controls, accept, log):
     return "revert", f"Primary did not improve (change {improvement:+.1f}%, need ≥{required_pct}%).", [], improvement
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--problem", required=True)
-    ap.add_argument("--strategy", default=None)
-    ap.add_argument("--value", default=None)
-    ap.add_argument("--note", default=None)
-    args = ap.parse_args()
-
-    problem_dir = Path(args.problem).resolve()
-    if not (problem_dir / "problem.json").exists():
-        sys.exit(f"[config-agent] not a problem package: {problem_dir}")
-
-    problem = load_json(problem_dir / "problem.json")
-    accept = load_json(problem_dir / problem["acceptance_criteria_file"])
-    baseline_cfg_path = Path(problem["baseline_config"])
-
-    strategy = pick_strategy(problem, args.strategy)
-    if args.value is not None:
-        rv = args.value
-        if rv.lower() in ("true", "false"):
-            value: Any = rv.lower() == "true"
-        else:
-            try:
-                value = int(rv)
-            except ValueError:
-                try:
-                    value = float(rv)
-                except ValueError:
-                    value = rv
-    else:
-        value = strategy["values_to_try"][0]
+def run_one_attempt(problem_dir: Path, problem: dict, accept: dict,
+                    baseline_cfg_path: Path, strategy: dict, value: Any,
+                    note: str | None = None) -> dict:
+    """Run a single attempt with strategy.knob=value. Returns the decision_doc."""
     knob = strategy["knob"]
-
     attempt_dir = next_attempt_dir(problem_dir)
     log = setup_logger(f"cfg_agent_{attempt_dir.name}", attempt_dir / "config_agent.log")
     log.info(f"=== config-agent attempt @ {now_str()} ===")
@@ -215,11 +187,10 @@ def main() -> int:
 **Knob**: `{knob}` → `{value}`
 **Expected**: +{strategy.get('expected_improvement_pct', '?')}% on `{problem['symptom']['metric']}`
 **Risk**: {strategy.get('risk', '')}
-**Note**: {args.note or '(none)'}
+**Note**: {note or '(none)'}
 """
     (attempt_dir / "plan.md").write_text(plan_md)
 
-    # Run benchmarks
     target_dir = attempt_dir / "verification" / "target"
     target_workload = problem_dir / problem["target"]["workload"]
     log.info("--- target ---")
@@ -273,6 +244,7 @@ def main() -> int:
     decision_doc = {
         "schema_version": 1,
         "attempt_id": attempt_dir.name,
+        "attempt_dir": str(attempt_dir),
         "solver_agent": "config-agent",
         "knob": knob,
         "value": value,
@@ -301,27 +273,219 @@ def main() -> int:
         },
     }
     save_json(decision_doc, attempt_dir / "decision.json")
-
     log.info(f"=== DECISION: {decision} ===")
     log.info(reasoning)
     if also_solved:
         log.info(f"also_solved: {also_solved}")
+    return decision_doc
+
+
+def rank_attempts(attempt_docs: list[dict]) -> list[dict]:
+    """Sort by: no violations > primary_delta_pct (best improvement) > smaller value."""
+    def key(d):
+        # in our codebase, "improvement" is already sign-corrected by evaluate(),
+        # and decision_doc.primary_delta_pct == improvement_pct (higher = better).
+        imp = d.get("primary_delta_pct")
+        violated = 1 if d.get("constraint_violations") else 0
+        # Smaller |value| as tiebreaker assumes numeric; fall back to 0 otherwise
+        try:
+            v_tiebreak = abs(float(d["value"]))
+        except (TypeError, ValueError):
+            v_tiebreak = 0
+        # Sort key: (violations asc, improvement desc → use -imp, value asc)
+        return (violated, -(imp if imp is not None else -999), v_tiebreak)
+    return sorted(attempt_docs, key=key)
+
+
+def write_search_summary(problem_dir: Path, problem: dict, strategy: dict,
+                         attempt_docs: list[dict], best: dict | None) -> Path:
+    """Write a Markdown solution.md ranking the attempts."""
+    sol_path = problem_dir / "solution.md"
+    lines = []
+    lines.append(f"# Solution for {problem['problem_id']}\n")
+    lines.append("**Auto-written by `config_agent.py --exhaustive`.**\n")
+    lines.append(f"**Problem**: {problem.get('regime_id')} on `{problem.get('model_path')}`.\n")
+    lines.append(f"**Strategy**: `{strategy['strategy_id']}` — knob `{strategy['knob']}`. "
+                 f"Rationale: {strategy.get('rationale', '')}\n")
+    lines.append(f"**Values swept**: {[d['value'] for d in attempt_docs]}\n")
+    pm = problem.get("symptom", {}).get("metric") or attempt_docs[0]["primary_metric"]
+    base = attempt_docs[0].get("primary_baseline")
+    lines.append(f"**Baseline {pm}**: {base:.2f}\n" if base else "")
+
+    lines.append("\n## Per-value results\n")
+    lines.append("| Attempt | Value | Decision | New | Δ% | Violations | also_solved |")
+    lines.append("|---|---:|---|---:|---:|---|---:|")
+    for d in attempt_docs:
+        v = d.get("value")
+        new = d.get("primary_new")
+        imp = d.get("primary_delta_pct")
+        viol = len(d.get("constraint_violations") or [])
+        nas = len(d.get("also_solved") or [])
+        new_s = f"{new:.2f}" if isinstance(new, (int, float)) else "—"
+        imp_s = f"{imp:+.1f}" if isinstance(imp, (int, float)) else "—"
+        lines.append(f"| {d['attempt_id']} | {v} | {d['decision']} | {new_s} | {imp_s} | {viol} | {nas} |")
+
+    lines.append("\n## Best attempt")
+    if best is None:
+        lines.append("\n**No attempt passed acceptance criteria.** See per-value table above.\n")
+    else:
+        # detect if other passing attempts are within noise
+        passing = [d for d in attempt_docs
+                   if not d.get("constraint_violations")
+                   and (d.get("primary_delta_pct") or 0) >= 0]
+        near = [d for d in passing
+                if abs((d.get("primary_delta_pct") or 0) - (best["primary_delta_pct"] or 0)) <= 1.0
+                and d["attempt_id"] != best["attempt_id"]]
+        note = ""
+        if near:
+            note = (f"\n> **Note**: {len(near)+1} values "
+                    f"({sorted([best['value']] + [d['value'] for d in near])}) "
+                    f"give effectively the same improvement (within ±1%). "
+                    f"Picked the smallest value to minimize memory/risk.\n")
+        lines.append(
+            f"\n**`{best['attempt_id']}`** — set `{best['knob']} = {best['value']}`\n"
+            f"{note}\n"
+            f"- {pm}: **{best['primary_baseline']:.2f} → {best['primary_new']:.2f}** "
+            f"({best['primary_delta_pct']:+.1f}%)\n"
+            f"- Decision: **{best['decision']}**\n"
+            f"- Constraint violations: {best.get('constraint_violations') or 'none'}\n"
+        )
+        if best.get("also_solved"):
+            lines.append("- Side-solved problems:\n")
+            for a in best["also_solved"]:
+                lines.append(f"  - `{a['ref']}` ({a['metric']}: {a['delta_pct']:+.1f}%)\n")
+        lines.append(
+            f"\n## Recommended config change\n\n"
+            f"Edit `{problem.get('baseline_config')}` to set:\n\n"
+            f"```yaml\n{best['knob']}: {best['value']}\n```\n"
+        )
+
+    lines.append("\n## Reproducibility\n")
+    lines.append(f"```bash\n# Apply the recommended fix and re-run target:\n"
+                 f"python scripts/run_experiment.py \\\n"
+                 f"    --config {best['attempt_dir']}/candidate_config.yaml \\\n"
+                 f"    --workload {problem_dir / problem['target']['workload']} \\\n"
+                 f"    --mode quick\n```\n" if best else "")
+    sol_path.write_text("\n".join(lines))
+    return sol_path
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--problem", required=True)
+    ap.add_argument("--strategy", default=None)
+    ap.add_argument("--value", default=None,
+                    help="single value to try (overrides exhaustive)")
+    ap.add_argument("--exhaustive", action="store_true",
+                    help="sweep ALL values in the strategy's values_to_try")
+    ap.add_argument("--note", default=None)
+    args = ap.parse_args()
+
+    problem_dir = Path(args.problem).resolve()
+    if not (problem_dir / "problem.json").exists():
+        sys.exit(f"[config-agent] not a problem package: {problem_dir}")
+
+    problem = load_json(problem_dir / "problem.json")
+    accept = load_json(problem_dir / problem["acceptance_criteria_file"])
+    baseline_cfg_path = Path(problem["baseline_config"])
+    strategy = pick_strategy(problem, args.strategy)
+
+    # Decide values to try
+    def cast(rv: str) -> Any:
+        if rv.lower() in ("true", "false"):
+            return rv.lower() == "true"
+        try:
+            return int(rv)
+        except ValueError:
+            try:
+                return float(rv)
+            except ValueError:
+                return rv
+
+    if args.value is not None:
+        values = [cast(args.value)]
+    elif args.exhaustive:
+        values = list(strategy["values_to_try"])
+    else:
+        values = [strategy["values_to_try"][0]]
+
+    # Reuse prior attempts that match (strategy_id, value)
+    prior_docs: dict = {}  # (strategy_id, str(value)) -> doc
+    attempts_root = problem_dir / "attempts"
+    if attempts_root.exists():
+        for ap in sorted(attempts_root.glob("attempt_*")):
+            dj = ap / "decision.json"
+            if dj.exists():
+                try:
+                    d = load_json(dj)
+                    d["attempt_dir"] = str(ap)
+                    key = (d.get("strategy_id"), str(d.get("value")))
+                    prior_docs[key] = d
+                except Exception:
+                    pass
+
+    print(f"[config-agent] sweeping {len(values)} value(s): {values}")
+    attempt_docs: list[dict] = []
+    for v in values:
+        key = (strategy["strategy_id"], str(v))
+        if key in prior_docs:
+            d = prior_docs[key]
+            print(f"[config-agent] reusing {d['attempt_id']} for {strategy['strategy_id']}={v}")
+            attempt_docs.append(d)
+            continue
+        doc = run_one_attempt(problem_dir, problem, accept, baseline_cfg_path,
+                              strategy, v, note=args.note)
+        attempt_docs.append(doc)
+
+    # Rank + pick best
+    # If multiple attempts pass acceptance and their primary_delta_pct are
+    # within `noise_tol_pct` of the leader, prefer the SMALLEST value
+    # (least disruptive change, smaller memory footprint, lower risk).
+    noise_tol_pct = 1.0
+    ranked = rank_attempts(attempt_docs)
+    passing = [d for d in ranked
+               if not d.get("constraint_violations")
+               and (d.get("primary_delta_pct") or 0) >= float(
+                   accept["primary"]["required_improvement_pct"])]
+    best = None
+    if passing:
+        leader_imp = passing[0]["primary_delta_pct"]
+        near_leader = [d for d in passing
+                       if (leader_imp - (d.get("primary_delta_pct") or 0)) <= noise_tol_pct]
+        # Tie-break within noise: smaller numeric value wins
+        def _val_key(d):
+            try:
+                return float(d["value"])
+            except (TypeError, ValueError):
+                return 0
+        best = sorted(near_leader, key=_val_key)[0]
+        if len(near_leader) > 1:
+            print(f"[config-agent] {len(near_leader)} values within ±{noise_tol_pct}% "
+                  f"of leader; picked smallest value={best['value']}")
+
+    # Write search summary (problem-level)
+    if len(values) > 1:
+        sol_path = write_search_summary(problem_dir, problem, strategy, ranked, best)
+        print(f"[config-agent] wrote solution summary: {sol_path}")
 
     summary = {
-        "attempt": attempt_dir.name,
-        "decision": decision,
-        "knob": knob,
-        "value": value,
-        "primary_metric": pm,
-        "baseline": target_baseline.get(pm),
-        "new": (target_new or {}).get(pm),
-        "improvement_pct": improvement,
-        "constraint_violations": violations,
-        "also_solved": also_solved,
-        "attempt_dir": str(attempt_dir),
+        "mode": "exhaustive" if args.exhaustive else "single",
+        "strategy": strategy["strategy_id"],
+        "knob": strategy["knob"],
+        "values_tried": values,
+        "attempts": [
+            {"attempt_id": d["attempt_id"], "value": d["value"],
+             "decision": d["decision"], "delta_pct": d["primary_delta_pct"],
+             "violations": len(d.get("constraint_violations") or [])}
+            for d in attempt_docs
+        ],
+        "best_attempt": best["attempt_id"] if best else None,
+        "best_value": best["value"] if best else None,
+        "best_delta_pct": best["primary_delta_pct"] if best else None,
     }
     print(json.dumps(summary, indent=2))
-    return 0 if decision == "keep" else (2 if decision == "needs_more_evidence" else 1)
+
+    return 0 if best else (2 if any(d["decision"] == "needs_more_evidence" for d in attempt_docs) else 1)
 
 
 if __name__ == "__main__":
