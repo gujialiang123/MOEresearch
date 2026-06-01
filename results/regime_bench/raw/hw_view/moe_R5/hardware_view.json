@@ -1,0 +1,166 @@
+{
+  "schema_version": 1,
+  "config": "configs/moe_qwen3_30b.yaml",
+  "workload": "regime_scout/candidates_regime_study/R5_high_concurrency.yaml",
+  "wall_window_s": 109.4,
+  "gpu_id": 0,
+  "gpu_sampling": {
+    "sample_count": 99,
+    "memory_used_mib_peak": 122936.0,
+    "memory_used_mib_mean": 86239.5,
+    "utilization_gpu_pct_mean": 17.0,
+    "utilization_gpu_pct_p95": 97.0,
+    "utilization_mem_pct_mean": 12.1,
+    "power_w_mean": 186.8,
+    "power_w_peak": 578.33,
+    "temperature_c_peak": 54.0,
+    "sm_clock_mhz_mean": 1749.0
+  },
+  "server_info_excerpt": {
+    "pp_size": 1,
+    "tp_size": 1,
+    "schedule_policy": "lpm",
+    "kv_cache_dtype": "auto",
+    "max_running_requests": 32,
+    "max_queued_requests": null,
+    "model_path": "/data/hf/models/Qwen3-30B-A3B-Instruct-2507",
+    "attention_backend": "fa3",
+    "sampling_backend": "flashinfer",
+    "tokenizer_path": "/data/hf/models/Qwen3-30B-A3B-Instruct-2507",
+    "torch_compile_max_bs": 32
+  },
+  "profile_totals": {
+    "wallclock_ms": 505.09,
+    "gpu_active_ms": 297.51,
+    "gpu_idle_ms": null,
+    "gpu_utilization_pct": null
+  },
+  "profile_phase_breakdown_pct": {
+    "other": 96.22,
+    "scheduler": 3.78,
+    "prefill": 0.0,
+    "decode": 0.0,
+    "tokenize": 0.0
+  },
+  "profile_moe_overhead": {
+    "applicable": true,
+    "topk_pct": 0.07,
+    "dispatch_pct": 0.63,
+    "all_to_all_pct": 0.0,
+    "total_routing_pct": 0.69,
+    "verdict": "low"
+  },
+  "profile_cuda_graph": {
+    "captured_bs_range": null,
+    "decode_steps_in_graph_pct": null,
+    "decode_steps_outside_graph_pct": null,
+    "fallback_reason_guess": null
+  },
+  "top_kernels": [
+    {
+      "rank": 1,
+      "self_time_pct": 45.27,
+      "calls": 864,
+      "avg_us": 155.88,
+      "phase": "other",
+      "name_short": "fused_moe_kernel",
+      "category": "MoE"
+    },
+    {
+      "rank": 2,
+      "self_time_pct": 16.75,
+      "calls": 8,
+      "avg_us": 6228.53,
+      "phase": "other",
+      "name_short": "cudaEventSynchronize",
+      "category": "other"
+    },
+    {
+      "rank": 3,
+      "self_time_pct": 3.71,
+      "calls": 48,
+      "avg_us": 229.7,
+      "phase": "other",
+      "name_short": "nvjet_tst_128x240_64x4_2x1_v_bz_coopA_TNT",
+      "category": "GEMM"
+    },
+    {
+      "rank": 4,
+      "self_time_pct": 3.34,
+      "calls": 1963,
+      "avg_us": 5.06,
+      "phase": "other",
+      "name_short": "cudaLaunchKernel",
+      "category": "cuda runtime/overhead"
+    },
+    {
+      "rank": 5,
+      "self_time_pct": 2.99,
+      "calls": 48,
+      "avg_us": 185.17,
+      "phase": "other",
+      "name_short": "nvjet_tst_128x272_64x4_2x1_v_bz_coopA_TNT",
+      "category": "GEMM"
+    },
+    {
+      "rank": 6,
+      "self_time_pct": 2.69,
+      "calls": 240,
+      "avg_us": 33.29,
+      "phase": "scheduler",
+      "name_short": "void cutlass::device_kernel<flash::enable_sm90_or_later<flash::FlashAttnFwdSm90<flash::CollectiveMainloopFwdSm90<2, cute...",
+      "category": "attention (FlashAttention)"
+    },
+    {
+      "rank": 7,
+      "self_time_pct": 2.56,
+      "calls": 28,
+      "avg_us": 272.52,
+      "phase": "other",
+      "name_short": "cudaStreamSynchronize",
+      "category": "other"
+    },
+    {
+      "rank": 8,
+      "self_time_pct": 1.97,
+      "calls": 1205,
+      "avg_us": 4.85,
+      "phase": "other",
+      "name_short": "cudaLaunchKernelExC",
+      "category": "cuda runtime/overhead"
+    },
+    {
+      "rank": 9,
+      "self_time_pct": 1.76,
+      "calls": 864,
+      "avg_us": 6.07,
+      "phase": "other",
+      "name_short": "void flashinfer::norm::FusedAddRMSNormKernel<8u, __nv_bfloat16>(__nv_bfloat16*, __nv_bfloat16*, __nv_bfloat16*, unsigned...",
+      "category": "norm"
+    },
+    {
+      "rank": 10,
+      "self_time_pct": 1.74,
+      "calls": 384,
+      "avg_us": 13.5,
+      "phase": "other",
+      "name_short": "void at::native::elementwise_kernel<128, 4, at::native::gpu_kernel_impl_nocast<at::native::direct_copy_kernel_cuda(at::T...",
+      "category": "elementwise"
+    }
+  ],
+  "kernel_category_pct": {
+    "MoE": 45.3,
+    "other": 19.3,
+    "GEMM": 6.7,
+    "cuda runtime/overhead": 5.3,
+    "attention (FlashAttention)": 2.7,
+    "norm": 1.8,
+    "elementwise": 1.7
+  },
+  "profile_warnings": [
+    "cold-start tail detected; profile may be biased toward warmup",
+    "cuda_graph fields not yet computed; cross-check server_features.json"
+  ],
+  "profile_ok": true,
+  "rc": 0
+}

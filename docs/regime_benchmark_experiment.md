@@ -301,6 +301,154 @@ The full per-run data is in `results/regime_bench/parsed_results.csv`; the
 aggregated table is in `results/regime_bench/summary_table.csv`; raw
 SGLang logs are in `experiments/tmp/regime_study/<model>_rep<N>/<ts>/run_*/server.log`.
 
+## 15. Hardware view & kernel selection (deep dive, follow-up)
+
+> 🟢 NEW. Added 2026-06-01 evening, using **only SGLang's existing tools**:
+> `/get_server_info` HTTP endpoint (runtime-confirmed backend), `nvidia-smi`
+> sampling at 0.5 s (GPU memory/utilisation/power), and
+> `sglang.bench_serving --profile` (Torch profiler trace).
+
+### 15.1 Scope & tooling
+
+For 6 cells (dense + MoE × {R1, R5, R8}), we re-ran the workload with:
+
+- `SGLANG_TORCH_PROFILER_DIR` env on the server → enables Torch profiler.
+- `--profile --profile-num-steps 10 --warmup-requests 8` on `bench_serving`
+  → captures 10 forward steps after warmup.
+- `nvidia-smi --query-gpu=memory.used,utilization.gpu,utilization.memory,power.draw,temperature.gpu,clocks.current.sm`
+  every 0.5 s during the bench window.
+- HTTP `GET /get_server_info` snapshot before killing the server →
+  runtime-confirmed `attention_backend`, `sampling_backend`, etc.
+
+All wrapped by `scripts/regime_study/run_hw_view.py`; aggregated by
+`scripts/regime_study/aggregate_hw_view.py`. Per-cell raw output in
+`results/regime_bench/raw/hw_view/<model>_<regime>/` (5 files each:
+`hardware_view.json`, `profile_summary.json`, `server_info.json`,
+`gpu_samples.csv`, `server.log`).
+
+Full table also at `results/regime_bench/hardware_view_table.{md,csv}`.
+
+### 15.2 Backend selection (runtime-confirmed)
+
+| Model | Regime | Attention | Sampling | Schedule | KV dtype | max_running | torch_compile_max_bs |
+|---|---|---|---|---|---|---|---|
+| dense | R1 / R5 / R8 | **fa3** (FlashAttention-3) | **flashinfer** | lpm | auto (bf16) | 32 | 32 |
+| MoE   | R1 / R5 / R8 | **fa3** | **flashinfer** | lpm | auto | 32 | 32 |
+
+Backend is **constant across regimes** (selected at startup based on
+hardware + model config). The interesting variation is in the **kernel
+mix** (§15.4).
+
+### 15.3 Hardware view (`nvidia-smi`, 0.5 s sampling, bench window only)
+
+| Model | Regime | Wall (s) | Samples | Mem peak (GiB) | Mem mean (GiB) | GPU util mean (%) | GPU util p95 (%) | Mem-ctrl util (%) | Power mean (W) | Power peak (W) | Peak temp (°C) | SM clock mean (MHz) |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| dense | R1 | 41.5 | 43 | 98.4 | 61.4 | 4.1 | 10 | 1.0 | 113 | 200 | 42 | 1411 |
+| dense | R5 | 85.7 | 54 | 98.6 | 63.8 | 4.2 | 26 | 1.1 | 120 | 266 | 45 | 1526 |
+| dense | R8 | 64.6 | 48 | 99.0 | 59.6 | **12.7** | **100** | 4.5 | 147 | **630** | 56 | 1468 |
+| MoE | R1 | 95.7 | 76 | 119.3 | 74.8 | 11.8 | 82 | 5.3 | 140 | 416 | 47 | 1636 |
+| MoE | R5 | 109.4 | 99 | 120.1 | 84.2 | **17.0** | **97** | **12.1** | **187** | 578 | 54 | 1749 |
+| MoE | R8 | 97.9 | 80 | 121.3 | 74.6 | 14.7 | 100 | 5.0 | 159 | 555 | 54 | 1650 |
+
+**Findings**:
+
+- **Dense is severely under-utilising the H200**: GPU util mean is 4-13%
+  even at saturation (R5). This is the *small-model* tax — at TP=1 a 0.6B
+  model leaves the SM array mostly idle.
+- **MoE pushes the memory controller** (mem-ctrl util 5-12 % vs 1-5 % on
+  dense). R5 on MoE hits 12.1 % mem-ctrl util — confirms MoE is closer to
+  memory-bandwidth-bound than dense.
+- **Peak power**: dense R8 hits 630 W and MoE R5 averages 187 W (peak 578 W),
+  vs H200's 700 W TDP. R8 prefix sharing makes dense burst hardest because
+  the radix-cached prefix lets many sequences move into pure-decode quickly,
+  briefly running near peak utilisation.
+- **Memory peak**: dense pre-reserves ~98 GiB (KV cache + model weights at
+  `mem_fraction_static=0.7` on 143 GiB); MoE pre-reserves ~120 GiB at 0.85.
+  These are server-startup constants; they do NOT shrink between regimes.
+
+### 15.4 Kernel breakdown — categories (top-20 GPU events by self-time)
+
+| Model | Regime | Trace wall (ms) | GPU active (ms) | Kernel categories |
+|---|---|---|---|---|
+| dense | R1 | 74.5 | 23.3 | cuda runtime/overhead **38.2%**; GEMM 23.9%; FlashAttention 6.7%; norm 4.2% |
+| dense | R5 | 189.8 | 45.6 | cuda runtime/overhead 22.3%; GEMM 15.3%; FlashAttention 11.5%; norm 4.0%; elementwise 3.6% |
+| dense | R8 | 234.0 | 103.2 | **FlashAttention 23.1%**; GEMM 21.6%; cuda runtime/overhead 9.4%; elementwise 4.3%; norm 3.8% |
+| MoE | R1 | 206.3 | 103.9 | **MoE 33.8%**; cuda runtime/overhead 20.0%; other 19.5%; GEMM 5.5%; FlashAttention 2.7%; norm 1.9% |
+| MoE | R5 | 505.1 | 297.5 | **MoE 45.3%**; other 19.3%; GEMM 6.7%; cuda runtime/overhead 5.3%; FlashAttention 2.7%; norm 1.8% |
+| MoE | R8 | 696.1 | 598.0 | **MoE 46.5%**; FlashAttention 13.4%; GEMM 12.7%; other 5.7%; elementwise 2.9%; norm 2.4% |
+
+### 15.5 Top-2 kernels per cell (the actual kernel names)
+
+| Model | Regime | #1 kernel (self %) | #1 calls | #2 kernel (self %) |
+|---|---|---|---|---|
+| dense | R1 | `cudaGraphLaunch` (**17.9%**) | 7 | `nvjet_tst_64x8_64x16_4x1_v_bz_TNT` (10.0%) |
+| dense | R5 | `cudaLaunchKernel` (**9.9%**) | **916** | `cudaLaunchKernelExC` (6.7%) |
+| dense | R8 | `flash::FlashAttnFwdSm90<...,bfloat16_t,Sm90,…>` (**15.6%**) | 112 | another `FlashAttnFwdSm90` variant (7.4%) |
+| MoE | R1 | **`fused_moe_kernel`** (**33.8%**) | 864 | `cudaEventSynchronize` (19.5%) |
+| MoE | R5 | **`fused_moe_kernel`** (**45.3%**) | 864 | `cudaEventSynchronize` (16.8%) |
+| MoE | R8 | **`fused_moe_kernel`** (**46.5%**) | 864 | `flash::FlashAttnFwdSm90<...>` (10.3%) |
+
+### 15.6 Headline insights from the kernel view
+
+These are claims we can defend from kernel-level evidence:
+
+1. **MoE is dominated by `fused_moe_kernel`** — 34-47% of all GPU time across
+   the 3 MoE regimes; **`cudaEventSynchronize` accounts for another 17-20%**,
+   suggesting kernel-to-kernel sync waits inside the MoE expert dispatch are
+   a major secondary bottleneck. This is the clearest case for kernel-agent
+   work in this whole study.
+2. **Dense R1 is overhead-bound, not compute-bound**: top kernel is
+   `cudaGraphLaunch` (17.9 %), with FlashAttention only 6.7 %. The CUDA
+   graphs are firing but the entire model fits in one graph that is so
+   cheap that launch overhead dominates. This explains the 4% GPU util.
+3. **Dense R5 (cap-hit) is *launch*-bound at the scheduler boundary**:
+   `cudaLaunchKernel` shows up 916 times in 10 profiled steps. The
+   `max_running_requests=32` cap means the scheduler is in a tight retry
+   loop; each retry incurs a launch.
+4. **Dense R8 is the only dense regime that's actually attention-bound**:
+   `flash::FlashAttnFwdSm90` is the top kernel (15.6%), and FlashAttention
+   total is 23.1 %. This is what high GPU util looks like for a small
+   model — long shared prefix means many tokens to attend over.
+5. **MoE R8 (prefix sharing) has the highest absolute GPU time and the
+   richest mix**: MoE 46.5 % + FlashAttention 13.4 % + GEMM 12.7 % — all
+   three pillars firing simultaneously. This is why R8 is MoE's throughput
+   champion (3 355 out tok/s).
+
+### 15.7 What this profile **cannot** tell us (the next layer down)
+
+- **Per-expert load balance inside `fused_moe_kernel`** — Torch profiler
+  doesn't break out per-expert ops. Need sglang's
+  `expert_distribution_recorder` hook + a parser, OR Nsight Compute on the
+  kernel.
+- **Whether `fa3` ever falls back to `fa2`** for unusual shapes — the
+  trace shows only Sm90 fa3 kernels in our 6 cells, so no fallback observed,
+  but absence isn't proof.
+- **Inter-kernel scheduling gaps** (the source of `cudaEventSynchronize`
+  17 %) — Torch profiler shows kernel times but not stream-level wait
+  decomposition. NVTX ranges + Nsight Systems is the right next step.
+- **Phase tagging is unreliable**: the parser's heuristic (regex on kernel
+  names) classifies most kernels as `other`. To get clean prefill/decode/
+  schedule splits we'd need sglang to emit explicit user annotations or
+  we'd need to align kernel time with the request-event log from
+  `server.log`.
+
+### 15.8 Reproducing §15
+
+```bash
+# one cell:
+python scripts/regime_study/run_hw_view.py \
+  --config  configs/moe_qwen3_30b.yaml \
+  --workload regime_scout/candidates_regime_study/R8_prefix_sharing.yaml \
+  --out-dir experiments/tmp/hw_view/moe_R8 \
+  --gpu 0 --profile-num-steps 10 --warmup-requests 8
+
+# aggregate everything in experiments/tmp/hw_view/ into one table
+python scripts/regime_study/aggregate_hw_view.py
+# → results/regime_bench/hardware_view_table.{md,csv}
+```
+
+Wall time ≈ 1-2 min/cell.
+
 ---
 
 <a id="中文版"></a>
@@ -585,3 +733,136 @@ config / kernel 三方面，哪一个能解释观察到的 gap。
 完整的 per-run 数据在 `results/regime_bench/parsed_results.csv`；聚合表在
 `results/regime_bench/summary_table.csv`；原始 SGLang 日志在
 `experiments/tmp/regime_study/<model>_rep<N>/<ts>/run_*/server.log`。
+
+## 15. 硬件视图 + kernel 选择（深入篇，后续追加）
+
+> 🟢 新增。2026-06-01 晚上加的，**只用 SGLang 自带工具**：
+> `/get_server_info` HTTP 端点（运行时确认 backend）、`nvidia-smi` 0.5s 采样
+> （GPU 内存/利用率/功耗）、`sglang.bench_serving --profile`（Torch profiler trace）。
+
+### 15.1 范围 + 工具
+
+挑 6 个 cell（dense + MoE × {R1, R5, R8}）重跑，加：
+
+- 服务器侧设 `SGLANG_TORCH_PROFILER_DIR` env → 启用 Torch profiler。
+- `bench_serving` 加 `--profile --profile-num-steps 10 --warmup-requests 8`
+  → 暖机后捕获 10 个 forward step。
+- `nvidia-smi --query-gpu=memory.used,utilization.gpu,utilization.memory,power.draw,temperature.gpu,clocks.current.sm`
+  每 0.5 s 采一次。
+- 杀 server 之前调 `GET /get_server_info` 拿运行时确认的 `attention_backend`、
+  `sampling_backend` 等。
+
+全部由 `scripts/regime_study/run_hw_view.py` 包起来，
+`scripts/regime_study/aggregate_hw_view.py` 聚合。每个 cell 的原始产物在
+`results/regime_bench/raw/hw_view/<model>_<regime>/`（5 个文件：
+`hardware_view.json`、`profile_summary.json`、`server_info.json`、
+`gpu_samples.csv`、`server.log`）。
+
+完整表也在 `results/regime_bench/hardware_view_table.{md,csv}`。
+
+### 15.2 Backend 选择（运行时确认）
+
+| 模型 | Regime | Attention | Sampling | Schedule | KV dtype | max_running | torch_compile_max_bs |
+|---|---|---|---|---|---|---|---|
+| dense | R1 / R5 / R8 | **fa3**（FlashAttention-3） | **flashinfer** | lpm | auto (bf16) | 32 | 32 |
+| MoE   | R1 / R5 / R8 | **fa3** | **flashinfer** | lpm | auto | 32 | 32 |
+
+Backend **不随 regime 变**（启动时根据硬件+模型配置决定）。真正在变的是
+**kernel mix**（见 §15.4）。
+
+### 15.3 硬件视图（`nvidia-smi` 0.5 s 采样，bench 窗口内）
+
+| 模型 | Regime | Wall (s) | 采样数 | 显存峰 (GiB) | 显存均 (GiB) | GPU util 均 (%) | GPU util p95 (%) | 显存控制器 util (%) | 功耗均 (W) | 功耗峰 (W) | 峰温 (°C) | SM 时钟均 (MHz) |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| dense | R1 | 41.5 | 43 | 98.4 | 61.4 | 4.1 | 10 | 1.0 | 113 | 200 | 42 | 1411 |
+| dense | R5 | 85.7 | 54 | 98.6 | 63.8 | 4.2 | 26 | 1.1 | 120 | 266 | 45 | 1526 |
+| dense | R8 | 64.6 | 48 | 99.0 | 59.6 | **12.7** | **100** | 4.5 | 147 | **630** | 56 | 1468 |
+| MoE | R1 | 95.7 | 76 | 119.3 | 74.8 | 11.8 | 82 | 5.3 | 140 | 416 | 47 | 1636 |
+| MoE | R5 | 109.4 | 99 | 120.1 | 84.2 | **17.0** | **97** | **12.1** | **187** | 578 | 54 | 1749 |
+| MoE | R8 | 97.9 | 80 | 121.3 | 74.6 | 14.7 | 100 | 5.0 | 159 | 555 | 54 | 1650 |
+
+**观察**：
+
+- **Dense 严重压不动 H200**：即使饱和 (R5)，GPU util 均也只有 4-13%。这是
+  *小模型* 税 —— TP=1 + 0.6B 模型让 SM 阵列大部分时间空着。
+- **MoE 把显存控制器压得更狠**（mem-ctrl util 5-12% vs dense 的 1-5%）。
+  MoE R5 mem-ctrl util 12.1% —— 证实 MoE 比 dense 更靠近 memory-bandwidth-bound。
+- **功耗峰**：dense R8 摸到 630 W，MoE R5 均 187 W（峰 578 W），对比 H200 的
+  700 W TDP。dense R8 之所以能爆功耗是因为 radix cache 把前缀吸住后，很多请求
+  迅速进入纯 decode 阶段，短时间内逼近峰值利用。
+- **显存峰值**：dense 启动时按 `mem_fraction_static=0.7 × 143 GiB` 预占 ~98 GiB；
+  MoE 按 0.85 预占 ~120 GiB。这是 server 启动常量，**不会**随 regime 缩。
+
+### 15.4 Kernel 分类（torch profiler trace 的 top-20 GPU 事件按 self-time 归类）
+
+| 模型 | Regime | Trace wall (ms) | GPU active (ms) | Kernel 分类占比 |
+|---|---|---|---|---|
+| dense | R1 | 74.5 | 23.3 | cuda runtime/overhead **38.2%**; GEMM 23.9%; FlashAttention 6.7%; norm 4.2% |
+| dense | R5 | 189.8 | 45.6 | cuda runtime/overhead 22.3%; GEMM 15.3%; FlashAttention 11.5%; norm 4.0%; elementwise 3.6% |
+| dense | R8 | 234.0 | 103.2 | **FlashAttention 23.1%**; GEMM 21.6%; cuda runtime/overhead 9.4%; elementwise 4.3%; norm 3.8% |
+| MoE | R1 | 206.3 | 103.9 | **MoE 33.8%**; cuda runtime/overhead 20.0%; other 19.5%; GEMM 5.5%; FlashAttention 2.7%; norm 1.9% |
+| MoE | R5 | 505.1 | 297.5 | **MoE 45.3%**; other 19.3%; GEMM 6.7%; cuda runtime/overhead 5.3%; FlashAttention 2.7%; norm 1.8% |
+| MoE | R8 | 696.1 | 598.0 | **MoE 46.5%**; FlashAttention 13.4%; GEMM 12.7%; other 5.7%; elementwise 2.9%; norm 2.4% |
+
+### 15.5 每 cell 的 top-2 kernel（真实 kernel 名）
+
+| 模型 | Regime | #1 kernel (self %) | #1 calls | #2 kernel (self %) |
+|---|---|---|---|---|
+| dense | R1 | `cudaGraphLaunch` (**17.9%**) | 7 | `nvjet_tst_64x8_64x16_4x1_v_bz_TNT` (10.0%) |
+| dense | R5 | `cudaLaunchKernel` (**9.9%**) | **916** | `cudaLaunchKernelExC` (6.7%) |
+| dense | R8 | `flash::FlashAttnFwdSm90<...,bfloat16_t,Sm90,…>` (**15.6%**) | 112 | 另一个 `FlashAttnFwdSm90` 变体 (7.4%) |
+| MoE | R1 | **`fused_moe_kernel`** (**33.8%**) | 864 | `cudaEventSynchronize` (19.5%) |
+| MoE | R5 | **`fused_moe_kernel`** (**45.3%**) | 864 | `cudaEventSynchronize` (16.8%) |
+| MoE | R8 | **`fused_moe_kernel`** (**46.5%**) | 864 | `flash::FlashAttnFwdSm90<...>` (10.3%) |
+
+### 15.6 Kernel 视角的核心结论
+
+这些是有 kernel 级证据能扛住的结论：
+
+1. **MoE 被 `fused_moe_kernel` 主导** —— 三个 MoE regime 上吃掉 34-47% 的 GPU
+   时间；**`cudaEventSynchronize` 又吃掉 17-20%**，说明 MoE 专家 dispatch 里的
+   kernel-to-kernel 同步等待是次要大瓶颈。这是整套实验里最该做 kernel-agent
+   的明确案例。
+2. **Dense R1 是 overhead-bound，不是 compute-bound**：top kernel 是
+   `cudaGraphLaunch` (17.9%)，FlashAttention 才 6.7%。CUDA graph 确实在用，
+   但整个模型小到 launch overhead 都能占主导。这就是 GPU util 只有 4% 的原因。
+3. **Dense R5（撞 cap）是 *launch*-bound 在调度边界**：`cudaLaunchKernel`
+   10 个 profile step 里出现了 916 次。`max_running_requests=32` 卡住后，
+   调度器在紧密 retry loop 里，每次 retry 都伴随一次 launch。
+4. **Dense R8 是唯一真正 attention-bound 的 dense regime**：
+   `flash::FlashAttnFwdSm90` 是 top kernel (15.6%)，FlashAttention 总占 23.1%。
+   长共享前缀意味着要 attend 的 token 多得多 —— 这就是小模型上"GPU util 高"
+   该有的样子。
+5. **MoE R8 (prefix sharing) 是 GPU 时间最大且 kernel mix 最丰富的**：
+   MoE 46.5% + FlashAttention 13.4% + GEMM 12.7% —— 三大支柱同时点亮。这就
+   解释了为什么 R8 是 MoE 的吞吐冠军（3 355 out tok/s）。
+
+### 15.7 这一层 profile **还看不到** 的（下一层）
+
+- **`fused_moe_kernel` 内部的 per-expert 负载分布** —— Torch profiler 不会
+  拆 per-expert op。要 sglang 的 `expert_distribution_recorder` hook + parser，
+  或者用 Nsight Compute 单独打这个 kernel。
+- **`fa3` 是否对某些 shape 退回 `fa2`** —— 6 个 cell 的 trace 里只看到 Sm90 fa3
+  kernel，没观察到退回，但"没观察到"不等于"不会发生"。
+- **Kernel 间调度间隔**（`cudaEventSynchronize` 17% 的来源） —— Torch profiler
+  给 kernel 时间，但不分解 stream 级 wait。要加 NVTX + Nsight Systems。
+- **Phase tagging 不可靠**：parser 的启发式（按 kernel 名 regex）把多数 kernel
+  归到 `other`。要拿到干净的 prefill/decode/schedule 三段比例，得让 sglang 显式
+  emit user annotation，或者把 kernel 时间和 `server.log` 的请求事件对齐。
+
+### 15.8 复现 §15
+
+```bash
+# 单个 cell：
+python scripts/regime_study/run_hw_view.py \
+  --config  configs/moe_qwen3_30b.yaml \
+  --workload regime_scout/candidates_regime_study/R8_prefix_sharing.yaml \
+  --out-dir experiments/tmp/hw_view/moe_R8 \
+  --gpu 0 --profile-num-steps 10 --warmup-requests 8
+
+# 把 experiments/tmp/hw_view/ 下所有 cell 聚合成表
+python scripts/regime_study/aggregate_hw_view.py
+# → results/regime_bench/hardware_view_table.{md,csv}
+```
+
+每 cell 约 1-2 分钟。

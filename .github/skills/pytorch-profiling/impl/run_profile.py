@@ -99,9 +99,7 @@ def main() -> int:
             err = {"schema_version": 0, "ok": False,
                    "error": "server did not become healthy within timeout"}
             (out_dir / "profile_summary.json").write_text(json.dumps(err, indent=2))
-            return 2
-
-        # 2. Build bench_serving argv (mirrors scripts/run_benchmark.build_argv,
+            return 2        # 2. Build bench_serving argv (mirrors scripts/run_benchmark.build_argv,
         #    but adds --profile flags and uses warmup).
         ds = workload["dataset"]
         traffic = workload["traffic"]
@@ -149,6 +147,17 @@ def main() -> int:
             (out_dir / "profile_summary.json").write_text(json.dumps(err, indent=2))
             return 3
 
+        # Snapshot sglang's /get_server_info before killing the server.
+        try:
+            import urllib.request
+            with urllib.request.urlopen(
+                f"http://{host}:{port}/get_server_info", timeout=10) as r:
+                info = json.loads(r.read().decode("utf-8", errors="replace"))
+            (out_dir / "server_info.json").write_text(json.dumps(info, indent=2))
+            print(f"[run_profile] wrote server_info.json")
+        except Exception as e:  # noqa: BLE001
+            print(f"[run_profile] warn: /get_server_info failed: {e}")
+
     finally:
         # 3. Kill server group cleanly.
         try:
@@ -160,8 +169,11 @@ def main() -> int:
         except Exception as e:
             print(f"[run_profile] warn: could not kill server cleanly: {e}")
 
-    # 4. Locate trace file(s).
-    traces = sorted(raw_trace.rglob("*.pt.trace.json")) \
+    # 4. Locate trace file(s). sglang writes either *.trace.json or *.trace.json.gz
+    # (older versions used *.pt.trace.json). Accept all variants.
+    traces = sorted(raw_trace.rglob("*.trace.json")) \
+        + sorted(raw_trace.rglob("*.trace.json.gz")) \
+        + sorted(raw_trace.rglob("*.pt.trace.json")) \
         + sorted(raw_trace.rglob("*.pt.trace.json.gz"))
     if not traces:
         err = {"schema_version": 0, "ok": False,
