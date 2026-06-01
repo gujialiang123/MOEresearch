@@ -1,0 +1,17 @@
+name: R1_baseline_short_low_conc
+regime_hint: baseline_low_load
+source:
+  generated_by: regime_study_2026_06_01
+description: "R1 — short prompt, short decode, low concurrency. Baseline."
+dataset:
+  name: random
+  random_input_len: 128
+  random_output_len: 128
+  random_range_ratio: 0.0
+traffic:
+  max_concurrency: 4
+  num_prompts: 32
+cache:
+  mode: cold
+  flush_cache: true
+seed: 1234

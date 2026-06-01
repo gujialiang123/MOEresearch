@@ -1,0 +1,37 @@
+2026-06-01 17:23:58 [INFO] regime_suite | === Stage 1 RegimeScout run started at 2026-06-01 17:23:58 ===
+2026-06-01 17:23:58 [INFO] regime_suite | server_config=/home/t-jialianggu/work/EndtoEnd-auto-optimization/configs/base.yaml
+2026-06-01 17:23:58 [INFO] regime_suite | workload_dir=/home/t-jialianggu/work/EndtoEnd-auto-optimization/regime_scout/candidates_regime_study
+2026-06-01 17:23:58 [INFO] regime_suite | mode=quick
+2026-06-01 17:23:58 [INFO] regime_suite | out=/home/t-jialianggu/work/EndtoEnd-auto-optimization/results/regime_bench/raw/dense_rep1.jsonl
+2026-06-01 17:23:58 [INFO] regime_suite | run_root=/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/regime_study/dense_rep1/20260601_172358
+2026-06-01 17:23:58 [INFO] regime_suite | wall_budget_s=2400 server_start_timeout=300 bench_timeout=600
+2026-06-01 17:23:58 [INFO] regime_suite | 8 workload(s) to run
+2026-06-01 17:23:58 [INFO] regime_suite | ------------------------------------------------------------------------
+2026-06-01 17:23:58 [INFO] regime_suite | [1/8] START workload=R1_baseline_short_low_conc regime_hint=baseline_low_load run_dir=/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/regime_study/dense_rep1/20260601_172358/run_0001_R1_baseline_short_low_conc
+2026-06-01 17:24:57 [INFO] regime_suite | [1/8] PASS (59.0s) ttft_p50=20.595375099219382 ttft_p95=88.90454535139725 tpot_p50=2.337205640749255 out_tps=1433.104663963538 req_tps=21.201733354985304 err=None
+2026-06-01 17:24:57 [INFO] regime_suite | ------------------------------------------------------------------------
+2026-06-01 17:24:57 [INFO] regime_suite | [2/8] START workload=R2_decode_heavy regime_hint=decode_saturation run_dir=/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/regime_study/dense_rep1/20260601_172358/run_0002_R2_decode_heavy
+2026-06-01 17:25:59 [INFO] regime_suite | [2/8] PASS (61.7s) ttft_p50=40.36081302911043 ttft_p95=119.12616171175614 tpot_p50=2.6985086439860906 out_tps=9007.553569935399 req_tps=16.695147074308295 err=None
+2026-06-01 17:25:59 [INFO] regime_suite | ------------------------------------------------------------------------
+2026-06-01 17:25:59 [INFO] regime_suite | [3/8] START workload=R3_prefill_heavy regime_hint=prefill_dominated run_dir=/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/regime_study/dense_rep1/20260601_172358/run_0003_R3_prefill_heavy
+2026-06-01 17:27:04 [INFO] regime_suite | [3/8] PASS (64.8s) ttft_p50=34.2166080372408 ttft_p95=107.97008808003739 tpot_p50=3.3674633023558096 out_tps=1796.5367628899587 req_tps=26.57844494335584 err=None
+2026-06-01 17:27:04 [INFO] regime_suite | ------------------------------------------------------------------------
+2026-06-01 17:27:04 [INFO] regime_suite | [4/8] START workload=R4_long_in_long_out regime_hint=prefill_and_decode_mixed run_dir=/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/regime_study/dense_rep1/20260601_172358/run_0004_R4_long_in_long_out
+2026-06-01 17:28:04 [INFO] regime_suite | [4/8] PASS (60.2s) ttft_p50=29.187290114350617 ttft_p95=109.98842105036601 tpot_p50=2.7639032244514268 out_tps=2517.8144787358806 req_tps=9.027120927645822 err=None
+2026-06-01 17:28:04 [INFO] regime_suite | ------------------------------------------------------------------------
+2026-06-01 17:28:04 [INFO] regime_suite | [5/8] START workload=R5_high_concurrency regime_hint=saturation_high_conc run_dir=/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/regime_study/dense_rep1/20260601_172358/run_0005_R5_high_concurrency
+2026-06-01 17:29:14 [INFO] regime_suite | [5/8] PASS (69.6s) ttft_p50=526.2435444165021 ttft_p95=1191.127828124445 tpot_p50=4.6428132735724965 out_tps=5956.97681295703 req_tps=47.95252072564618 err=None
+2026-06-01 17:29:14 [INFO] regime_suite | ------------------------------------------------------------------------
+2026-06-01 17:29:14 [INFO] regime_suite | [6/8] START workload=R6_low_concurrency regime_hint=latency_under_utilization run_dir=/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/regime_study/dense_rep1/20260601_172358/run_0006_R6_low_concurrency
+2026-06-01 17:30:22 [INFO] regime_suite | [6/8] PASS (68.2s) ttft_p50=20.62481956090778 ttft_p95=42.98005340388045 tpot_p50=1.7708941768167186 out_tps=518.5008870857739 req_tps=3.5152602514289755 err=None
+2026-06-01 17:30:22 [INFO] regime_suite | ------------------------------------------------------------------------
+2026-06-01 17:30:22 [INFO] regime_suite | [7/8] START workload=R7_mixed_lengths regime_hint=mixed_length_distribution run_dir=/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/regime_study/dense_rep1/20260601_172358/run_0007_R7_mixed_lengths
+2026-06-01 17:31:30 [INFO] regime_suite | [7/8] PASS (68.4s) ttft_p50=126.8091059755534 ttft_p95=194.03809300856665 tpot_p50=4.245147923523749 out_tps=6721.73634207254 req_tps=27.03224367805973 err=None
+2026-06-01 17:31:30 [INFO] regime_suite | ------------------------------------------------------------------------
+2026-06-01 17:31:30 [INFO] regime_suite | [8/8] START workload=R8_prefix_sharing regime_hint=radix_cache_prefix_reuse run_dir=/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/regime_study/dense_rep1/20260601_172358/run_0008_R8_prefix_sharing
+2026-06-01 17:32:30 [INFO] regime_suite | [8/8] PASS (59.9s) ttft_p50=165.30810948461294 ttft_p95=197.24281104281545 tpot_p50=3.930856607507404 out_tps=6884.567181385384 req_tps=26.892840552286657 err=None
+2026-06-01 17:32:30 [INFO] regime_suite | ========================================================================
+2026-06-01 17:32:30 [INFO] regime_suite | done in 512s. pass=8 fail=0 skip=0
+2026-06-01 17:32:30 [INFO] regime_suite | results: /home/t-jialianggu/work/EndtoEnd-auto-optimization/results/regime_bench/raw/dense_rep1.jsonl
+2026-06-01 17:32:30 [INFO] regime_suite | per-run dirs: /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/regime_study/dense_rep1/20260601_172358
+2026-06-01 17:32:30 [INFO] regime_suite | === Stage 1 RegimeScout run finished at 2026-06-01 17:32:30 ===

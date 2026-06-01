@@ -1,0 +1,20 @@
+name: R7_mixed_lengths
+regime_hint: mixed_length_distribution
+source:
+  generated_by: regime_study_2026_06_01
+description: |
+  R7 — wide input-length distribution at medium concurrency. Stresses
+  scheduler / chunked-prefill decisions. Uses random_range_ratio=0.95 so
+  per-prompt input_len spans ~100 → 4000 tokens around the 2048 mean.
+dataset:
+  name: random
+  random_input_len: 2048
+  random_output_len: 256
+  random_range_ratio: 0.95
+traffic:
+  max_concurrency: 32
+  num_prompts: 64
+cache:
+  mode: cold
+  flush_cache: true
+seed: 1234

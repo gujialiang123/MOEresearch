@@ -1,0 +1,17 @@
+name: R3_prefill_heavy
+regime_hint: prefill_dominated
+source:
+  generated_by: regime_study_2026_06_01
+description: "R3 — long prompt, short decode, medium concurrency. Prefill-heavy."
+dataset:
+  name: random
+  random_input_len: 4096
+  random_output_len: 128
+  random_range_ratio: 0.0
+traffic:
+  max_concurrency: 8
+  num_prompts: 32
+cache:
+  mode: cold
+  flush_cache: true
+seed: 1234

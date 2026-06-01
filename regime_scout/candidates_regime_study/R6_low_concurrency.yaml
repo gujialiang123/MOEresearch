@@ -1,0 +1,17 @@
+name: R6_low_concurrency
+regime_hint: latency_under_utilization
+source:
+  generated_by: regime_study_2026_06_01
+description: "R6 — single-stream low concurrency. Latency-oriented, under-utilization."
+dataset:
+  name: random
+  random_input_len: 512
+  random_output_len: 256
+  random_range_ratio: 0.0
+traffic:
+  max_concurrency: 1
+  num_prompts: 16
+cache:
+  mode: cold
+  flush_cache: true
+seed: 1234

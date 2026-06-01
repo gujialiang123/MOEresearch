@@ -1,0 +1,17 @@
+name: R4_long_in_long_out
+regime_hint: prefill_and_decode_mixed
+source:
+  generated_by: regime_study_2026_06_01
+description: "R4 — long prompt and long decode. Mixed prefill/decode pressure."
+dataset:
+  name: random
+  random_input_len: 4096
+  random_output_len: 512
+  random_range_ratio: 0.0
+traffic:
+  max_concurrency: 8
+  num_prompts: 24
+cache:
+  mode: cold
+  flush_cache: true
+seed: 1234

@@ -1,0 +1,22 @@
+name: R8_prefix_sharing
+regime_hint: radix_cache_prefix_reuse
+source:
+  generated_by: regime_study_2026_06_01
+description: |
+  R8 — high prefix reuse. 8 groups × 8 prompts each, all sharing a
+  2048-token system prompt within the group. Radix cache should hit hard.
+  flush_cache=false to allow cache to warm up within the run.
+dataset:
+  name: generated-shared-prefix
+  gsp_num_groups: 8
+  gsp_prompts_per_group: 8
+  gsp_system_prompt_len: 2048
+  gsp_question_len: 128
+  gsp_output_len: 256
+traffic:
+  max_concurrency: 32
+  num_prompts: 64
+cache:
+  mode: warm
+  flush_cache: false
+seed: 1234
