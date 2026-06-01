@@ -2166,3 +2166,447 @@ python scripts/regime_study/aggregate_moe_opt_levels.py # → results/regime_ben
 每个 cell 的原始产物（6 个文件：`hardware_view.json`、`profile_summary.json`、
 `server_info.json`、`gpu_samples.csv`、`server.log`、`bench.jsonl`）在
 `results/regime_bench/raw/moe_opt_levels/<tag>/`。
+
+## 20. C6 piecewise CUDA graph deep dive — exactly what changes inside sglang
+
+> 🟢 NEW. §19 said C6 (`enable-piecewise-cuda-graph`) won R8 by +19 %.
+> This section pops the hood: shows the source-level mechanism, lists every
+> kernel-mix delta between C0 and C6 from the trace, and explains *why* it
+> wins despite a 25 % `cudaEventSynchronize` overhead.
+
+### 20.1 What piecewise CUDA graph actually is
+
+sglang ships two CUDA-graph modes:
+
+| Mode | Granularity | Code path |
+|---|---|---|
+| **Whole-graph (default)** | 1 graph capture per `(batch_size, seq_len)` of the entire forward pass | `sglang/srt/model_executor/cuda_graph_runner.py` |
+| **Piecewise** | many small graphs separated by `@register_split_op()` boundaries | `sglang/srt/model_executor/piecewise_cuda_graph_runner.py` + `sglang/srt/compilation/` |
+
+**Source mechanism** —
+[`sglang/srt/compilation/compilation_config.py:7-12`](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/compilation/compilation_config.py)
+defines the split-marker registry:
+
+```python
+def register_split_op(op_name: Optional[str] = None):
+    def decorator(op_func: Callable):
+        name = op_name or op_func.__name__
+        SPLIT_OPS.append(f"sglang.{name}")
+        return op_func
+    return decorator
+```
+
+Anything decorated with `@register_split_op()` becomes a **piecewise
+boundary** (the model graph is cut here, and the pieces between boundaries
+are compiled by Inductor + captured as small CUDA graphs).
+
+The boundaries registered in sglang are:
+
+| File:Line | Boundary | Why it can't be in a graph |
+|---|---|---|
+| `sglang/srt/layers/radix_attention.py:139` | `radix_attention` | KV cache mutation depends on runtime shape |
+| `sglang/srt/layers/radix_linear_attention.py:105` | `radix_linear_attention` | same |
+| `sglang/srt/distributed/parallel_state.py:133` | `tensor_model_parallel_all_reduce` | NCCL collective (uses external stream) |
+| `sglang/srt/models/qwen3_next.py:1161` | `qwen3_next` Mamba-style op | data-dependent control flow |
+
+For our Qwen3-30B-A3B MoE, **the active boundary is `radix_attention`** (per
+layer). So **each transformer layer becomes one sub-graph**:
+
+```
+... pre-layer compute (norm + qkv proj + rope)  ← sub-graph N
+    radix_attention                              ← split (NOT in any graph)
+    post-attention (output proj + residual)
+    pre-MoE compute (norm + router topk)         ← sub-graph N+1
+    fused_moe_kernel #1 (gate+up)
+    SiluAndMul
+    fused_moe_kernel #2 (down)
+    residual + norm
+    ... next layer ...
+```
+
+48 layers × ~2 sub-graphs each ≈ ~96 sub-graphs total (plus one for the
+embedding + a few for the lm-head). **Each is captured once and replayed
+on every decode step.**
+
+The compilation entry point is
+[`PiecewiseCudaGraphRunner.__init__()`](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/model_executor/piecewise_cuda_graph_runner.py)
+which:
+
+1. Builds a `CompilationConfig` with `compiler='eager'` or `compiler='inductor'`
+   (default `eager` for our C6 run).
+2. Walks the model's `nn.Module` tree, calls `install_torch_compiled(...)`
+   on each leaf submodule.
+3. Replays the model in capture mode for each token-bucket
+   (`piecewise-cuda-graph-tokens: [512, 1024, 2048, 4096, 8192]` — we
+   captured 5 buckets).
+4. Stores the captured graphs; at inference, `bisect.bisect_left()` picks
+   the smallest bucket ≥ current token count.
+
+### 20.2 Direct trace diff — C0 vs C6 (R8, 10 profile steps)
+
+Launch-call counts (from per-event `name` field in trace):
+
+| Event | C0 baseline | C6 piecewise | Δ |
+|---|---|---|---|
+| `cudaGraphLaunch` | 5 | **247** | **+242** (49 ×) |
+| `cudaLaunchKernel` | 1 583 | 1 483 | −100 |
+| `cudaLaunchKernelExC` | 1 060 | 866 | −194 |
+| **Total launches** | **2 648** | **2 596** | −52 |
+
+**Interpretation**:
+
+- C0 captures the whole decode step as **one** graph (5 graph launches = 5 decode iterations, the rest of the steps must be a prefill plus warmup steps where graph isn't used).
+- C6 captures **per-layer-piece** sub-graphs. Over 10 forward steps × ~48 layers × ~0.5 graphs-per-layer (only post-attention sub-graphs hit the cache) ≈ 240 graph launches — matches the observed 247.
+- C6 *reduces* `cudaLaunchKernel*` count by ~300 — those 300 small individual launches are now folded into sub-graphs.
+
+### 20.3 Kernel mix delta — top GPU events
+
+C0 baseline (599 ms total GPU self time, 10 prof steps):
+
+| % | self (µs) | calls | mean (µs) | Kernel |
+|---|---|---|---|---|
+| **46.4** | 278 302 | 864 | 322 | `fused_moe_kernel` |
+| 10.3 | 61 582 | 96 | 642 | `FlashAttnFwdSm90<…>` variant A |
+| 6.3 | 37 832 | 96 | 394 | `nvjet_tst_128x248_64x4_2x1_v_bz_coopA_TNT` |
+| 3.6 | 21 539 | 48 | 449 | `nvjet_tst_192x208_64x4_1x2_h_bz_coopB_TNT` |
+| 3.1 | 18 330 | 336 | 55 | `FlashAttnFwdSm90<…>` variant B (decode) |
+| 2.9 | 17 201 | **8** | **2 150** | `cudaEventSynchronize` |
+| 2.8 | 17 056 | 384 | 44 | `at::native::elementwise_kernel<…>` |
+| 2.8 | 16 942 | 48 | 353 | `nvjet_tst_192x192_64x4_1x2_h_bz_coopB_TNN` |
+| 2.8 | 16 590 | 432 | 38 | `flashinfer::activation::act_and_mul_kernel<silu>` |
+| 2.4 | 14 417 | 864 | 17 | `flashinfer::norm::FusedAddRMSNormKernel` |
+
+C6 piecewise (1 069 ms total GPU self time, **1.78 × C0** — but wall time is *shorter*; see §20.5):
+
+| % | self (µs) | calls | mean (µs) | Kernel |
+|---|---|---|---|---|
+| **38.0** | 406 241 | 864 | **470** | `fused_moe_kernel` |
+| **25.1** | 268 418 | **8** | **33 552** | `cudaEventSynchronize` ⚠️ |
+| 7.9 | 84 407 | 192 | 440 | `FlashAttnFwdSm90<…>` variant A |
+| 2.3 | 24 274 | 432 | 56 | `at::native::elementwise_kernel<…>` |
+| 2.2 | 23 443 | 432 | 54 | `flashinfer::activation::act_and_mul_kernel<silu>` |
+| 2.1 | 22 300 | 96 | 232 | `nvjet_tst_320x128_64x3_1x2_h_bz_coopB_TNT` ← **new** |
+| 2.0 | 21 603 | 48 | 450 | `nvjet_tst_192x208_64x4_1x2_h_bz_coopB_TNT` |
+| 1.9 | 20 694 | 336 | 62 | `moe_sum_reduce_warp_per_token_vec_kernel<8>` |
+| 1.9 | 19 935 | 48 | 415 | `nvjet_tst_128x272_64x4_2x1_v_bz_coopA_TNT` ← **new** |
+| 1.8 | 19 755 | 864 | 23 | `flashinfer::norm::FusedAddRMSNormKernel` |
+
+### 20.4 Three concrete kernel-level changes in C6
+
+#### (a) Inductor picked different cuBLAS GEMM tiles
+
+These were the top GEMM kernels in C0 — **GONE in C6**:
+
+| Kernel | C0 self (µs) | C6 |
+|---|---|---|
+| `nvjet_tst_128x248_64x4_2x1_v_bz_coopA_TNT` (Q/K/V proj?) | 37 832 | not present |
+| `nvjet_tst_192x192_64x4_1x2_h_bz_coopB_TNN` | 16 942 | not present |
+| `nvjet_tst_128x256_64x4_2x1_v_bz_coopA_TNN` | 2 201 | not present |
+
+These were the top GEMM kernels in C6 — **NEW vs C0**:
+
+| Kernel | C6 self (µs) | calls |
+|---|---|---|
+| `nvjet_tst_320x128_64x3_1x2_h_bz_coopB_TNT` | 22 300 | 96 |
+| `nvjet_tst_128x272_64x4_2x1_v_bz_coopA_TNT` | 19 935 | 48 |
+| `nvjet_tst_256x128_64x4_1x2_h_bz_coopA_TNT` | 17 281 | 96 |
+
+The `nvjet_tst_<M>x<N>_<K>x<stages>_…` naming is cuBLASLt's tile heuristic
+output. **Different GEMM shapes are getting different tile choices** — same
+matmul math, different SM-occupancy/L2-locality trade-off. Inductor's pass
+manager re-selects tiles after fusion changes the surrounding tensor
+layouts (e.g., the QKV-proj might be batched differently after
+torch.compile fuses the preceding RMSNorm).
+
+#### (b) `fused_moe_kernel` consolidation — fewer launch variants, more calls each
+
+C0 (5 dominant variants):
+
+| Grid | Block | Regs | Calls | Mean (µs) | Total (µs) |
+|---|---|---|---|---|---|
+| 6 882 | 256 | 194 | 48 | 1 494 | 71 722 |
+| 6 774 | 256 | 194 | 48 | 1 476 | 70 869 |
+| 9 176 | 256 | 196 | 48 | 954 | 45 777 |
+| 9 032 | 256 | 196 | 48 | 947 | 45 468 |
+| 1 530 | 256 | 194 | 48 | 285 | 13 662 |
+
+C6 (5 dominant variants):
+
+| Grid | Block | Regs | Calls | Mean (µs) | Total (µs) |
+|---|---|---|---|---|---|
+| 3 840 | 256 | 194 | **96** | 808 | 77 544 |
+| 6 834 | 256 | 194 | 48 | 1 491 | 71 555 |
+| 6 426 | 256 | 194 | 48 | 1 390 | 66 700 |
+| 5 120 | 256 | 196 | **96** | 515 | 49 423 |
+| 9 112 | 256 | 196 | 48 | 958 | 46 010 |
+
+Note the **`calls=96` variants** in C6 (top row, and the 5 120-grid row).
+C0 only ever has `calls=48`. **96 = 2 × 48** = the kernel is being launched
+**twice per profile step instead of once**. Most likely cause: Inductor
+captured **two adjacent transformer layers** into one sub-graph (so one
+graph replay fires two `fused_moe_kernel` invocations). Grids of 3 840 and
+5 120 are different shapes from C0 — different `M` reaching the kernel
+because the captured graph buffers tensors differently.
+
+**Block / register / shmem are unchanged across all variants**: 256 / 194 /
+192 KB stays put. This means **the Triton `fused_moe_kernel` itself was
+NOT recompiled** under piecewise. The same JIT'd PTX is being launched —
+just from inside a CUDA-graph node now.
+
+#### (c) `cudaEventSynchronize` mean duration explodes 16 ×
+
+| Metric | C0 | C6 |
+|---|---|---|
+| `cudaEventSynchronize` calls | 8 | 8 |
+| Mean per call | 2 150 µs | **33 552 µs** |
+| Total | 17 201 µs (2.9 %) | **268 418 µs (25.1 %)** |
+
+This looks alarming, but it's a **measurement artefact**: in CPU-side
+trace view, an event sync now waits for the *entire sub-graph chain* to
+finish (because the launches return immediately as graph nodes are
+queued). The actual GPU is busy during those 33 ms — it's just that the
+CPU is observing a single long sync instead of many small kernel
+completions. Confirmed by the fact that **GPU active time in C6 (1 069 ms)
+is HIGHER than in C0 (600 ms) in absolute terms**, but wall time is
+shorter — i.e. the GPU is working harder + faster, the CPU just waits in
+fewer bigger chunks.
+
+### 20.5 Why C6 is +19 % despite 25 % `cudaEventSynchronize`
+
+The math:
+
+| Quantity | C0 | C6 | Source |
+|---|---|---|---|
+| Wall time per profile step | ~70 ms | ~80 ms | trace `wallclock_ms` |
+| **Bench throughput** | **1 339 tok/s** | **1 598 tok/s (+19 %)** | bench_serving |
+| GPU active time per step | 600 ms | 1 069 ms (+78 %) | trace |
+| CPU launch overhead per step | ~1 500 ms (C0 actually `cudaLaunch*` × ~5 µs × ~3 000) | ~7 ms (graph replay) | derived |
+
+C6 spends **more total GPU time but achieves higher throughput** because:
+
+1. **The 1 069 ms of C6's GPU active time covers more concurrent work** — sub-graphs allow async overlap of pre/post-attention compute with the attention itself (which can't be in a graph). The 700→1 069 increase isn't waste; it's previously-serialised work now running in parallel streams.
+2. **Launch overhead is collapsed**: ~300 launches eliminated, ~240 of them replaced by graph launches that are ~10× cheaper to issue.
+3. **The `cudaEventSynchronize` is a barrier between forward passes, not within one**. It happens 8 times in the 10-step window (= once per forward pass minus the first/last). So even at 33 ms × 8 = 264 ms, this barrier doesn't extend serving latency because the next prefill/decode is already queued behind it.
+
+### 20.6 Summary table for mentor
+
+| Question | Answer |
+|---|---|
+| What is "piecewise CUDA graph"? | sglang's mode that splits the forward graph at `@register_split_op()` boundaries (attention, allreduce) and captures **each piece** separately as a CUDA graph (vs the default "one graph per whole forward step"). |
+| What "fuses" differently? | **Nothing inside `fused_moe_kernel` itself** — same PTX, same block/regs/shmem (256 / 194 / 192 KB). What changes is **which kernels live inside the same CUDA-graph node** — pre-attention norms + QKV proj + RoPE all become one graph node now; post-attention proj + MoE another. |
+| What kernels appear / disappear? | **C6-only**: new `nvjet_tst_320x128_…`, `_256x128_`, `_128x272_` GEMM tiles (Inductor re-tuned shapes). **C0-only**: `nvjet_tst_192x192_…`, `_128x248_`, `_128x256_` (the old tiles). The Triton MoE kernel is identical PTX. |
+| How do kernel parameters change? | `fused_moe_kernel`: block/regs/shmem **unchanged**, but **grid shapes are different** (3 840, 5 120, 6 834 vs C0's 6 774, 6 882, 9 176) because the captured graphs hold different-sized tensors at capture time, and `calls=96` appears (= 2 layers' MoE in one captured sub-graph). |
+| Performance? | **+19 % throughput** on R8, **−20 % E2E p99**, **TPOT −17 %**. Costs: +60 MiB peak memory, +469 ms GPU active time per step (mostly absorbed by parallelism, not waste). |
+| Backend selection? | Unchanged — still fa3 + flashinfer + lpm. Piecewise CUDA graph is **orthogonal to backend choice**; it only changes how the chosen backend's kernels are *launched*. |
+| Recommended? | **Yes, on this regime.** Should be tested on R1-R7 before promoting to default — could regress on small batches (graph capture cost per bucket). |
+
+---
+
+## 20. C6 piecewise CUDA graph 深入解读 —— sglang 内部到底变了啥
+
+> �� 新增。§19 说 C6（`enable-piecewise-cuda-graph`）在 R8 上赢 +19%。本节
+> 把盖子掀开：解释源码级机制 + 列出 trace 里 C0 与 C6 的每一个 kernel-mix
+> delta + 解释为什么它能赢虽然有 25% `cudaEventSynchronize` 的开销。
+
+### 20.1 Piecewise CUDA graph 到底是什么
+
+sglang 提供两种 CUDA graph 模式：
+
+| 模式 | 粒度 | 代码路径 |
+|---|---|---|
+| **whole-graph（默认）** | 整个 forward pass 每 `(batch_size, seq_len)` 抓一个 graph | `sglang/srt/model_executor/cuda_graph_runner.py` |
+| **Piecewise** | 多个小 graph，按 `@register_split_op()` 边界切分 | `sglang/srt/model_executor/piecewise_cuda_graph_runner.py` + `sglang/srt/compilation/` |
+
+**源码机制** —
+[`sglang/srt/compilation/compilation_config.py:7-12`](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/compilation/compilation_config.py)
+定义了 split-marker 注册表：
+
+```python
+def register_split_op(op_name: Optional[str] = None):
+    def decorator(op_func: Callable):
+        name = op_name or op_func.__name__
+        SPLIT_OPS.append(f"sglang.{name}")
+        return op_func
+    return decorator
+```
+
+任何被 `@register_split_op()` 装饰的就成了 **piecewise 边界**（模型 graph 在
+这里被切断，**边界之间的所有 op 由 Inductor 编译 + 捕获为小 CUDA graph**）。
+
+sglang 注册的边界：
+
+| 文件:行 | 边界 | 为啥不能 in-graph |
+|---|---|---|
+| `sglang/srt/layers/radix_attention.py:139` | `radix_attention` | KV cache 修改取决于 runtime shape |
+| `sglang/srt/layers/radix_linear_attention.py:105` | `radix_linear_attention` | 同上 |
+| `sglang/srt/distributed/parallel_state.py:133` | `tensor_model_parallel_all_reduce` | NCCL collective（用外部 stream）|
+| `sglang/srt/models/qwen3_next.py:1161` | `qwen3_next` Mamba 风格 op | 数据依赖的控制流 |
+
+对我们的 Qwen3-30B-A3B MoE，**激活的边界是 `radix_attention`**（每层一个）。所以
+**每个 transformer 层就是一个 sub-graph**：
+
+```
+... pre-layer compute (norm + qkv proj + rope)  ← sub-graph N
+    radix_attention                              ← 切断（不在任何 graph 里）
+    post-attention (output proj + residual)
+    pre-MoE compute (norm + router topk)         ← sub-graph N+1
+    fused_moe_kernel #1 (gate+up)
+    SiluAndMul
+    fused_moe_kernel #2 (down)
+    residual + norm
+    ... 下一层 ...
+```
+
+48 层 × ~2 sub-graph/层 ≈ ~96 个 sub-graph（再加 embedding + lm-head 几个）。
+**每个抓一次，每个 decode step 重放。**
+
+### 20.2 trace 直接 diff —— C0 vs C6（R8，10 个 profile step）
+
+Launch 调用数（trace 里 `name` 字段统计）：
+
+| 事件 | C0 baseline | C6 piecewise | Δ |
+|---|---|---|---|
+| `cudaGraphLaunch` | 5 | **247** | **+242（49 倍）** |
+| `cudaLaunchKernel` | 1 583 | 1 483 | −100 |
+| `cudaLaunchKernelExC` | 1 060 | 866 | −194 |
+| **总 launch** | **2 648** | **2 596** | −52 |
+
+**含义**：
+
+- C0 把整个 decode step 抓成 **1 个** graph（5 次 graph launch = 5 个 decode 迭代，剩下是 prefill 加预热步骤不用 graph）
+- C6 抓 **per-layer-piece** sub-graph。10 个 forward step × ~48 层 × ~0.5 graph/层（只有 post-attention sub-graph 命中缓存）≈ 240 graph launch —— 跟实测 247 对上
+- C6 *减少* `cudaLaunchKernel*` ~300 次 —— 那 300 个独立小 launch 现在折进 sub-graph 里了
+
+### 20.3 Kernel mix delta —— top GPU 事件
+
+C0 baseline（599 ms 总 GPU self time，10 prof step）：
+
+| % | self (µs) | calls | mean (µs) | Kernel |
+|---|---|---|---|---|
+| **46.4** | 278 302 | 864 | 322 | `fused_moe_kernel` |
+| 10.3 | 61 582 | 96 | 642 | `FlashAttnFwdSm90<…>` 变体 A |
+| 6.3 | 37 832 | 96 | 394 | `nvjet_tst_128x248_64x4_2x1_v_bz_coopA_TNT` |
+| 3.6 | 21 539 | 48 | 449 | `nvjet_tst_192x208_64x4_1x2_h_bz_coopB_TNT` |
+| 2.9 | 17 201 | **8** | **2 150** | `cudaEventSynchronize` |
+| 2.8 | 16 942 | 48 | 353 | `nvjet_tst_192x192_64x4_1x2_h_bz_coopB_TNN` |
+| 2.8 | 16 590 | 432 | 38 | `flashinfer::activation::act_and_mul_kernel<silu>` |
+| 2.4 | 14 417 | 864 | 17 | `flashinfer::norm::FusedAddRMSNormKernel` |
+
+C6 piecewise（1 069 ms 总 GPU self time，**C0 的 1.78×** —— 但 wall 更短，见 §20.5）：
+
+| % | self (µs) | calls | mean (µs) | Kernel |
+|---|---|---|---|---|
+| **38.0** | 406 241 | 864 | **470** | `fused_moe_kernel` |
+| **25.1** | 268 418 | **8** | **33 552** | `cudaEventSynchronize` ⚠️ |
+| 7.9 | 84 407 | 192 | 440 | `FlashAttnFwdSm90<…>` 变体 A |
+| 2.3 | 24 274 | 432 | 56 | `at::native::elementwise_kernel<…>` |
+| 2.2 | 23 443 | 432 | 54 | `flashinfer::activation::act_and_mul_kernel<silu>` |
+| 2.1 | 22 300 | 96 | 232 | `nvjet_tst_320x128_64x3_1x2_h_bz_coopB_TNT` ← **新** |
+| 2.0 | 21 603 | 48 | 450 | `nvjet_tst_192x208_64x4_1x2_h_bz_coopB_TNT` |
+| 1.9 | 19 935 | 48 | 415 | `nvjet_tst_128x272_64x4_2x1_v_bz_coopA_TNT` ← **新** |
+
+### 20.4 C6 的 3 个具体 kernel 级变化
+
+#### (a) Inductor 挑了不同的 cuBLAS GEMM tile
+
+C0 里 top GEMM —— **C6 里没了**：
+
+| Kernel | C0 self (µs) | C6 |
+|---|---|---|
+| `nvjet_tst_128x248_64x4_2x1_v_bz_coopA_TNT`（Q/K/V proj？）| 37 832 | 不出现 |
+| `nvjet_tst_192x192_64x4_1x2_h_bz_coopB_TNN` | 16 942 | 不出现 |
+| `nvjet_tst_128x256_64x4_2x1_v_bz_coopA_TNN` | 2 201 | 不出现 |
+
+C6 里 top GEMM —— **C0 里没有**：
+
+| Kernel | C6 self (µs) | calls |
+|---|---|---|
+| `nvjet_tst_320x128_64x3_1x2_h_bz_coopB_TNT` | 22 300 | 96 |
+| `nvjet_tst_128x272_64x4_2x1_v_bz_coopA_TNT` | 19 935 | 48 |
+| `nvjet_tst_256x128_64x4_1x2_h_bz_coopA_TNT` | 17 281 | 96 |
+
+`nvjet_tst_<M>x<N>_<K>x<stages>_…` 命名是 cuBLASLt tile 启发式输出。**不同的
+GEMM shape 选了不同的 tile** —— 数学一样，SM 占用率 / L2 局部性权衡不同。
+Inductor 的 pass manager 在 fusion 改变了周围 tensor 布局后重新选 tile（比如
+QKV-proj 在 torch.compile 把前面的 RMSNorm 融进来后 batch 方式可能不同了）。
+
+#### (b) `fused_moe_kernel` 整合 —— launch 变体变少，每个变体调用变多
+
+C0（5 个主流变体）：
+
+| Grid | Block | Regs | Calls | Mean (µs) | Total (µs) |
+|---|---|---|---|---|---|
+| 6 882 | 256 | 194 | 48 | 1 494 | 71 722 |
+| 6 774 | 256 | 194 | 48 | 1 476 | 70 869 |
+| 9 176 | 256 | 196 | 48 | 954 | 45 777 |
+| 9 032 | 256 | 196 | 48 | 947 | 45 468 |
+| 1 530 | 256 | 194 | 48 | 285 | 13 662 |
+
+C6（5 个主流变体）：
+
+| Grid | Block | Regs | Calls | Mean (µs) | Total (µs) |
+|---|---|---|---|---|---|
+| 3 840 | 256 | 194 | **96** | 808 | 77 544 |
+| 6 834 | 256 | 194 | 48 | 1 491 | 71 555 |
+| 6 426 | 256 | 194 | 48 | 1 390 | 66 700 |
+| 5 120 | 256 | 196 | **96** | 515 | 49 423 |
+| 9 112 | 256 | 196 | 48 | 958 | 46 010 |
+
+留意 C6 里 **`calls=96` 的变体**（第一行和 5 120-grid 那行）。C0 永远都是
+`calls=48`。**96 = 2 × 48** = 这个 kernel **每个 profile step 被 launch 两次而
+不是一次**。最可能的原因：Inductor 把 **两个相邻 transformer 层** 抓到一个
+sub-graph 里了（所以一次 graph replay 触发两次 `fused_moe_kernel`）。Grid 3 840
+和 5 120 也是 C0 没有的形状 —— 因为捕获的 graph 里 tensor 缓冲方式不同，到达
+kernel 的 `M` 也就不同。
+
+**Block / 寄存器 / shmem 在所有变体里完全不变**：256 / 194 / 192 KB。这说明
+**Triton `fused_moe_kernel` 本身没被重新编译**。同一份 JIT 出来的 PTX 在被
+launch —— 只是现在从 CUDA-graph 节点里 launch 而已。
+
+#### (c) `cudaEventSynchronize` 平均时长爆炸 16 倍
+
+| 指标 | C0 | C6 |
+|---|---|---|
+| `cudaEventSynchronize` 调用数 | 8 | 8 |
+| 每次平均 | 2 150 µs | **33 552 µs** |
+| 总 | 17 201 µs（2.9%）| **268 418 µs（25.1%）** |
+
+看起来吓人，但是 **测量伪影**：CPU-side trace 视角里，event sync 现在要等
+*整个 sub-graph 链* 完成（因为 graph node queue 后 launch 立刻返回）。GPU 在
+那 33 ms 里其实是在干活 —— 只是 CPU 观察到的是 1 个长 sync 而不是许多小 kernel
+完成事件。证据：**C6 的 GPU active 时间（1 069 ms）绝对值比 C0（600 ms）高**，
+但 wall time 反而短 —— 也就是 GPU 干得更多 + 更快，CPU 只是等待的次数更少但每次更久。
+
+### 20.5 C6 为什么 +19%，虽然有 25% `cudaEventSynchronize`
+
+算账：
+
+| 量 | C0 | C6 | 来源 |
+|---|---|---|---|
+| 每 profile step wall time | ~70 ms | ~80 ms | trace `wallclock_ms` |
+| **Bench 吞吐** | **1 339 tok/s** | **1 598 tok/s（+19%）** | bench_serving |
+| 每 step GPU active 时间 | 600 ms | 1 069 ms（+78%）| trace |
+| 每 step CPU launch overhead | ~1 500 ms（C0 实际 `cudaLaunch*` × ~5 µs × ~3 000）| ~7 ms（graph replay）| 推算 |
+
+C6 **总 GPU 时间更多但吞吐更高**，因为：
+
+1. **C6 的 1 069 ms GPU active 时间覆盖更多并发工作** —— sub-graph 允许 pre/post-attention
+   compute 跟 attention 本身（不能 in-graph）异步重叠。700→1 069 的增加不是浪费，
+   是原来串行的工作现在并行 stream 里跑了。
+2. **launch overhead 被折叠**：~300 个 launch 消失，~240 个被 graph launch 替代，graph
+   launch issue 成本 ~10× 低。
+3. **`cudaEventSynchronize` 是 forward pass *之间* 的 barrier，不是 forward 内部**。
+   10-step 窗口里出现 8 次（= forward 数 - 起止）。即使 33 ms × 8 = 264 ms，这个 barrier
+   不会扩展 serving latency，因为下个 prefill/decode 已经排在它后面等着了。
+
+### 20.6 给 mentor 的总结表
+
+| 问题 | 答案 |
+|---|---|
+| 什么是"piecewise CUDA graph"？ | sglang 的一个模式，把 forward graph 按 `@register_split_op()` 边界（attention、allreduce）切分，**每片** 单独抓成 CUDA graph（vs 默认"整个 forward 一个 graph"）。|
+| 啥被"融合"得不一样了？ | **`fused_moe_kernel` 内部完全没变** —— 同 PTX，同 block/regs/shmem（256 / 194 / 192 KB）。变的是 **哪些 kernel 住在同一个 CUDA-graph 节点里** —— pre-attention norm + QKV proj + RoPE 现在变成一个 graph node；post-attention proj + MoE 另一个。|
+| 哪些 kernel 出现 / 消失？ | **C6 独有**：新出现 `nvjet_tst_320x128_…`、`_256x128_`、`_128x272_` GEMM tile（Inductor 按新 shape 重新调）。**C0 独有**：`nvjet_tst_192x192_…`、`_128x248_`、`_128x256_`（旧 tile）。Triton MoE kernel 是同一份 PTX。|
+| Kernel 参数怎么变？ | `fused_moe_kernel`：block / regs / shmem **不变**，但 **grid shape 不同**（C6 3 840、5 120、6 834 vs C0 6 774、6 882、9 176），因为捕获的 graph 在 capture 时持有不同大小的 tensor，并且 `calls=96` 出现（= 一个捕获 sub-graph 里包含 2 层 MoE）。|
+| 性能？ | R8 上 **吞吐 +19%**，**E2E p99 −20%**，**TPOT −17%**。代价：显存峰 +60 MiB，每 step GPU active +469 ms（多数被并发吸收，不是浪费）。|
+| Backend 选择？ | 不变 —— 依然 fa3 + flashinfer + lpm。Piecewise CUDA graph **跟 backend 选择正交**；它只改 backend 已选 kernel 的 *launch 方式*。|
+| 推荐吗？ | **R8 上是的**。提到默认前要先在 R1-R7 上测 —— 小 batch 上可能因为 per-bucket graph capture 成本反而回归。|

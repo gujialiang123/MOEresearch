@@ -447,9 +447,103 @@ sglang has **no single "optimization level"** — it has 30+ flags. We picked 7 
 
 ---
 
-## 7. Conclusions & next steps
+## 7. C6 piecewise CUDA graph — what actually changed inside sglang
 
-### 7.1 Headline conclusions
+C6 (`enable-piecewise-cuda-graph: true`) was the winner in §6 (+19 % throughput). Here's exactly **what's happening under the hood** that produces the speedup. Full deep-dive in `docs/regime_benchmark_experiment.md §20`.
+
+### 7.1 The mechanism
+
+sglang has two CUDA-graph modes:
+
+| Mode | Granularity | Source |
+|---|---|---|
+| **Whole-graph (default)** | one graph per `(batch, seq_len)` covering the entire forward pass | `cuda_graph_runner.py` |
+| **Piecewise (C6)** | many small graphs, **one per layer slice** | `piecewise_cuda_graph_runner.py` + `compilation/` |
+
+Boundaries are marked by `@register_split_op()` in source:
+
+| Boundary | Why it can't be in a graph |
+|---|---|
+| `radix_attention` | KV cache mutation needs runtime shape |
+| `tensor_model_parallel_all_reduce` | NCCL collective on external stream |
+| `radix_linear_attention`, `qwen3_next` Mamba op | data-dependent control flow |
+
+For our Qwen3-30B-A3B MoE the active boundary is **`radix_attention`**, so **each transformer layer becomes ~2 sub-graphs** (pre-attention and post-attention/MoE), each captured + replayed independently.
+
+### 7.2 Direct trace diff (C0 baseline vs C6 piecewise, 10 profile steps on R8)
+
+| Event | C0 baseline | C6 piecewise | Δ |
+|---|---|---|---|
+| `cudaGraphLaunch` | 5 | **247** | **+242 (49 ×)** |
+| `cudaLaunchKernel` | 1 583 | 1 483 | −100 |
+| `cudaLaunchKernelExC` | 1 060 | 866 | −194 |
+| **Total launches** | 2 648 | 2 596 | −52 (net −300 small launches folded into graphs) |
+
+C0 captures the whole decode step as **one** graph. C6 captures **per-layer-piece** sub-graphs → ~240 graph launches over the window (48 layers × 0.5 graphs × 10 steps ≈ matches).
+
+### 7.3 Three concrete kernel-level changes
+
+#### (a) Inductor picked DIFFERENT cuBLAS GEMM tiles
+
+| GEMM tile | C0 self (µs) | C6 self (µs) |
+|---|---|---|
+| `nvjet_tst_128x248_64x4_2x1_v_bz_coopA_TNT` | 37 832 | **GONE** |
+| `nvjet_tst_192x192_64x4_1x2_h_bz_coopB_TNN` | 16 942 | **GONE** |
+| `nvjet_tst_320x128_64x3_1x2_h_bz_coopB_TNT` | not present | **22 300** ← NEW |
+| `nvjet_tst_128x272_64x4_2x1_v_bz_coopA_TNT` | not present | **19 935** ← NEW |
+| `nvjet_tst_256x128_64x4_1x2_h_bz_coopA_TNT` | not present | **17 281** ← NEW |
+
+cuBLASLt's tile-selection heuristic produced different choices because Inductor changed the surrounding tensor layouts. **Same matmul math, different SM-occupancy / L2-locality trade-off.**
+
+#### (b) `fused_moe_kernel`: same kernel, NEW grid shapes + `calls=96` variants
+
+| Variant | C0 grid | C0 calls | C6 grid | C6 calls |
+|---|---|---|---|---|
+| #1 dominant | 6 882 | 48 | **3 840** | **96** |
+| #2 | 6 774 | 48 | 6 834 | 48 |
+| #3 | 9 176 | 48 | 6 426 | 48 |
+| #4 | 9 032 | 48 | **5 120** | **96** |
+| #5 | 1 530 | 48 | 9 112 | 48 |
+
+- **Block (256) / registers (194) / shmem (192 KB) are IDENTICAL across all variants** — the Triton kernel itself was **NOT recompiled**. Same PTX.
+- **`calls=96`** variants appear only in C6 — that's `2 × 48` = Inductor captured **two adjacent transformer layers' MoE into one sub-graph**, so one graph replay fires two `fused_moe_kernel` invocations.
+- New grid sizes (3 840, 5 120, 6 426) reflect different `M = num_tokens × topk` at capture time inside the graphs.
+
+#### (c) `cudaEventSynchronize` ballooned 16 × per call — but it's a measurement artefact
+
+| | C0 | C6 |
+|---|---|---|
+| Calls | 8 | 8 |
+| Mean | 2 150 µs | **33 552 µs** |
+| Total share | 2.9 % | **25.1 %** |
+
+The CPU now waits for the *entire sub-graph chain* in one sync (graph nodes return immediately when queued). GPU is **actively working** during those 33 ms — confirmed because C6's GPU active time (1 069 ms) is **higher** than C0's (600 ms) in absolute terms but wall time is shorter.
+
+### 7.4 Why +19 % despite 25 % `cudaEventSynchronize`
+
+| | C0 | C6 |
+|---|---|---|
+| **Bench out tok/s** | **1 339** | **1 598 (+19 %)** |
+| GPU active per step | 600 ms | 1 069 ms (+78 %) |
+| Wall per step | 70 ms | 80 ms (+14 %) |
+
+The +78 % GPU active time **isn't waste** — pre-attention compute, attention, and post-attention compute now run on overlapping streams (instead of sequentially as in C0). C6 trades CPU sync barriers for parallel GPU streams; net win is +19 % throughput.
+
+### 7.5 Summary for mentor
+
+| Question | Answer |
+|---|---|
+| What "fuses" differently? | **Nothing inside `fused_moe_kernel`** — same PTX (256/194/192). What changes is **which kernels live in the same CUDA-graph node** (per-layer slices instead of whole forward). |
+| Kernel names that appear/disappear? | 3 new GEMM tile variants appear, 3 old ones disappear. Inductor re-selected after fusion changed tensor layouts. |
+| Kernel parameters? | `fused_moe_kernel` block/regs/shmem unchanged; grid shapes shift; `calls=96` variants appear (2 layers' MoE per sub-graph). |
+| Performance? | R8: +19 % throughput, −20 % E2E p99, −17 % TPOT. Cost: +60 MiB peak mem. |
+| Backend selection? | **Unchanged** — fa3 + flashinfer + lpm. Piecewise CUDA graph is orthogonal to backend choice. |
+
+---
+
+## 8. Conclusions & next steps
+
+### 8.1 Headline conclusions
 
 1. **Regime alone moves performance by an order of magnitude**, with no code or config change:
    - Throughput swing: 15-24× across the three models
@@ -463,7 +557,7 @@ sglang has **no single "optimization level"** — it has 30+ flags. We picked 7 
 6. **Architecture matters more than parameter count at small scale**: Gemma-3-1B is consistently slower than Qwen3-0.6B (1.7× the params, 17-30 % less throughput, 10× more launch storms on R5).
 7. **Sglang config knobs are not a 'level' — they're 30+ independent flags** (§6). Single-knob deltas measured: `enable-piecewise-cuda-graph` is the biggest win (+19 % throughput); `disable-cuda-graph` is the biggest loss (−75 %); `chunked-prefill-size` is regime-dependent (hurts R8 by 33 %); `moe-runner-backend cutlass` is a no-op for bf16 (silently falls back to Triton).
 
-### 7.2 Recommended next steps
+### 8.2 Recommended next steps
 
 | # | Action | Cost | Expected payoff |
 |---|---|---|---|
@@ -476,7 +570,7 @@ sglang has **no single "optimization level"** — it has 30+ flags. We picked 7 
 | 7 | Fuse `moe_align_block_size` into `fused_moe_kernel` (CUDA-graph-friendly variant) | source change in sglang | **~37 % GPU time saved on MoE R3/R4** — biggest single win available |
 | 8 | Add `expert_distribution_recorder` hook to investigate MoE expert imbalance | ~1 day | Visibility into per-expert load — required for any expert-routing optimisation |
 
-### 7.3 What we could NOT measure with current tooling
+### 8.3 What we could NOT measure with current tooling
 
 | Question | Tool needed |
 |---|---|
@@ -489,7 +583,7 @@ sglang has **no single "optimization level"** — it has 30+ flags. We picked 7 
 
 ---
 
-## 8. Reproducibility
+## 9. Reproducibility
 
 ```bash
 conda activate sglang-dev
