@@ -1,0 +1,37 @@
+2026-06-01 18:46:19 [INFO] regime_suite | === Stage 1 RegimeScout run started at 2026-06-01 18:46:19 ===
+2026-06-01 18:46:19 [INFO] regime_suite | server_config=/home/t-jialianggu/work/EndtoEnd-auto-optimization/configs/gemma3_1b.yaml
+2026-06-01 18:46:19 [INFO] regime_suite | workload_dir=/home/t-jialianggu/work/EndtoEnd-auto-optimization/regime_scout/candidates_regime_study
+2026-06-01 18:46:19 [INFO] regime_suite | mode=quick
+2026-06-01 18:46:19 [INFO] regime_suite | out=/home/t-jialianggu/work/EndtoEnd-auto-optimization/results/regime_bench/raw/gemma_rep2.jsonl
+2026-06-01 18:46:19 [INFO] regime_suite | run_root=/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/regime_study/gemma_rep2/20260601_184619
+2026-06-01 18:46:19 [INFO] regime_suite | wall_budget_s=2400 server_start_timeout=300 bench_timeout=600
+2026-06-01 18:46:19 [INFO] regime_suite | 8 workload(s) to run
+2026-06-01 18:46:19 [INFO] regime_suite | ------------------------------------------------------------------------
+2026-06-01 18:46:19 [INFO] regime_suite | [1/8] START workload=R1_baseline_short_low_conc regime_hint=baseline_low_load run_dir=/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/regime_study/gemma_rep2/20260601_184619/run_0001_R1_baseline_short_low_conc
+2026-06-01 18:47:32 [INFO] regime_suite | [1/8] PASS (72.4s) ttft_p50=40.29266641009599 ttft_p95=121.89560064580292 tpot_p50=5.622983598977188 out_tps=599.6253045234712 req_tps=8.871016987864575 err=None
+2026-06-01 18:47:32 [INFO] regime_suite | ------------------------------------------------------------------------
+2026-06-01 18:47:32 [INFO] regime_suite | [2/8] START workload=R2_decode_heavy regime_hint=decode_saturation run_dir=/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/regime_study/gemma_rep2/20260601_184619/run_0002_R2_decode_heavy
+2026-06-01 18:48:49 [INFO] regime_suite | [2/8] PASS (77.6s) ttft_p50=63.263389631174505 ttft_p95=133.22045888053253 tpot_p50=6.053644561594075 out_tps=3971.1586160185007 req_tps=7.36038666160394 err=None
+2026-06-01 18:48:49 [INFO] regime_suite | ------------------------------------------------------------------------
+2026-06-01 18:48:49 [INFO] regime_suite | [3/8] START workload=R3_prefill_heavy regime_hint=prefill_dominated run_dir=/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/regime_study/gemma_rep2/20260601_184619/run_0003_R3_prefill_heavy
+2026-06-01 18:50:02 [INFO] regime_suite | [3/8] PASS (73.1s) ttft_p50=41.92209802567959 ttft_p95=143.0820471025072 tpot_p50=6.930268195946319 out_tps=896.9964808203644 req_tps=13.270405633958234 err=None
+2026-06-01 18:50:02 [INFO] regime_suite | ------------------------------------------------------------------------
+2026-06-01 18:50:02 [INFO] regime_suite | [4/8] START workload=R4_long_in_long_out regime_hint=prefill_and_decode_mixed run_dir=/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/regime_study/gemma_rep2/20260601_184619/run_0004_R4_long_in_long_out
+2026-06-01 18:51:19 [INFO] regime_suite | [4/8] PASS (76.2s) ttft_p50=43.426289106719196 ttft_p95=142.52369053428993 tpot_p50=5.342902892713199 out_tps=1266.3088814836574 req_tps=4.540097573290675 err=None
+2026-06-01 18:51:19 [INFO] regime_suite | ------------------------------------------------------------------------
+2026-06-01 18:51:19 [INFO] regime_suite | [5/8] START workload=R5_high_concurrency regime_hint=saturation_high_conc run_dir=/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/regime_study/gemma_rep2/20260601_184619/run_0005_R5_high_concurrency
+2026-06-01 18:52:35 [INFO] regime_suite | [5/8] PASS (76.3s) ttft_p50=1041.0363530972973 ttft_p95=2615.9396957606073 tpot_p50=9.975940003641881 out_tps=2777.297975433954 req_tps=22.356715983620283 err=None
+2026-06-01 18:52:35 [INFO] regime_suite | ------------------------------------------------------------------------
+2026-06-01 18:52:35 [INFO] regime_suite | [6/8] START workload=R6_low_concurrency regime_hint=latency_under_utilization run_dir=/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/regime_study/gemma_rep2/20260601_184619/run_0006_R6_low_concurrency
+2026-06-01 18:53:55 [INFO] regime_suite | [6/8] PASS (80.0s) ttft_p50=40.68381106480956 ttft_p95=43.60124369850382 tpot_p50=4.46053967507278 out_tps=212.4276668310466 req_tps=1.4401875717359092 err=None
+2026-06-01 18:53:55 [INFO] regime_suite | ------------------------------------------------------------------------
+2026-06-01 18:53:55 [INFO] regime_suite | [7/8] START workload=R7_mixed_lengths regime_hint=mixed_length_distribution run_dir=/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/regime_study/gemma_rep2/20260601_184619/run_0007_R7_mixed_lengths
+2026-06-01 18:55:07 [INFO] regime_suite | [7/8] PASS (72.4s) ttft_p50=140.5437976354733 ttft_p95=392.8288249997422 tpot_p50=6.326089182104175 out_tps=4489.751297107171 req_tps=18.05605649207358 err=None
+2026-06-01 18:55:07 [INFO] regime_suite | ------------------------------------------------------------------------
+2026-06-01 18:55:07 [INFO] regime_suite | [8/8] START workload=R8_prefix_sharing regime_hint=radix_cache_prefix_reuse run_dir=/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/regime_study/gemma_rep2/20260601_184619/run_0008_R8_prefix_sharing
+2026-06-01 18:56:19 [INFO] regime_suite | [8/8] PASS (71.4s) ttft_p50=207.97022082842886 ttft_p95=322.73778741946444 tpot_p50=5.493880255038247 out_tps=5012.122115766945 req_tps=19.57860201471463 err=None
+2026-06-01 18:56:19 [INFO] regime_suite | ========================================================================
+2026-06-01 18:56:19 [INFO] regime_suite | done in 600s. pass=8 fail=0 skip=0
+2026-06-01 18:56:19 [INFO] regime_suite | results: /home/t-jialianggu/work/EndtoEnd-auto-optimization/results/regime_bench/raw/gemma_rep2.jsonl
+2026-06-01 18:56:19 [INFO] regime_suite | per-run dirs: /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/regime_study/gemma_rep2/20260601_184619
+2026-06-01 18:56:19 [INFO] regime_suite | === Stage 1 RegimeScout run finished at 2026-06-01 18:56:19 ===

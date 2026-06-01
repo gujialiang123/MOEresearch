@@ -1,0 +1,1051 @@
+[SKIP] dense R1 (exists)
+================ dense R2 ================
+benchmark_args=Namespace(backend='sglang', base_url=None, host='127.0.0.1', port=30000, dataset_name='random', dataset_path='', model='/data/hf/models/Qwen3-0.6B', served_model_name=None, tokenizer=None, num_prompts=64, sharegpt_output_len=None, sharegpt_context_len=None, random_input_len=128, random_output_len=1024, random_range_ratio=0.0, image_count=1, image_resolution='1080p', random_image_count=False, image_format='jpeg', image_content='random', request_rate=inf, use_trace_timestamps=False, max_concurrency=32, output_file='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R2/bench.jsonl', output_details=False, print_requests=False, disable_tqdm=True, disable_stream=False, return_logprob=False, return_routed_experts=False, seed=1234, disable_ignore_eos=False, extra_request_body=None, apply_chat_template=False, profile=True, plot_throughput=False, profile_activities=['CPU', 'GPU'], profile_num_steps=10, profile_by_stage=False, profile_stages=None, profile_output_dir='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R2/raw_trace', profile_prefix='p_', lora_name=None, lora_request_distribution='uniform', lora_zipf_alpha=1.5, prompt_suffix='', pd_separated=False, profile_prefill_url=None, profile_decode_url=None, flush_cache=False, warmup_requests=8, tokenize_prompt=False, gsp_num_groups=64, gsp_prompts_per_group=16, gsp_system_prompt_len=2048, gsp_question_len=128, gsp_output_len=256, gsp_range_ratio=1.0, gsp_fast_prepare=False, gsp_send_routing_key=False, gsp_num_turns=1, gsp_ordered=False, mooncake_slowdown_factor=1.0, mooncake_num_rounds=1, mooncake_workload='conversation', tag=None, header=None)
+Namespace(backend='sglang', base_url=None, host='127.0.0.1', port=30000, dataset_name='random', dataset_path='', model='/data/hf/models/Qwen3-0.6B', served_model_name=None, tokenizer=None, num_prompts=64, sharegpt_output_len=None, sharegpt_context_len=None, random_input_len=128, random_output_len=1024, random_range_ratio=0.0, image_count=1, image_resolution='1080p', random_image_count=False, image_format='jpeg', image_content='random', request_rate=inf, use_trace_timestamps=False, max_concurrency=32, output_file='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R2/bench.jsonl', output_details=False, print_requests=False, disable_tqdm=True, disable_stream=False, return_logprob=False, return_routed_experts=False, seed=1234, disable_ignore_eos=False, extra_request_body=None, apply_chat_template=False, profile=True, plot_throughput=False, profile_activities=['CPU', 'GPU'], profile_num_steps=10, profile_by_stage=False, profile_stages=None, profile_output_dir='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R2/raw_trace', profile_prefix='p_', lora_name=None, lora_request_distribution='uniform', lora_zipf_alpha=1.5, prompt_suffix='', pd_separated=False, profile_prefill_url=None, profile_decode_url=None, flush_cache=False, warmup_requests=8, tokenize_prompt=False, gsp_num_groups=64, gsp_prompts_per_group=16, gsp_system_prompt_len=2048, gsp_question_len=128, gsp_output_len=256, gsp_range_ratio=1.0, gsp_fast_prepare=False, gsp_send_routing_key=False, gsp_num_turns=1, gsp_ordered=False, mooncake_slowdown_factor=1.0, mooncake_num_rounds=1, mooncake_workload='conversation', tag=None, header=None)
+
+#Input tokens: 4522
+#Output tokens: 34530
+Starting warmup with 8 sequences...
+Warmup completed with 8 sequences. Starting main benchmark run...
+Starting profiler...
+async_request_profile api_url='http://127.0.0.1:30000/start_profile' body={'activities': ['CPU', 'GPU'], 'num_steps': 10, 'profile_by_stage': False, 'profile_stages': None, 'output_dir': '/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R2/raw_trace/1780340244.4653497', 'profile_prefix': 'p_'}
+Profiler started
+
+============ Serving Benchmark Result ============
+Backend:                                 sglang    
+Traffic request rate:                    inf       
+Max request concurrency:                 32        
+Successful requests:                     64        
+Benchmark duration (s):                  5.94      
+Total input tokens:                      4522      
+Total input text tokens:                 4522      
+Total generated tokens:                  34530     
+Total generated tokens (retokenized):    34525     
+Request throughput (req/s):              10.78     
+Input token throughput (tok/s):          761.40    
+Output token throughput (tok/s):         5814.07   
+Peak output token throughput (tok/s):    11774.00  
+Peak concurrent requests:                43        
+Total token throughput (tok/s):          6575.47   
+Concurrency:                             27.22     
+----------------End-to-End Latency----------------
+Mean E2E Latency (ms):                   2526.30   
+Median E2E Latency (ms):                 2349.48   
+P90 E2E Latency (ms):                    4794.92   
+P99 E2E Latency (ms):                    4953.30   
+---------------Time to First Token----------------
+Mean TTFT (ms):                          46.80     
+Median TTFT (ms):                        50.81     
+P99 TTFT (ms):                           72.68     
+-----Time per Output Token (excl. 1st token)------
+Mean TPOT (ms):                          8.86      
+Median TPOT (ms):                        3.94      
+P99 TPOT (ms):                           78.12     
+---------------Inter-Token Latency----------------
+Mean ITL (ms):                           4.60      
+Median ITL (ms):                         2.26      
+P95 ITL (ms):                            2.84      
+P99 ITL (ms):                            18.36     
+Max ITL (ms):                            1055.24   
+==================================================
+[parse_trace] wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R2/profile_summary.json  (20 top kernels, 2 warnings)
+[run_profile] launching server (CUDA_VISIBLE_DEVICES=0)
+[run_profile] waiting for /health on 127.0.0.1:30000 ...
+[run_profile] running bench with --profile (num-steps=10)
+[run_profile] wrote server_info.json
+[run_profile] trace captured: /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R2/raw_trace/1780340244.4653497/p_-1780340244.4669967-TP-0.trace.json.gz
+[hw-view] sampler pid=2153147 → /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R2/gpu_samples.csv
+[hw-view] run_profile.py rc=0 duration=59.1s
+[hw-view] wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R2/hardware_view.json
+================ dense R3 ================
+benchmark_args=Namespace(backend='sglang', base_url=None, host='127.0.0.1', port=30000, dataset_name='random', dataset_path='', model='/data/hf/models/Qwen3-0.6B', served_model_name=None, tokenizer=None, num_prompts=32, sharegpt_output_len=None, sharegpt_context_len=None, random_input_len=4096, random_output_len=128, random_range_ratio=0.0, image_count=1, image_resolution='1080p', random_image_count=False, image_format='jpeg', image_content='random', request_rate=inf, use_trace_timestamps=False, max_concurrency=8, output_file='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R3/bench.jsonl', output_details=False, print_requests=False, disable_tqdm=True, disable_stream=False, return_logprob=False, return_routed_experts=False, seed=1234, disable_ignore_eos=False, extra_request_body=None, apply_chat_template=False, profile=True, plot_throughput=False, profile_activities=['CPU', 'GPU'], profile_num_steps=10, profile_by_stage=False, profile_stages=None, profile_output_dir='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R3/raw_trace', profile_prefix='p_', lora_name=None, lora_request_distribution='uniform', lora_zipf_alpha=1.5, prompt_suffix='', pd_separated=False, profile_prefill_url=None, profile_decode_url=None, flush_cache=False, warmup_requests=8, tokenize_prompt=False, gsp_num_groups=64, gsp_prompts_per_group=16, gsp_system_prompt_len=2048, gsp_question_len=128, gsp_output_len=256, gsp_range_ratio=1.0, gsp_fast_prepare=False, gsp_send_routing_key=False, gsp_num_turns=1, gsp_ordered=False, mooncake_slowdown_factor=1.0, mooncake_num_rounds=1, mooncake_workload='conversation', tag=None, header=None)
+Namespace(backend='sglang', base_url=None, host='127.0.0.1', port=30000, dataset_name='random', dataset_path='', model='/data/hf/models/Qwen3-0.6B', served_model_name=None, tokenizer=None, num_prompts=32, sharegpt_output_len=None, sharegpt_context_len=None, random_input_len=4096, random_output_len=128, random_range_ratio=0.0, image_count=1, image_resolution='1080p', random_image_count=False, image_format='jpeg', image_content='random', request_rate=inf, use_trace_timestamps=False, max_concurrency=8, output_file='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R3/bench.jsonl', output_details=False, print_requests=False, disable_tqdm=True, disable_stream=False, return_logprob=False, return_routed_experts=False, seed=1234, disable_ignore_eos=False, extra_request_body=None, apply_chat_template=False, profile=True, plot_throughput=False, profile_activities=['CPU', 'GPU'], profile_num_steps=10, profile_by_stage=False, profile_stages=None, profile_output_dir='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R3/raw_trace', profile_prefix='p_', lora_name=None, lora_request_distribution='uniform', lora_zipf_alpha=1.5, prompt_suffix='', pd_separated=False, profile_prefill_url=None, profile_decode_url=None, flush_cache=False, warmup_requests=8, tokenize_prompt=False, gsp_num_groups=64, gsp_prompts_per_group=16, gsp_system_prompt_len=2048, gsp_question_len=128, gsp_output_len=256, gsp_range_ratio=1.0, gsp_fast_prepare=False, gsp_send_routing_key=False, gsp_num_turns=1, gsp_ordered=False, mooncake_slowdown_factor=1.0, mooncake_num_rounds=1, mooncake_workload='conversation', tag=None, header=None)
+
+#Input tokens: 74935
+#Output tokens: 2163
+Starting warmup with 8 sequences...
+Warmup completed with 8 sequences. Starting main benchmark run...
+Starting profiler...
+async_request_profile api_url='http://127.0.0.1:30000/start_profile' body={'activities': ['CPU', 'GPU'], 'num_steps': 10, 'profile_by_stage': False, 'profile_stages': None, 'output_dir': '/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R3/raw_trace/1780340313.0110269', 'profile_prefix': 'p_'}
+Profiler started
+
+============ Serving Benchmark Result ============
+Backend:                                 sglang    
+Traffic request rate:                    inf       
+Max request concurrency:                 8         
+Successful requests:                     32        
+Benchmark duration (s):                  3.31      
+Total input tokens:                      74935     
+Total input text tokens:                 74935     
+Total generated tokens:                  2163      
+Total generated tokens (retokenized):    2163      
+Request throughput (req/s):              9.66      
+Input token throughput (tok/s):          22627.63  
+Output token throughput (tok/s):         653.15    
+Peak output token throughput (tok/s):    1602.00   
+Peak concurrent requests:                29        
+Total token throughput (tok/s):          23280.77  
+Concurrency:                             7.68      
+----------------End-to-End Latency----------------
+Mean E2E Latency (ms):                   794.54    
+Median E2E Latency (ms):                 347.45    
+P90 E2E Latency (ms):                    2390.47   
+P99 E2E Latency (ms):                    2629.03   
+---------------Time to First Token----------------
+Mean TTFT (ms):                          45.96     
+Median TTFT (ms):                        35.25     
+P99 TTFT (ms):                           90.25     
+-----Time per Output Token (excl. 1st token)------
+Mean TPOT (ms):                          12.37     
+Median TPOT (ms):                        3.70      
+P99 TPOT (ms):                           61.36     
+---------------Inter-Token Latency----------------
+Mean ITL (ms):                           11.24     
+Median ITL (ms):                         2.36      
+P95 ITL (ms):                            15.53     
+P99 ITL (ms):                            24.97     
+Max ITL (ms):                            2054.75   
+==================================================
+[parse_trace] wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R3/profile_summary.json  (20 top kernels, 2 warnings)
+[run_profile] launching server (CUDA_VISIBLE_DEVICES=0)
+[run_profile] waiting for /health on 127.0.0.1:30000 ...
+[run_profile] running bench with --profile (num-steps=10)
+[run_profile] wrote server_info.json
+[run_profile] trace captured: /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R3/raw_trace/1780340313.0110269/p_-1780340313.0129054-TP-0.trace.json.gz
+[hw-view] sampler pid=2154740 → /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R3/gpu_samples.csv
+[hw-view] run_profile.py rc=0 duration=62.4s
+[hw-view] wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R3/hardware_view.json
+================ dense R4 ================
+benchmark_args=Namespace(backend='sglang', base_url=None, host='127.0.0.1', port=30000, dataset_name='random', dataset_path='', model='/data/hf/models/Qwen3-0.6B', served_model_name=None, tokenizer=None, num_prompts=24, sharegpt_output_len=None, sharegpt_context_len=None, random_input_len=4096, random_output_len=512, random_range_ratio=0.0, image_count=1, image_resolution='1080p', random_image_count=False, image_format='jpeg', image_content='random', request_rate=inf, use_trace_timestamps=False, max_concurrency=8, output_file='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R4/bench.jsonl', output_details=False, print_requests=False, disable_tqdm=True, disable_stream=False, return_logprob=False, return_routed_experts=False, seed=1234, disable_ignore_eos=False, extra_request_body=None, apply_chat_template=False, profile=True, plot_throughput=False, profile_activities=['CPU', 'GPU'], profile_num_steps=10, profile_by_stage=False, profile_stages=None, profile_output_dir='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R4/raw_trace', profile_prefix='p_', lora_name=None, lora_request_distribution='uniform', lora_zipf_alpha=1.5, prompt_suffix='', pd_separated=False, profile_prefill_url=None, profile_decode_url=None, flush_cache=False, warmup_requests=8, tokenize_prompt=False, gsp_num_groups=64, gsp_prompts_per_group=16, gsp_system_prompt_len=2048, gsp_question_len=128, gsp_output_len=256, gsp_range_ratio=1.0, gsp_fast_prepare=False, gsp_send_routing_key=False, gsp_num_turns=1, gsp_ordered=False, mooncake_slowdown_factor=1.0, mooncake_num_rounds=1, mooncake_workload='conversation', tag=None, header=None)
+Namespace(backend='sglang', base_url=None, host='127.0.0.1', port=30000, dataset_name='random', dataset_path='', model='/data/hf/models/Qwen3-0.6B', served_model_name=None, tokenizer=None, num_prompts=24, sharegpt_output_len=None, sharegpt_context_len=None, random_input_len=4096, random_output_len=512, random_range_ratio=0.0, image_count=1, image_resolution='1080p', random_image_count=False, image_format='jpeg', image_content='random', request_rate=inf, use_trace_timestamps=False, max_concurrency=8, output_file='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R4/bench.jsonl', output_details=False, print_requests=False, disable_tqdm=True, disable_stream=False, return_logprob=False, return_routed_experts=False, seed=1234, disable_ignore_eos=False, extra_request_body=None, apply_chat_template=False, profile=True, plot_throughput=False, profile_activities=['CPU', 'GPU'], profile_num_steps=10, profile_by_stage=False, profile_stages=None, profile_output_dir='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R4/raw_trace', profile_prefix='p_', lora_name=None, lora_request_distribution='uniform', lora_zipf_alpha=1.5, prompt_suffix='', pd_separated=False, profile_prefill_url=None, profile_decode_url=None, flush_cache=False, warmup_requests=8, tokenize_prompt=False, gsp_num_groups=64, gsp_prompts_per_group=16, gsp_system_prompt_len=2048, gsp_question_len=128, gsp_output_len=256, gsp_range_ratio=1.0, gsp_fast_prepare=False, gsp_send_routing_key=False, gsp_num_turns=1, gsp_ordered=False, mooncake_slowdown_factor=1.0, mooncake_num_rounds=1, mooncake_workload='conversation', tag=None, header=None)
+
+#Input tokens: 56829
+#Output tokens: 6694
+Starting warmup with 8 sequences...
+Warmup completed with 8 sequences. Starting main benchmark run...
+Starting profiler...
+async_request_profile api_url='http://127.0.0.1:30000/start_profile' body={'activities': ['CPU', 'GPU'], 'num_steps': 10, 'profile_by_stage': False, 'profile_stages': None, 'output_dir': '/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R4/raw_trace/1780340382.3360693', 'profile_prefix': 'p_'}
+Profiler started
+
+============ Serving Benchmark Result ============
+Backend:                                 sglang    
+Traffic request rate:                    inf       
+Max request concurrency:                 8         
+Successful requests:                     24        
+Benchmark duration (s):                  4.93      
+Total input tokens:                      56829     
+Total input text tokens:                 56829     
+Total generated tokens:                  6694      
+Total generated tokens (retokenized):    6694      
+Request throughput (req/s):              4.87      
+Input token throughput (tok/s):          11534.96  
+Output token throughput (tok/s):         1358.73   
+Peak output token throughput (tok/s):    2764.00   
+Peak concurrent requests:                17        
+Total token throughput (tok/s):          12893.68  
+Concurrency:                             7.53      
+----------------End-to-End Latency----------------
+Mean E2E Latency (ms):                   1546.70   
+Median E2E Latency (ms):                 833.34    
+P90 E2E Latency (ms):                    3471.69   
+P99 E2E Latency (ms):                    3707.18   
+---------------Time to First Token----------------
+Mean TTFT (ms):                          52.39     
+Median TTFT (ms):                        35.01     
+P99 TTFT (ms):                           111.84    
+-----Time per Output Token (excl. 1st token)------
+Mean TPOT (ms):                          6.30      
+Median TPOT (ms):                        2.91      
+P99 TPOT (ms):                           37.80     
+---------------Inter-Token Latency----------------
+Mean ITL (ms):                           5.38      
+Median ITL (ms):                         2.48      
+P95 ITL (ms):                            3.01      
+P99 ITL (ms):                            15.68     
+Max ITL (ms):                            2168.89   
+==================================================
+[parse_trace] wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R4/profile_summary.json  (20 top kernels, 2 warnings)
+[run_profile] launching server (CUDA_VISIBLE_DEVICES=0)
+[run_profile] waiting for /health on 127.0.0.1:30000 ...
+[run_profile] running bench with --profile (num-steps=10)
+[run_profile] wrote server_info.json
+[run_profile] trace captured: /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R4/raw_trace/1780340382.3360693/p_-1780340382.3380203-TP-0.trace.json.gz
+[hw-view] sampler pid=2156614 → /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R4/gpu_samples.csv
+[hw-view] run_profile.py rc=0 duration=63.9s
+[hw-view] wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R4/hardware_view.json
+[SKIP] dense R5 (exists)
+================ dense R6 ================
+benchmark_args=Namespace(backend='sglang', base_url=None, host='127.0.0.1', port=30000, dataset_name='random', dataset_path='', model='/data/hf/models/Qwen3-0.6B', served_model_name=None, tokenizer=None, num_prompts=16, sharegpt_output_len=None, sharegpt_context_len=None, random_input_len=512, random_output_len=256, random_range_ratio=0.0, image_count=1, image_resolution='1080p', random_image_count=False, image_format='jpeg', image_content='random', request_rate=inf, use_trace_timestamps=False, max_concurrency=1, output_file='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R6/bench.jsonl', output_details=False, print_requests=False, disable_tqdm=True, disable_stream=False, return_logprob=False, return_routed_experts=False, seed=1234, disable_ignore_eos=False, extra_request_body=None, apply_chat_template=False, profile=True, plot_throughput=False, profile_activities=['CPU', 'GPU'], profile_num_steps=10, profile_by_stage=False, profile_stages=None, profile_output_dir='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R6/raw_trace', profile_prefix='p_', lora_name=None, lora_request_distribution='uniform', lora_zipf_alpha=1.5, prompt_suffix='', pd_separated=False, profile_prefill_url=None, profile_decode_url=None, flush_cache=False, warmup_requests=8, tokenize_prompt=False, gsp_num_groups=64, gsp_prompts_per_group=16, gsp_system_prompt_len=2048, gsp_question_len=128, gsp_output_len=256, gsp_range_ratio=1.0, gsp_fast_prepare=False, gsp_send_routing_key=False, gsp_num_turns=1, gsp_ordered=False, mooncake_slowdown_factor=1.0, mooncake_num_rounds=1, mooncake_workload='conversation', tag=None, header=None)
+Namespace(backend='sglang', base_url=None, host='127.0.0.1', port=30000, dataset_name='random', dataset_path='', model='/data/hf/models/Qwen3-0.6B', served_model_name=None, tokenizer=None, num_prompts=16, sharegpt_output_len=None, sharegpt_context_len=None, random_input_len=512, random_output_len=256, random_range_ratio=0.0, image_count=1, image_resolution='1080p', random_image_count=False, image_format='jpeg', image_content='random', request_rate=inf, use_trace_timestamps=False, max_concurrency=1, output_file='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R6/bench.jsonl', output_details=False, print_requests=False, disable_tqdm=True, disable_stream=False, return_logprob=False, return_routed_experts=False, seed=1234, disable_ignore_eos=False, extra_request_body=None, apply_chat_template=False, profile=True, plot_throughput=False, profile_activities=['CPU', 'GPU'], profile_num_steps=10, profile_by_stage=False, profile_stages=None, profile_output_dir='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R6/raw_trace', profile_prefix='p_', lora_name=None, lora_request_distribution='uniform', lora_zipf_alpha=1.5, prompt_suffix='', pd_separated=False, profile_prefill_url=None, profile_decode_url=None, flush_cache=False, warmup_requests=8, tokenize_prompt=False, gsp_num_groups=64, gsp_prompts_per_group=16, gsp_system_prompt_len=2048, gsp_question_len=128, gsp_output_len=256, gsp_range_ratio=1.0, gsp_fast_prepare=False, gsp_send_routing_key=False, gsp_num_turns=1, gsp_ordered=False, mooncake_slowdown_factor=1.0, mooncake_num_rounds=1, mooncake_workload='conversation', tag=None, header=None)
+
+#Input tokens: 3455
+#Output tokens: 2360
+Starting warmup with 8 sequences...
+Warmup completed with 8 sequences. Starting main benchmark run...
+Starting profiler...
+async_request_profile api_url='http://127.0.0.1:30000/start_profile' body={'activities': ['CPU', 'GPU'], 'num_steps': 10, 'profile_by_stage': False, 'profile_stages': None, 'output_dir': '/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R6/raw_trace/1780340477.8811965', 'profile_prefix': 'p_'}
+Profiler started
+
+============ Serving Benchmark Result ============
+Backend:                                 sglang    
+Traffic request rate:                    inf       
+Max request concurrency:                 1         
+Successful requests:                     16        
+Benchmark duration (s):                  5.37      
+Total input tokens:                      3455      
+Total input text tokens:                 3455      
+Total generated tokens:                  2360      
+Total generated tokens (retokenized):    2360      
+Request throughput (req/s):              2.98      
+Input token throughput (tok/s):          643.39    
+Output token throughput (tok/s):         439.48    
+Peak output token throughput (tok/s):    534.00    
+Peak concurrent requests:                5         
+Total token throughput (tok/s):          1082.87   
+Concurrency:                             1.00      
+----------------End-to-End Latency----------------
+Mean E2E Latency (ms):                   335.17    
+Median E2E Latency (ms):                 249.29    
+P90 E2E Latency (ms):                    462.10    
+P99 E2E Latency (ms):                    1155.31   
+---------------Time to First Token----------------
+Mean TTFT (ms):                          23.61     
+Median TTFT (ms):                        22.16     
+P99 TTFT (ms):                           43.82     
+-----Time per Output Token (excl. 1st token)------
+Mean TPOT (ms):                          1.99      
+Median TPOT (ms):                        1.77      
+P99 TPOT (ms):                           4.76      
+---------------Inter-Token Latency----------------
+Mean ITL (ms):                           2.13      
+Median ITL (ms):                         1.78      
+P95 ITL (ms):                            1.82      
+P99 ITL (ms):                            1.98      
+Max ITL (ms):                            827.31    
+==================================================
+[parse_trace] wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R6/profile_summary.json  (20 top kernels, 2 warnings)
+[run_profile] launching server (CUDA_VISIBLE_DEVICES=0)
+[run_profile] waiting for /health on 127.0.0.1:30000 ...
+[run_profile] running bench with --profile (num-steps=10)
+[run_profile] wrote server_info.json
+[run_profile] trace captured: /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R6/raw_trace/1780340477.8811965/p_-1780340477.8827982-TP-0.trace.json.gz
+[hw-view] sampler pid=2158574 → /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R6/gpu_samples.csv
+[hw-view] run_profile.py rc=0 duration=92.1s
+[hw-view] wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R6/hardware_view.json
+================ dense R7 ================
+benchmark_args=Namespace(backend='sglang', base_url=None, host='127.0.0.1', port=30000, dataset_name='random', dataset_path='', model='/data/hf/models/Qwen3-0.6B', served_model_name=None, tokenizer=None, num_prompts=64, sharegpt_output_len=None, sharegpt_context_len=None, random_input_len=2048, random_output_len=256, random_range_ratio=0.95, image_count=1, image_resolution='1080p', random_image_count=False, image_format='jpeg', image_content='random', request_rate=inf, use_trace_timestamps=False, max_concurrency=32, output_file='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R7/bench.jsonl', output_details=False, print_requests=False, disable_tqdm=True, disable_stream=False, return_logprob=False, return_routed_experts=False, seed=1234, disable_ignore_eos=False, extra_request_body=None, apply_chat_template=False, profile=True, plot_throughput=False, profile_activities=['CPU', 'GPU'], profile_num_steps=10, profile_by_stage=False, profile_stages=None, profile_output_dir='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R7/raw_trace', profile_prefix='p_', lora_name=None, lora_request_distribution='uniform', lora_zipf_alpha=1.5, prompt_suffix='', pd_separated=False, profile_prefill_url=None, profile_decode_url=None, flush_cache=False, warmup_requests=8, tokenize_prompt=False, gsp_num_groups=64, gsp_prompts_per_group=16, gsp_system_prompt_len=2048, gsp_question_len=128, gsp_output_len=256, gsp_range_ratio=1.0, gsp_fast_prepare=False, gsp_send_routing_key=False, gsp_num_turns=1, gsp_ordered=False, mooncake_slowdown_factor=1.0, mooncake_num_rounds=1, mooncake_workload='conversation', tag=None, header=None)
+Namespace(backend='sglang', base_url=None, host='127.0.0.1', port=30000, dataset_name='random', dataset_path='', model='/data/hf/models/Qwen3-0.6B', served_model_name=None, tokenizer=None, num_prompts=64, sharegpt_output_len=None, sharegpt_context_len=None, random_input_len=2048, random_output_len=256, random_range_ratio=0.95, image_count=1, image_resolution='1080p', random_image_count=False, image_format='jpeg', image_content='random', request_rate=inf, use_trace_timestamps=False, max_concurrency=32, output_file='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R7/bench.jsonl', output_details=False, print_requests=False, disable_tqdm=True, disable_stream=False, return_logprob=False, return_routed_experts=False, seed=1234, disable_ignore_eos=False, extra_request_body=None, apply_chat_template=False, profile=True, plot_throughput=False, profile_activities=['CPU', 'GPU'], profile_num_steps=10, profile_by_stage=False, profile_stages=None, profile_output_dir='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R7/raw_trace', profile_prefix='p_', lora_name=None, lora_request_distribution='uniform', lora_zipf_alpha=1.5, prompt_suffix='', pd_separated=False, profile_prefill_url=None, profile_decode_url=None, flush_cache=False, warmup_requests=8, tokenize_prompt=False, gsp_num_groups=64, gsp_prompts_per_group=16, gsp_system_prompt_len=2048, gsp_question_len=128, gsp_output_len=256, gsp_range_ratio=1.0, gsp_fast_prepare=False, gsp_send_routing_key=False, gsp_num_turns=1, gsp_ordered=False, mooncake_slowdown_factor=1.0, mooncake_num_rounds=1, mooncake_workload='conversation', tag=None, header=None)
+
+#Input tokens: 127843
+#Output tokens: 15914
+Starting warmup with 8 sequences...
+Warmup completed with 8 sequences. Starting main benchmark run...
+Starting profiler...
+async_request_profile api_url='http://127.0.0.1:30000/start_profile' body={'activities': ['CPU', 'GPU'], 'num_steps': 10, 'profile_by_stage': False, 'profile_stages': None, 'output_dir': '/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R7/raw_trace/1780340547.779219', 'profile_prefix': 'p_'}
+Profiler started
+
+============ Serving Benchmark Result ============
+Backend:                                 sglang    
+Traffic request rate:                    inf       
+Max request concurrency:                 32        
+Successful requests:                     64        
+Benchmark duration (s):                  5.57      
+Total input tokens:                      127843    
+Total input text tokens:                 127843    
+Total generated tokens:                  15914     
+Total generated tokens (retokenized):    15897     
+Request throughput (req/s):              11.50     
+Input token throughput (tok/s):          22965.37  
+Output token throughput (tok/s):         2858.75   
+Peak output token throughput (tok/s):    6484.00   
+Peak concurrent requests:                64        
+Total token throughput (tok/s):          25824.12  
+Concurrency:                             31.77     
+----------------End-to-End Latency----------------
+Mean E2E Latency (ms):                   2763.09   
+Median E2E Latency (ms):                 2759.88   
+P90 E2E Latency (ms):                    4505.68   
+P99 E2E Latency (ms):                    4580.50   
+---------------Time to First Token----------------
+Mean TTFT (ms):                          103.05    
+Median TTFT (ms):                        89.15     
+P99 TTFT (ms):                           210.18    
+-----Time per Output Token (excl. 1st token)------
+Mean TPOT (ms):                          10.74     
+Median TPOT (ms):                        10.78     
+P99 TPOT (ms):                           17.52     
+---------------Inter-Token Latency----------------
+Mean ITL (ms):                           10.74     
+Median ITL (ms):                         3.77      
+P95 ITL (ms):                            4.05      
+P99 ITL (ms):                            26.91     
+Max ITL (ms):                            3218.36   
+==================================================
+[parse_trace] wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R7/profile_summary.json  (20 top kernels, 2 warnings)
+[run_profile] launching server (CUDA_VISIBLE_DEVICES=0)
+[run_profile] waiting for /health on 127.0.0.1:30000 ...
+[run_profile] running bench with --profile (num-steps=10)
+[run_profile] wrote server_info.json
+[run_profile] trace captured: /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R7/raw_trace/1780340547.779219/p_-1780340547.7807803-TP-0.trace.json.gz
+[hw-view] sampler pid=2161046 → /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R7/gpu_samples.csv
+[hw-view] run_profile.py rc=0 duration=66.9s
+[hw-view] wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/dense_R7/hardware_view.json
+[SKIP] dense R8 (exists)
+[SKIP] moe R1 (exists)
+================ moe R2 ================
+benchmark_args=Namespace(backend='sglang', base_url=None, host='127.0.0.1', port=30000, dataset_name='random', dataset_path='', model='/data/hf/models/Qwen3-30B-A3B-Instruct-2507', served_model_name=None, tokenizer=None, num_prompts=64, sharegpt_output_len=None, sharegpt_context_len=None, random_input_len=128, random_output_len=1024, random_range_ratio=0.0, image_count=1, image_resolution='1080p', random_image_count=False, image_format='jpeg', image_content='random', request_rate=inf, use_trace_timestamps=False, max_concurrency=32, output_file='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R2/bench.jsonl', output_details=False, print_requests=False, disable_tqdm=True, disable_stream=False, return_logprob=False, return_routed_experts=False, seed=1234, disable_ignore_eos=False, extra_request_body=None, apply_chat_template=False, profile=True, plot_throughput=False, profile_activities=['CPU', 'GPU'], profile_num_steps=10, profile_by_stage=False, profile_stages=None, profile_output_dir='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R2/raw_trace', profile_prefix='p_', lora_name=None, lora_request_distribution='uniform', lora_zipf_alpha=1.5, prompt_suffix='', pd_separated=False, profile_prefill_url=None, profile_decode_url=None, flush_cache=False, warmup_requests=8, tokenize_prompt=False, gsp_num_groups=64, gsp_prompts_per_group=16, gsp_system_prompt_len=2048, gsp_question_len=128, gsp_output_len=256, gsp_range_ratio=1.0, gsp_fast_prepare=False, gsp_send_routing_key=False, gsp_num_turns=1, gsp_ordered=False, mooncake_slowdown_factor=1.0, mooncake_num_rounds=1, mooncake_workload='conversation', tag=None, header=None)
+Namespace(backend='sglang', base_url=None, host='127.0.0.1', port=30000, dataset_name='random', dataset_path='', model='/data/hf/models/Qwen3-30B-A3B-Instruct-2507', served_model_name=None, tokenizer=None, num_prompts=64, sharegpt_output_len=None, sharegpt_context_len=None, random_input_len=128, random_output_len=1024, random_range_ratio=0.0, image_count=1, image_resolution='1080p', random_image_count=False, image_format='jpeg', image_content='random', request_rate=inf, use_trace_timestamps=False, max_concurrency=32, output_file='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R2/bench.jsonl', output_details=False, print_requests=False, disable_tqdm=True, disable_stream=False, return_logprob=False, return_routed_experts=False, seed=1234, disable_ignore_eos=False, extra_request_body=None, apply_chat_template=False, profile=True, plot_throughput=False, profile_activities=['CPU', 'GPU'], profile_num_steps=10, profile_by_stage=False, profile_stages=None, profile_output_dir='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R2/raw_trace', profile_prefix='p_', lora_name=None, lora_request_distribution='uniform', lora_zipf_alpha=1.5, prompt_suffix='', pd_separated=False, profile_prefill_url=None, profile_decode_url=None, flush_cache=False, warmup_requests=8, tokenize_prompt=False, gsp_num_groups=64, gsp_prompts_per_group=16, gsp_system_prompt_len=2048, gsp_question_len=128, gsp_output_len=256, gsp_range_ratio=1.0, gsp_fast_prepare=False, gsp_send_routing_key=False, gsp_num_turns=1, gsp_ordered=False, mooncake_slowdown_factor=1.0, mooncake_num_rounds=1, mooncake_workload='conversation', tag=None, header=None)
+
+#Input tokens: 4522
+#Output tokens: 34530
+Starting warmup with 8 sequences...
+Warmup completed with 8 sequences. Starting main benchmark run...
+Starting profiler...
+async_request_profile api_url='http://127.0.0.1:30000/start_profile' body={'activities': ['CPU', 'GPU'], 'num_steps': 10, 'profile_by_stage': False, 'profile_stages': None, 'output_dir': '/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R2/raw_trace/1780340646.2449198', 'profile_prefix': 'p_'}
+Profiler started
+
+============ Serving Benchmark Result ============
+Backend:                                 sglang    
+Traffic request rate:                    inf       
+Max request concurrency:                 32        
+Successful requests:                     64        
+Benchmark duration (s):                  24.54     
+Total input tokens:                      4522      
+Total input text tokens:                 4522      
+Total generated tokens:                  34530     
+Total generated tokens (retokenized):    34502     
+Request throughput (req/s):              2.61      
+Input token throughput (tok/s):          184.30    
+Output token throughput (tok/s):         1407.30   
+Peak output token throughput (tok/s):    2272.00   
+Peak concurrent requests:                36        
+Total token throughput (tok/s):          1591.60   
+Concurrency:                             26.74     
+----------------End-to-End Latency----------------
+Mean E2E Latency (ms):                   10250.09  
+Median E2E Latency (ms):                 9388.30   
+P90 E2E Latency (ms):                    19181.31  
+P99 E2E Latency (ms):                    20113.40  
+---------------Time to First Token----------------
+Mean TTFT (ms):                          118.70    
+Median TTFT (ms):                        121.35    
+P99 TTFT (ms):                           180.39    
+-----Time per Output Token (excl. 1st token)------
+Mean TPOT (ms):                          27.93     
+Median TPOT (ms):                        17.77     
+P99 TPOT (ms):                           174.96    
+---------------Inter-Token Latency----------------
+Mean ITL (ms):                           18.81     
+Median ITL (ms):                         14.21     
+P95 ITL (ms):                            15.58     
+P99 ITL (ms):                            50.70     
+Max ITL (ms):                            4488.04   
+==================================================
+[parse_trace] wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R2/profile_summary.json  (20 top kernels, 2 warnings)
+[run_profile] launching server (CUDA_VISIBLE_DEVICES=0)
+[run_profile] waiting for /health on 127.0.0.1:30000 ...
+[run_profile] running bench with --profile (num-steps=10)
+[run_profile] wrote server_info.json
+[run_profile] trace captured: /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R2/raw_trace/1780340646.2449198/p_-1780340646.2466078-TP-0.trace.json.gz
+[hw-view] sampler pid=2162793 → /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R2/gpu_samples.csv
+[hw-view] run_profile.py rc=0 duration=114.5s
+[hw-view] wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R2/hardware_view.json
+================ moe R3 ================
+benchmark_args=Namespace(backend='sglang', base_url=None, host='127.0.0.1', port=30000, dataset_name='random', dataset_path='', model='/data/hf/models/Qwen3-30B-A3B-Instruct-2507', served_model_name=None, tokenizer=None, num_prompts=32, sharegpt_output_len=None, sharegpt_context_len=None, random_input_len=4096, random_output_len=128, random_range_ratio=0.0, image_count=1, image_resolution='1080p', random_image_count=False, image_format='jpeg', image_content='random', request_rate=inf, use_trace_timestamps=False, max_concurrency=8, output_file='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R3/bench.jsonl', output_details=False, print_requests=False, disable_tqdm=True, disable_stream=False, return_logprob=False, return_routed_experts=False, seed=1234, disable_ignore_eos=False, extra_request_body=None, apply_chat_template=False, profile=True, plot_throughput=False, profile_activities=['CPU', 'GPU'], profile_num_steps=10, profile_by_stage=False, profile_stages=None, profile_output_dir='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R3/raw_trace', profile_prefix='p_', lora_name=None, lora_request_distribution='uniform', lora_zipf_alpha=1.5, prompt_suffix='', pd_separated=False, profile_prefill_url=None, profile_decode_url=None, flush_cache=False, warmup_requests=8, tokenize_prompt=False, gsp_num_groups=64, gsp_prompts_per_group=16, gsp_system_prompt_len=2048, gsp_question_len=128, gsp_output_len=256, gsp_range_ratio=1.0, gsp_fast_prepare=False, gsp_send_routing_key=False, gsp_num_turns=1, gsp_ordered=False, mooncake_slowdown_factor=1.0, mooncake_num_rounds=1, mooncake_workload='conversation', tag=None, header=None)
+Namespace(backend='sglang', base_url=None, host='127.0.0.1', port=30000, dataset_name='random', dataset_path='', model='/data/hf/models/Qwen3-30B-A3B-Instruct-2507', served_model_name=None, tokenizer=None, num_prompts=32, sharegpt_output_len=None, sharegpt_context_len=None, random_input_len=4096, random_output_len=128, random_range_ratio=0.0, image_count=1, image_resolution='1080p', random_image_count=False, image_format='jpeg', image_content='random', request_rate=inf, use_trace_timestamps=False, max_concurrency=8, output_file='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R3/bench.jsonl', output_details=False, print_requests=False, disable_tqdm=True, disable_stream=False, return_logprob=False, return_routed_experts=False, seed=1234, disable_ignore_eos=False, extra_request_body=None, apply_chat_template=False, profile=True, plot_throughput=False, profile_activities=['CPU', 'GPU'], profile_num_steps=10, profile_by_stage=False, profile_stages=None, profile_output_dir='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R3/raw_trace', profile_prefix='p_', lora_name=None, lora_request_distribution='uniform', lora_zipf_alpha=1.5, prompt_suffix='', pd_separated=False, profile_prefill_url=None, profile_decode_url=None, flush_cache=False, warmup_requests=8, tokenize_prompt=False, gsp_num_groups=64, gsp_prompts_per_group=16, gsp_system_prompt_len=2048, gsp_question_len=128, gsp_output_len=256, gsp_range_ratio=1.0, gsp_fast_prepare=False, gsp_send_routing_key=False, gsp_num_turns=1, gsp_ordered=False, mooncake_slowdown_factor=1.0, mooncake_num_rounds=1, mooncake_workload='conversation', tag=None, header=None)
+
+#Input tokens: 74935
+#Output tokens: 2163
+Starting warmup with 8 sequences...
+Warmup completed with 8 sequences. Starting main benchmark run...
+Starting profiler...
+async_request_profile api_url='http://127.0.0.1:30000/start_profile' body={'activities': ['CPU', 'GPU'], 'num_steps': 10, 'profile_by_stage': False, 'profile_stages': None, 'output_dir': '/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R3/raw_trace/1780340756.2790964', 'profile_prefix': 'p_'}
+Profiler started
+
+============ Serving Benchmark Result ============
+Backend:                                 sglang    
+Traffic request rate:                    inf       
+Max request concurrency:                 8         
+Successful requests:                     32        
+Benchmark duration (s):                  8.33      
+Total input tokens:                      74935     
+Total input text tokens:                 74935     
+Total generated tokens:                  2163      
+Total generated tokens (retokenized):    2163      
+Request throughput (req/s):              3.84      
+Input token throughput (tok/s):          8998.87   
+Output token throughput (tok/s):         259.75    
+Peak output token throughput (tok/s):    674.00    
+Peak concurrent requests:                17        
+Total token throughput (tok/s):          9258.62   
+Concurrency:                             7.68      
+----------------End-to-End Latency----------------
+Mean E2E Latency (ms):                   1997.34   
+Median E2E Latency (ms):                 1135.25   
+P90 E2E Latency (ms):                    5471.57   
+P99 E2E Latency (ms):                    6200.23   
+---------------Time to First Token----------------
+Mean TTFT (ms):                          136.94    
+Median TTFT (ms):                        86.78     
+P99 TTFT (ms):                           316.23    
+-----Time per Output Token (excl. 1st token)------
+Mean TPOT (ms):                          30.11     
+Median TPOT (ms):                        12.38     
+P99 TPOT (ms):                           128.35    
+---------------Inter-Token Latency----------------
+Mean ITL (ms):                           27.94     
+Median ITL (ms):                         8.50      
+P95 ITL (ms):                            43.58     
+P99 ITL (ms):                            90.41     
+Max ITL (ms):                            4130.11   
+==================================================
+[parse_trace] wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R3/profile_summary.json  (20 top kernels, 2 warnings)
+[run_profile] launching server (CUDA_VISIBLE_DEVICES=0)
+[run_profile] waiting for /health on 127.0.0.1:30000 ...
+[run_profile] running bench with --profile (num-steps=10)
+[run_profile] wrote server_info.json
+[run_profile] trace captured: /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R3/raw_trace/1780340756.2790964/p_-1780340756.2808986-TP-0.trace.json.gz
+[hw-view] sampler pid=2164887 → /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R3/gpu_samples.csv
+[hw-view] run_profile.py rc=0 duration=90.2s
+[hw-view] wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R3/hardware_view.json
+================ moe R4 ================
+benchmark_args=Namespace(backend='sglang', base_url=None, host='127.0.0.1', port=30000, dataset_name='random', dataset_path='', model='/data/hf/models/Qwen3-30B-A3B-Instruct-2507', served_model_name=None, tokenizer=None, num_prompts=24, sharegpt_output_len=None, sharegpt_context_len=None, random_input_len=4096, random_output_len=512, random_range_ratio=0.0, image_count=1, image_resolution='1080p', random_image_count=False, image_format='jpeg', image_content='random', request_rate=inf, use_trace_timestamps=False, max_concurrency=8, output_file='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R4/bench.jsonl', output_details=False, print_requests=False, disable_tqdm=True, disable_stream=False, return_logprob=False, return_routed_experts=False, seed=1234, disable_ignore_eos=False, extra_request_body=None, apply_chat_template=False, profile=True, plot_throughput=False, profile_activities=['CPU', 'GPU'], profile_num_steps=10, profile_by_stage=False, profile_stages=None, profile_output_dir='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R4/raw_trace', profile_prefix='p_', lora_name=None, lora_request_distribution='uniform', lora_zipf_alpha=1.5, prompt_suffix='', pd_separated=False, profile_prefill_url=None, profile_decode_url=None, flush_cache=False, warmup_requests=8, tokenize_prompt=False, gsp_num_groups=64, gsp_prompts_per_group=16, gsp_system_prompt_len=2048, gsp_question_len=128, gsp_output_len=256, gsp_range_ratio=1.0, gsp_fast_prepare=False, gsp_send_routing_key=False, gsp_num_turns=1, gsp_ordered=False, mooncake_slowdown_factor=1.0, mooncake_num_rounds=1, mooncake_workload='conversation', tag=None, header=None)
+Namespace(backend='sglang', base_url=None, host='127.0.0.1', port=30000, dataset_name='random', dataset_path='', model='/data/hf/models/Qwen3-30B-A3B-Instruct-2507', served_model_name=None, tokenizer=None, num_prompts=24, sharegpt_output_len=None, sharegpt_context_len=None, random_input_len=4096, random_output_len=512, random_range_ratio=0.0, image_count=1, image_resolution='1080p', random_image_count=False, image_format='jpeg', image_content='random', request_rate=inf, use_trace_timestamps=False, max_concurrency=8, output_file='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R4/bench.jsonl', output_details=False, print_requests=False, disable_tqdm=True, disable_stream=False, return_logprob=False, return_routed_experts=False, seed=1234, disable_ignore_eos=False, extra_request_body=None, apply_chat_template=False, profile=True, plot_throughput=False, profile_activities=['CPU', 'GPU'], profile_num_steps=10, profile_by_stage=False, profile_stages=None, profile_output_dir='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R4/raw_trace', profile_prefix='p_', lora_name=None, lora_request_distribution='uniform', lora_zipf_alpha=1.5, prompt_suffix='', pd_separated=False, profile_prefill_url=None, profile_decode_url=None, flush_cache=False, warmup_requests=8, tokenize_prompt=False, gsp_num_groups=64, gsp_prompts_per_group=16, gsp_system_prompt_len=2048, gsp_question_len=128, gsp_output_len=256, gsp_range_ratio=1.0, gsp_fast_prepare=False, gsp_send_routing_key=False, gsp_num_turns=1, gsp_ordered=False, mooncake_slowdown_factor=1.0, mooncake_num_rounds=1, mooncake_workload='conversation', tag=None, header=None)
+
+#Input tokens: 56829
+#Output tokens: 6694
+Starting warmup with 8 sequences...
+Warmup completed with 8 sequences. Starting main benchmark run...
+Starting profiler...
+async_request_profile api_url='http://127.0.0.1:30000/start_profile' body={'activities': ['CPU', 'GPU'], 'num_steps': 10, 'profile_by_stage': False, 'profile_stages': None, 'output_dir': '/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R4/raw_trace/1780340838.622345', 'profile_prefix': 'p_'}
+Profiler started
+
+============ Serving Benchmark Result ============
+Backend:                                 sglang    
+Traffic request rate:                    inf       
+Max request concurrency:                 8         
+Successful requests:                     24        
+Benchmark duration (s):                  13.10     
+Total input tokens:                      56829     
+Total input text tokens:                 56829     
+Total generated tokens:                  6694      
+Total generated tokens (retokenized):    6694      
+Request throughput (req/s):              1.83      
+Input token throughput (tok/s):          4337.80   
+Output token throughput (tok/s):         510.96    
+Peak output token throughput (tok/s):    960.00    
+Peak concurrent requests:                13        
+Total token throughput (tok/s):          4848.76   
+Concurrency:                             7.44      
+----------------End-to-End Latency----------------
+Mean E2E Latency (ms):                   4062.46   
+Median E2E Latency (ms):                 2852.44   
+P90 E2E Latency (ms):                    8196.40   
+P99 E2E Latency (ms):                    9014.86   
+---------------Time to First Token----------------
+Mean TTFT (ms):                          154.46    
+Median TTFT (ms):                        95.68     
+P99 TTFT (ms):                           315.74    
+-----Time per Output Token (excl. 1st token)------
+Mean TPOT (ms):                          16.10     
+Median TPOT (ms):                        9.72      
+P99 TPOT (ms):                           72.78     
+---------------Inter-Token Latency----------------
+Mean ITL (ms):                           14.06     
+Median ITL (ms):                         8.48      
+P95 ITL (ms):                            9.09      
+P99 ITL (ms):                            45.17     
+Max ITL (ms):                            3944.95   
+==================================================
+[parse_trace] wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R4/profile_summary.json  (20 top kernels, 2 warnings)
+[run_profile] launching server (CUDA_VISIBLE_DEVICES=0)
+[run_profile] waiting for /health on 127.0.0.1:30000 ...
+[run_profile] running bench with --profile (num-steps=10)
+[run_profile] wrote server_info.json
+[run_profile] trace captured: /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R4/raw_trace/1780340838.622345/p_-1780340838.624146-TP-0.trace.json.gz
+[hw-view] sampler pid=2166994 → /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R4/gpu_samples.csv
+[hw-view] run_profile.py rc=0 duration=82.9s
+[hw-view] wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R4/hardware_view.json
+[SKIP] moe R5 (exists)
+================ moe R6 ================
+benchmark_args=Namespace(backend='sglang', base_url=None, host='127.0.0.1', port=30000, dataset_name='random', dataset_path='', model='/data/hf/models/Qwen3-30B-A3B-Instruct-2507', served_model_name=None, tokenizer=None, num_prompts=16, sharegpt_output_len=None, sharegpt_context_len=None, random_input_len=512, random_output_len=256, random_range_ratio=0.0, image_count=1, image_resolution='1080p', random_image_count=False, image_format='jpeg', image_content='random', request_rate=inf, use_trace_timestamps=False, max_concurrency=1, output_file='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R6/bench.jsonl', output_details=False, print_requests=False, disable_tqdm=True, disable_stream=False, return_logprob=False, return_routed_experts=False, seed=1234, disable_ignore_eos=False, extra_request_body=None, apply_chat_template=False, profile=True, plot_throughput=False, profile_activities=['CPU', 'GPU'], profile_num_steps=10, profile_by_stage=False, profile_stages=None, profile_output_dir='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R6/raw_trace', profile_prefix='p_', lora_name=None, lora_request_distribution='uniform', lora_zipf_alpha=1.5, prompt_suffix='', pd_separated=False, profile_prefill_url=None, profile_decode_url=None, flush_cache=False, warmup_requests=8, tokenize_prompt=False, gsp_num_groups=64, gsp_prompts_per_group=16, gsp_system_prompt_len=2048, gsp_question_len=128, gsp_output_len=256, gsp_range_ratio=1.0, gsp_fast_prepare=False, gsp_send_routing_key=False, gsp_num_turns=1, gsp_ordered=False, mooncake_slowdown_factor=1.0, mooncake_num_rounds=1, mooncake_workload='conversation', tag=None, header=None)
+Namespace(backend='sglang', base_url=None, host='127.0.0.1', port=30000, dataset_name='random', dataset_path='', model='/data/hf/models/Qwen3-30B-A3B-Instruct-2507', served_model_name=None, tokenizer=None, num_prompts=16, sharegpt_output_len=None, sharegpt_context_len=None, random_input_len=512, random_output_len=256, random_range_ratio=0.0, image_count=1, image_resolution='1080p', random_image_count=False, image_format='jpeg', image_content='random', request_rate=inf, use_trace_timestamps=False, max_concurrency=1, output_file='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R6/bench.jsonl', output_details=False, print_requests=False, disable_tqdm=True, disable_stream=False, return_logprob=False, return_routed_experts=False, seed=1234, disable_ignore_eos=False, extra_request_body=None, apply_chat_template=False, profile=True, plot_throughput=False, profile_activities=['CPU', 'GPU'], profile_num_steps=10, profile_by_stage=False, profile_stages=None, profile_output_dir='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R6/raw_trace', profile_prefix='p_', lora_name=None, lora_request_distribution='uniform', lora_zipf_alpha=1.5, prompt_suffix='', pd_separated=False, profile_prefill_url=None, profile_decode_url=None, flush_cache=False, warmup_requests=8, tokenize_prompt=False, gsp_num_groups=64, gsp_prompts_per_group=16, gsp_system_prompt_len=2048, gsp_question_len=128, gsp_output_len=256, gsp_range_ratio=1.0, gsp_fast_prepare=False, gsp_send_routing_key=False, gsp_num_turns=1, gsp_ordered=False, mooncake_slowdown_factor=1.0, mooncake_num_rounds=1, mooncake_workload='conversation', tag=None, header=None)
+
+#Input tokens: 3455
+#Output tokens: 2360
+Starting warmup with 8 sequences...
+Warmup completed with 8 sequences. Starting main benchmark run...
+Starting profiler...
+async_request_profile api_url='http://127.0.0.1:30000/start_profile' body={'activities': ['CPU', 'GPU'], 'num_steps': 10, 'profile_by_stage': False, 'profile_stages': None, 'output_dir': '/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R6/raw_trace/1780340927.5232983', 'profile_prefix': 'p_'}
+Profiler started
+
+============ Serving Benchmark Result ============
+Backend:                                 sglang    
+Traffic request rate:                    inf       
+Max request concurrency:                 1         
+Successful requests:                     16        
+Benchmark duration (s):                  12.99     
+Total input tokens:                      3455      
+Total input text tokens:                 3455      
+Total generated tokens:                  2360      
+Total generated tokens (retokenized):    2360      
+Request throughput (req/s):              1.23      
+Input token throughput (tok/s):          266.05    
+Output token throughput (tok/s):         181.73    
+Peak output token throughput (tok/s):    227.00    
+Peak concurrent requests:                3         
+Total token throughput (tok/s):          447.79    
+Concurrency:                             1.00      
+----------------End-to-End Latency----------------
+Mean E2E Latency (ms):                   811.00    
+Median E2E Latency (ms):                 583.30    
+P90 E2E Latency (ms):                    1110.45   
+P99 E2E Latency (ms):                    2917.57   
+---------------Time to First Token----------------
+Mean TTFT (ms):                          53.42     
+Median TTFT (ms):                        47.69     
+P99 TTFT (ms):                           106.80    
+-----Time per Output Token (excl. 1st token)------
+Mean TPOT (ms):                          4.82      
+Median TPOT (ms):                        4.26      
+P99 TPOT (ms):                           11.98     
+---------------Inter-Token Latency----------------
+Mean ITL (ms):                           5.17      
+Median ITL (ms):                         4.27      
+P95 ITL (ms):                            4.30      
+P99 ITL (ms):                            4.42      
+Max ITL (ms):                            2147.66   
+==================================================
+[parse_trace] wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R6/profile_summary.json  (20 top kernels, 2 warnings)
+[run_profile] launching server (CUDA_VISIBLE_DEVICES=0)
+[run_profile] waiting for /health on 127.0.0.1:30000 ...
+[run_profile] running bench with --profile (num-steps=10)
+[run_profile] wrote server_info.json
+[run_profile] trace captured: /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R6/raw_trace/1780340927.5232983/p_-1780340927.524893-TP-0.trace.json.gz
+[hw-view] sampler pid=2169113 → /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R6/gpu_samples.csv
+[hw-view] run_profile.py rc=0 duration=84.4s
+[hw-view] wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R6/hardware_view.json
+================ moe R7 ================
+benchmark_args=Namespace(backend='sglang', base_url=None, host='127.0.0.1', port=30000, dataset_name='random', dataset_path='', model='/data/hf/models/Qwen3-30B-A3B-Instruct-2507', served_model_name=None, tokenizer=None, num_prompts=64, sharegpt_output_len=None, sharegpt_context_len=None, random_input_len=2048, random_output_len=256, random_range_ratio=0.95, image_count=1, image_resolution='1080p', random_image_count=False, image_format='jpeg', image_content='random', request_rate=inf, use_trace_timestamps=False, max_concurrency=32, output_file='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R7/bench.jsonl', output_details=False, print_requests=False, disable_tqdm=True, disable_stream=False, return_logprob=False, return_routed_experts=False, seed=1234, disable_ignore_eos=False, extra_request_body=None, apply_chat_template=False, profile=True, plot_throughput=False, profile_activities=['CPU', 'GPU'], profile_num_steps=10, profile_by_stage=False, profile_stages=None, profile_output_dir='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R7/raw_trace', profile_prefix='p_', lora_name=None, lora_request_distribution='uniform', lora_zipf_alpha=1.5, prompt_suffix='', pd_separated=False, profile_prefill_url=None, profile_decode_url=None, flush_cache=False, warmup_requests=8, tokenize_prompt=False, gsp_num_groups=64, gsp_prompts_per_group=16, gsp_system_prompt_len=2048, gsp_question_len=128, gsp_output_len=256, gsp_range_ratio=1.0, gsp_fast_prepare=False, gsp_send_routing_key=False, gsp_num_turns=1, gsp_ordered=False, mooncake_slowdown_factor=1.0, mooncake_num_rounds=1, mooncake_workload='conversation', tag=None, header=None)
+Namespace(backend='sglang', base_url=None, host='127.0.0.1', port=30000, dataset_name='random', dataset_path='', model='/data/hf/models/Qwen3-30B-A3B-Instruct-2507', served_model_name=None, tokenizer=None, num_prompts=64, sharegpt_output_len=None, sharegpt_context_len=None, random_input_len=2048, random_output_len=256, random_range_ratio=0.95, image_count=1, image_resolution='1080p', random_image_count=False, image_format='jpeg', image_content='random', request_rate=inf, use_trace_timestamps=False, max_concurrency=32, output_file='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R7/bench.jsonl', output_details=False, print_requests=False, disable_tqdm=True, disable_stream=False, return_logprob=False, return_routed_experts=False, seed=1234, disable_ignore_eos=False, extra_request_body=None, apply_chat_template=False, profile=True, plot_throughput=False, profile_activities=['CPU', 'GPU'], profile_num_steps=10, profile_by_stage=False, profile_stages=None, profile_output_dir='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R7/raw_trace', profile_prefix='p_', lora_name=None, lora_request_distribution='uniform', lora_zipf_alpha=1.5, prompt_suffix='', pd_separated=False, profile_prefill_url=None, profile_decode_url=None, flush_cache=False, warmup_requests=8, tokenize_prompt=False, gsp_num_groups=64, gsp_prompts_per_group=16, gsp_system_prompt_len=2048, gsp_question_len=128, gsp_output_len=256, gsp_range_ratio=1.0, gsp_fast_prepare=False, gsp_send_routing_key=False, gsp_num_turns=1, gsp_ordered=False, mooncake_slowdown_factor=1.0, mooncake_num_rounds=1, mooncake_workload='conversation', tag=None, header=None)
+
+#Input tokens: 127843
+#Output tokens: 15914
+Starting warmup with 8 sequences...
+Warmup completed with 8 sequences. Starting main benchmark run...
+Starting profiler...
+async_request_profile api_url='http://127.0.0.1:30000/start_profile' body={'activities': ['CPU', 'GPU'], 'num_steps': 10, 'profile_by_stage': False, 'profile_stages': None, 'output_dir': '/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R7/raw_trace/1780341007.50068', 'profile_prefix': 'p_'}
+Profiler started
+
+============ Serving Benchmark Result ============
+Backend:                                 sglang    
+Traffic request rate:                    inf       
+Max request concurrency:                 32        
+Successful requests:                     64        
+Benchmark duration (s):                  16.82     
+Total input tokens:                      127843    
+Total input text tokens:                 127843    
+Total generated tokens:                  15914     
+Total generated tokens (retokenized):    15914     
+Request throughput (req/s):              3.81      
+Input token throughput (tok/s):          7602.88   
+Output token throughput (tok/s):         946.41    
+Peak output token throughput (tok/s):    2528.00   
+Peak concurrent requests:                51        
+Total token throughput (tok/s):          8549.30   
+Concurrency:                             31.78     
+----------------End-to-End Latency----------------
+Mean E2E Latency (ms):                   8349.74   
+Median E2E Latency (ms):                 8343.31   
+P90 E2E Latency (ms):                    13273.10  
+P99 E2E Latency (ms):                    13501.68  
+---------------Time to First Token----------------
+Mean TTFT (ms):                          434.03    
+Median TTFT (ms):                        241.65    
+P99 TTFT (ms):                           997.67    
+-----Time per Output Token (excl. 1st token)------
+Mean TPOT (ms):                          31.96     
+Median TPOT (ms):                        31.97     
+P99 TPOT (ms):                           50.90     
+---------------Inter-Token Latency----------------
+Mean ITL (ms):                           31.96     
+Median ITL (ms):                         12.63     
+P95 ITL (ms):                            14.18     
+P99 ITL (ms):                            135.22    
+Max ITL (ms):                            8353.96   
+==================================================
+[parse_trace] wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R7/profile_summary.json  (20 top kernels, 2 warnings)
+[run_profile] launching server (CUDA_VISIBLE_DEVICES=0)
+[run_profile] waiting for /health on 127.0.0.1:30000 ...
+[run_profile] running bench with --profile (num-steps=10)
+[run_profile] wrote server_info.json
+[run_profile] trace captured: /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R7/raw_trace/1780341007.50068/p_-1780341007.5023549-TP-0.trace.json.gz
+[hw-view] sampler pid=2170973 → /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R7/gpu_samples.csv
+[hw-view] run_profile.py rc=0 duration=81.4s
+[hw-view] wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R7/hardware_view.json
+[SKIP] moe R8 (exists)
+================ gemma R1 ================
+benchmark_args=Namespace(backend='sglang', base_url=None, host='127.0.0.1', port=30000, dataset_name='random', dataset_path='', model='/data/hf/models/gemma-3-1b-it', served_model_name=None, tokenizer=None, num_prompts=32, sharegpt_output_len=None, sharegpt_context_len=None, random_input_len=128, random_output_len=128, random_range_ratio=0.0, image_count=1, image_resolution='1080p', random_image_count=False, image_format='jpeg', image_content='random', request_rate=inf, use_trace_timestamps=False, max_concurrency=4, output_file='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R1/bench.jsonl', output_details=False, print_requests=False, disable_tqdm=True, disable_stream=False, return_logprob=False, return_routed_experts=False, seed=1234, disable_ignore_eos=False, extra_request_body=None, apply_chat_template=False, profile=True, plot_throughput=False, profile_activities=['CPU', 'GPU'], profile_num_steps=10, profile_by_stage=False, profile_stages=None, profile_output_dir='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R1/raw_trace', profile_prefix='p_', lora_name=None, lora_request_distribution='uniform', lora_zipf_alpha=1.5, prompt_suffix='', pd_separated=False, profile_prefill_url=None, profile_decode_url=None, flush_cache=False, warmup_requests=8, tokenize_prompt=False, gsp_num_groups=64, gsp_prompts_per_group=16, gsp_system_prompt_len=2048, gsp_question_len=128, gsp_output_len=256, gsp_range_ratio=1.0, gsp_fast_prepare=False, gsp_send_routing_key=False, gsp_num_turns=1, gsp_ordered=False, mooncake_slowdown_factor=1.0, mooncake_num_rounds=1, mooncake_workload='conversation', tag=None, header=None)
+Namespace(backend='sglang', base_url=None, host='127.0.0.1', port=30000, dataset_name='random', dataset_path='', model='/data/hf/models/gemma-3-1b-it', served_model_name=None, tokenizer=None, num_prompts=32, sharegpt_output_len=None, sharegpt_context_len=None, random_input_len=128, random_output_len=128, random_range_ratio=0.0, image_count=1, image_resolution='1080p', random_image_count=False, image_format='jpeg', image_content='random', request_rate=inf, use_trace_timestamps=False, max_concurrency=4, output_file='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R1/bench.jsonl', output_details=False, print_requests=False, disable_tqdm=True, disable_stream=False, return_logprob=False, return_routed_experts=False, seed=1234, disable_ignore_eos=False, extra_request_body=None, apply_chat_template=False, profile=True, plot_throughput=False, profile_activities=['CPU', 'GPU'], profile_num_steps=10, profile_by_stage=False, profile_stages=None, profile_output_dir='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R1/raw_trace', profile_prefix='p_', lora_name=None, lora_request_distribution='uniform', lora_zipf_alpha=1.5, prompt_suffix='', pd_separated=False, profile_prefill_url=None, profile_decode_url=None, flush_cache=False, warmup_requests=8, tokenize_prompt=False, gsp_num_groups=64, gsp_prompts_per_group=16, gsp_system_prompt_len=2048, gsp_question_len=128, gsp_output_len=256, gsp_range_ratio=1.0, gsp_fast_prepare=False, gsp_send_routing_key=False, gsp_num_turns=1, gsp_ordered=False, mooncake_slowdown_factor=1.0, mooncake_num_rounds=1, mooncake_workload='conversation', tag=None, header=None)
+
+#Input tokens: 2327
+#Output tokens: 2163
+Starting warmup with 8 sequences...
+Warmup completed with 8 sequences. Starting main benchmark run...
+Starting profiler...
+async_request_profile api_url='http://127.0.0.1:30000/start_profile' body={'activities': ['CPU', 'GPU'], 'num_steps': 10, 'profile_by_stage': False, 'profile_stages': None, 'output_dir': '/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R1/raw_trace/1780341082.117274', 'profile_prefix': 'p_'}
+Profiler started
+
+============ Serving Benchmark Result ============
+Backend:                                 sglang    
+Traffic request rate:                    inf       
+Max request concurrency:                 4         
+Successful requests:                     32        
+Benchmark duration (s):                  6.24      
+Total input tokens:                      2327      
+Total input text tokens:                 2327      
+Total generated tokens:                  2163      
+Total generated tokens (retokenized):    2100      
+Request throughput (req/s):              5.13      
+Input token throughput (tok/s):          372.71    
+Output token throughput (tok/s):         346.45    
+Peak output token throughput (tok/s):    632.00    
+Peak concurrent requests:                13        
+Total token throughput (tok/s):          719.16    
+Concurrency:                             3.92      
+----------------End-to-End Latency----------------
+Mean E2E Latency (ms):                   764.21    
+Median E2E Latency (ms):                 503.25    
+P90 E2E Latency (ms):                    2503.62   
+P99 E2E Latency (ms):                    3247.37   
+---------------Time to First Token----------------
+Mean TTFT (ms):                          61.44     
+Median TTFT (ms):                        46.15     
+P99 TTFT (ms):                           136.79    
+-----Time per Output Token (excl. 1st token)------
+Mean TPOT (ms):                          10.28     
+Median TPOT (ms):                        5.85      
+P99 TPOT (ms):                           59.52     
+---------------Inter-Token Latency----------------
+Mean ITL (ms):                           10.55     
+Median ITL (ms):                         4.75      
+P95 ITL (ms):                            5.42      
+P99 ITL (ms):                            41.62     
+Max ITL (ms):                            2385.60   
+==================================================
+[parse_trace] wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R1/profile_summary.json  (20 top kernels, 2 warnings)
+[run_profile] launching server (CUDA_VISIBLE_DEVICES=0)
+[run_profile] waiting for /health on 127.0.0.1:30000 ...
+[run_profile] running bench with --profile (num-steps=10)
+[run_profile] wrote server_info.json
+[run_profile] trace captured: /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R1/raw_trace/1780341082.117274/p_-1780341082.1188939-TP-0.trace.json.gz
+[hw-view] sampler pid=2172827 → /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R1/gpu_samples.csv
+[hw-view] run_profile.py rc=0 duration=55.1s
+[hw-view] wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R1/hardware_view.json
+================ gemma R2 ================
+benchmark_args=Namespace(backend='sglang', base_url=None, host='127.0.0.1', port=30000, dataset_name='random', dataset_path='', model='/data/hf/models/gemma-3-1b-it', served_model_name=None, tokenizer=None, num_prompts=64, sharegpt_output_len=None, sharegpt_context_len=None, random_input_len=128, random_output_len=1024, random_range_ratio=0.0, image_count=1, image_resolution='1080p', random_image_count=False, image_format='jpeg', image_content='random', request_rate=inf, use_trace_timestamps=False, max_concurrency=32, output_file='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R2/bench.jsonl', output_details=False, print_requests=False, disable_tqdm=True, disable_stream=False, return_logprob=False, return_routed_experts=False, seed=1234, disable_ignore_eos=False, extra_request_body=None, apply_chat_template=False, profile=True, plot_throughput=False, profile_activities=['CPU', 'GPU'], profile_num_steps=10, profile_by_stage=False, profile_stages=None, profile_output_dir='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R2/raw_trace', profile_prefix='p_', lora_name=None, lora_request_distribution='uniform', lora_zipf_alpha=1.5, prompt_suffix='', pd_separated=False, profile_prefill_url=None, profile_decode_url=None, flush_cache=False, warmup_requests=8, tokenize_prompt=False, gsp_num_groups=64, gsp_prompts_per_group=16, gsp_system_prompt_len=2048, gsp_question_len=128, gsp_output_len=256, gsp_range_ratio=1.0, gsp_fast_prepare=False, gsp_send_routing_key=False, gsp_num_turns=1, gsp_ordered=False, mooncake_slowdown_factor=1.0, mooncake_num_rounds=1, mooncake_workload='conversation', tag=None, header=None)
+Namespace(backend='sglang', base_url=None, host='127.0.0.1', port=30000, dataset_name='random', dataset_path='', model='/data/hf/models/gemma-3-1b-it', served_model_name=None, tokenizer=None, num_prompts=64, sharegpt_output_len=None, sharegpt_context_len=None, random_input_len=128, random_output_len=1024, random_range_ratio=0.0, image_count=1, image_resolution='1080p', random_image_count=False, image_format='jpeg', image_content='random', request_rate=inf, use_trace_timestamps=False, max_concurrency=32, output_file='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R2/bench.jsonl', output_details=False, print_requests=False, disable_tqdm=True, disable_stream=False, return_logprob=False, return_routed_experts=False, seed=1234, disable_ignore_eos=False, extra_request_body=None, apply_chat_template=False, profile=True, plot_throughput=False, profile_activities=['CPU', 'GPU'], profile_num_steps=10, profile_by_stage=False, profile_stages=None, profile_output_dir='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R2/raw_trace', profile_prefix='p_', lora_name=None, lora_request_distribution='uniform', lora_zipf_alpha=1.5, prompt_suffix='', pd_separated=False, profile_prefill_url=None, profile_decode_url=None, flush_cache=False, warmup_requests=8, tokenize_prompt=False, gsp_num_groups=64, gsp_prompts_per_group=16, gsp_system_prompt_len=2048, gsp_question_len=128, gsp_output_len=256, gsp_range_ratio=1.0, gsp_fast_prepare=False, gsp_send_routing_key=False, gsp_num_turns=1, gsp_ordered=False, mooncake_slowdown_factor=1.0, mooncake_num_rounds=1, mooncake_workload='conversation', tag=None, header=None)
+
+#Input tokens: 4458
+#Output tokens: 34530
+Starting warmup with 8 sequences...
+Warmup completed with 8 sequences. Starting main benchmark run...
+Starting profiler...
+async_request_profile api_url='http://127.0.0.1:30000/start_profile' body={'activities': ['CPU', 'GPU'], 'num_steps': 10, 'profile_by_stage': False, 'profile_stages': None, 'output_dir': '/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R2/raw_trace/1780341154.3881216', 'profile_prefix': 'p_'}
+Profiler started
+
+============ Serving Benchmark Result ============
+Backend:                                 sglang    
+Traffic request rate:                    inf       
+Max request concurrency:                 32        
+Successful requests:                     64        
+Benchmark duration (s):                  12.28     
+Total input tokens:                      4458      
+Total input text tokens:                 4458      
+Total generated tokens:                  34530     
+Total generated tokens (retokenized):    29074     
+Request throughput (req/s):              5.21      
+Input token throughput (tok/s):          362.96    
+Output token throughput (tok/s):         2811.37   
+Peak output token throughput (tok/s):    5565.00   
+Peak concurrent requests:                42        
+Total token throughput (tok/s):          3174.33   
+Concurrency:                             26.20     
+----------------End-to-End Latency----------------
+Mean E2E Latency (ms):                   5028.08   
+Median E2E Latency (ms):                 4525.81   
+P90 E2E Latency (ms):                    9499.74   
+P99 E2E Latency (ms):                    9871.75   
+---------------Time to First Token----------------
+Mean TTFT (ms):                          93.30     
+Median TTFT (ms):                        94.32     
+P99 TTFT (ms):                           148.81    
+-----Time per Output Token (excl. 1st token)------
+Mean TPOT (ms):                          16.13     
+Median TPOT (ms):                        9.13      
+P99 TPOT (ms):                           128.46    
+---------------Inter-Token Latency----------------
+Mean ITL (ms):                           9.31      
+Median ITL (ms):                         5.23      
+P95 ITL (ms):                            5.72      
+P99 ITL (ms):                            38.23     
+Max ITL (ms):                            3420.71   
+==================================================
+[parse_trace] wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R2/profile_summary.json  (20 top kernels, 2 warnings)
+[run_profile] launching server (CUDA_VISIBLE_DEVICES=0)
+[run_profile] waiting for /health on 127.0.0.1:30000 ...
+[run_profile] running bench with --profile (num-steps=10)
+[run_profile] wrote server_info.json
+[run_profile] trace captured: /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R2/raw_trace/1780341154.3881216/p_-1780341154.3897624-TP-0.trace.json.gz
+[hw-view] sampler pid=2174359 → /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R2/gpu_samples.csv
+[hw-view] run_profile.py rc=0 duration=75.3s
+[hw-view] wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R2/hardware_view.json
+================ gemma R3 ================
+benchmark_args=Namespace(backend='sglang', base_url=None, host='127.0.0.1', port=30000, dataset_name='random', dataset_path='', model='/data/hf/models/gemma-3-1b-it', served_model_name=None, tokenizer=None, num_prompts=32, sharegpt_output_len=None, sharegpt_context_len=None, random_input_len=4096, random_output_len=128, random_range_ratio=0.0, image_count=1, image_resolution='1080p', random_image_count=False, image_format='jpeg', image_content='random', request_rate=inf, use_trace_timestamps=False, max_concurrency=8, output_file='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R3/bench.jsonl', output_details=False, print_requests=False, disable_tqdm=True, disable_stream=False, return_logprob=False, return_routed_experts=False, seed=1234, disable_ignore_eos=False, extra_request_body=None, apply_chat_template=False, profile=True, plot_throughput=False, profile_activities=['CPU', 'GPU'], profile_num_steps=10, profile_by_stage=False, profile_stages=None, profile_output_dir='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R3/raw_trace', profile_prefix='p_', lora_name=None, lora_request_distribution='uniform', lora_zipf_alpha=1.5, prompt_suffix='', pd_separated=False, profile_prefill_url=None, profile_decode_url=None, flush_cache=False, warmup_requests=8, tokenize_prompt=False, gsp_num_groups=64, gsp_prompts_per_group=16, gsp_system_prompt_len=2048, gsp_question_len=128, gsp_output_len=256, gsp_range_ratio=1.0, gsp_fast_prepare=False, gsp_send_routing_key=False, gsp_num_turns=1, gsp_ordered=False, mooncake_slowdown_factor=1.0, mooncake_num_rounds=1, mooncake_workload='conversation', tag=None, header=None)
+Namespace(backend='sglang', base_url=None, host='127.0.0.1', port=30000, dataset_name='random', dataset_path='', model='/data/hf/models/gemma-3-1b-it', served_model_name=None, tokenizer=None, num_prompts=32, sharegpt_output_len=None, sharegpt_context_len=None, random_input_len=4096, random_output_len=128, random_range_ratio=0.0, image_count=1, image_resolution='1080p', random_image_count=False, image_format='jpeg', image_content='random', request_rate=inf, use_trace_timestamps=False, max_concurrency=8, output_file='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R3/bench.jsonl', output_details=False, print_requests=False, disable_tqdm=True, disable_stream=False, return_logprob=False, return_routed_experts=False, seed=1234, disable_ignore_eos=False, extra_request_body=None, apply_chat_template=False, profile=True, plot_throughput=False, profile_activities=['CPU', 'GPU'], profile_num_steps=10, profile_by_stage=False, profile_stages=None, profile_output_dir='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R3/raw_trace', profile_prefix='p_', lora_name=None, lora_request_distribution='uniform', lora_zipf_alpha=1.5, prompt_suffix='', pd_separated=False, profile_prefill_url=None, profile_decode_url=None, flush_cache=False, warmup_requests=8, tokenize_prompt=False, gsp_num_groups=64, gsp_prompts_per_group=16, gsp_system_prompt_len=2048, gsp_question_len=128, gsp_output_len=256, gsp_range_ratio=1.0, gsp_fast_prepare=False, gsp_send_routing_key=False, gsp_num_turns=1, gsp_ordered=False, mooncake_slowdown_factor=1.0, mooncake_num_rounds=1, mooncake_workload='conversation', tag=None, header=None)
+
+#Input tokens: 74903
+#Output tokens: 2163
+Starting warmup with 8 sequences...
+Warmup completed with 8 sequences. Starting main benchmark run...
+Starting profiler...
+async_request_profile api_url='http://127.0.0.1:30000/start_profile' body={'activities': ['CPU', 'GPU'], 'num_steps': 10, 'profile_by_stage': False, 'profile_stages': None, 'output_dir': '/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R3/raw_trace/1780341231.1940014', 'profile_prefix': 'p_'}
+Profiler started
+
+============ Serving Benchmark Result ============
+Backend:                                 sglang    
+Traffic request rate:                    inf       
+Max request concurrency:                 8         
+Successful requests:                     32        
+Benchmark duration (s):                  5.38      
+Total input tokens:                      74903     
+Total input text tokens:                 74903     
+Total generated tokens:                  2163      
+Total generated tokens (retokenized):    2111      
+Request throughput (req/s):              5.95      
+Input token throughput (tok/s):          13917.65  
+Output token throughput (tok/s):         401.90    
+Peak output token throughput (tok/s):    990.00    
+Peak concurrent requests:                22        
+Total token throughput (tok/s):          14319.55  
+Concurrency:                             7.58      
+----------------End-to-End Latency----------------
+Mean E2E Latency (ms):                   1274.63   
+Median E2E Latency (ms):                 716.63    
+P90 E2E Latency (ms):                    3473.07   
+P99 E2E Latency (ms):                    3982.88   
+---------------Time to First Token----------------
+Mean TTFT (ms):                          78.30     
+Median TTFT (ms):                        47.44     
+P99 TTFT (ms):                           152.61    
+-----Time per Output Token (excl. 1st token)------
+Mean TPOT (ms):                          19.23     
+Median TPOT (ms):                        7.39      
+P99 TPOT (ms):                           83.99     
+---------------Inter-Token Latency----------------
+Mean ITL (ms):                           17.96     
+Median ITL (ms):                         4.89      
+P95 ITL (ms):                            35.60     
+P99 ITL (ms):                            43.62     
+Max ITL (ms):                            2751.77   
+==================================================
+[parse_trace] wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R3/profile_summary.json  (20 top kernels, 2 warnings)
+[run_profile] launching server (CUDA_VISIBLE_DEVICES=0)
+[run_profile] waiting for /health on 127.0.0.1:30000 ...
+[run_profile] running bench with --profile (num-steps=10)
+[run_profile] wrote server_info.json
+[run_profile] trace captured: /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R3/raw_trace/1780341231.1940014/p_-1780341231.1955872-TP-0.trace.json.gz
+[hw-view] sampler pid=2176205 → /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R3/gpu_samples.csv
+[hw-view] run_profile.py rc=0 duration=66.2s
+[hw-view] wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R3/hardware_view.json
+================ gemma R4 ================
+benchmark_args=Namespace(backend='sglang', base_url=None, host='127.0.0.1', port=30000, dataset_name='random', dataset_path='', model='/data/hf/models/gemma-3-1b-it', served_model_name=None, tokenizer=None, num_prompts=24, sharegpt_output_len=None, sharegpt_context_len=None, random_input_len=4096, random_output_len=512, random_range_ratio=0.0, image_count=1, image_resolution='1080p', random_image_count=False, image_format='jpeg', image_content='random', request_rate=inf, use_trace_timestamps=False, max_concurrency=8, output_file='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R4/bench.jsonl', output_details=False, print_requests=False, disable_tqdm=True, disable_stream=False, return_logprob=False, return_routed_experts=False, seed=1234, disable_ignore_eos=False, extra_request_body=None, apply_chat_template=False, profile=True, plot_throughput=False, profile_activities=['CPU', 'GPU'], profile_num_steps=10, profile_by_stage=False, profile_stages=None, profile_output_dir='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R4/raw_trace', profile_prefix='p_', lora_name=None, lora_request_distribution='uniform', lora_zipf_alpha=1.5, prompt_suffix='', pd_separated=False, profile_prefill_url=None, profile_decode_url=None, flush_cache=False, warmup_requests=8, tokenize_prompt=False, gsp_num_groups=64, gsp_prompts_per_group=16, gsp_system_prompt_len=2048, gsp_question_len=128, gsp_output_len=256, gsp_range_ratio=1.0, gsp_fast_prepare=False, gsp_send_routing_key=False, gsp_num_turns=1, gsp_ordered=False, mooncake_slowdown_factor=1.0, mooncake_num_rounds=1, mooncake_workload='conversation', tag=None, header=None)
+Namespace(backend='sglang', base_url=None, host='127.0.0.1', port=30000, dataset_name='random', dataset_path='', model='/data/hf/models/gemma-3-1b-it', served_model_name=None, tokenizer=None, num_prompts=24, sharegpt_output_len=None, sharegpt_context_len=None, random_input_len=4096, random_output_len=512, random_range_ratio=0.0, image_count=1, image_resolution='1080p', random_image_count=False, image_format='jpeg', image_content='random', request_rate=inf, use_trace_timestamps=False, max_concurrency=8, output_file='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R4/bench.jsonl', output_details=False, print_requests=False, disable_tqdm=True, disable_stream=False, return_logprob=False, return_routed_experts=False, seed=1234, disable_ignore_eos=False, extra_request_body=None, apply_chat_template=False, profile=True, plot_throughput=False, profile_activities=['CPU', 'GPU'], profile_num_steps=10, profile_by_stage=False, profile_stages=None, profile_output_dir='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R4/raw_trace', profile_prefix='p_', lora_name=None, lora_request_distribution='uniform', lora_zipf_alpha=1.5, prompt_suffix='', pd_separated=False, profile_prefill_url=None, profile_decode_url=None, flush_cache=False, warmup_requests=8, tokenize_prompt=False, gsp_num_groups=64, gsp_prompts_per_group=16, gsp_system_prompt_len=2048, gsp_question_len=128, gsp_output_len=256, gsp_range_ratio=1.0, gsp_fast_prepare=False, gsp_send_routing_key=False, gsp_num_turns=1, gsp_ordered=False, mooncake_slowdown_factor=1.0, mooncake_num_rounds=1, mooncake_workload='conversation', tag=None, header=None)
+
+#Input tokens: 56805
+#Output tokens: 6694
+Starting warmup with 8 sequences...
+Warmup completed with 8 sequences. Starting main benchmark run...
+Starting profiler...
+async_request_profile api_url='http://127.0.0.1:30000/start_profile' body={'activities': ['CPU', 'GPU'], 'num_steps': 10, 'profile_by_stage': False, 'profile_stages': None, 'output_dir': '/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R4/raw_trace/1780341288.3613727', 'profile_prefix': 'p_'}
+Profiler started
+
+============ Serving Benchmark Result ============
+Backend:                                 sglang    
+Traffic request rate:                    inf       
+Max request concurrency:                 8         
+Successful requests:                     24        
+Benchmark duration (s):                  8.25      
+Total input tokens:                      56805     
+Total input text tokens:                 56805     
+Total generated tokens:                  6694      
+Total generated tokens (retokenized):    6115      
+Request throughput (req/s):              2.91      
+Input token throughput (tok/s):          6883.76   
+Output token throughput (tok/s):         811.19    
+Peak output token throughput (tok/s):    1575.00   
+Peak concurrent requests:                14        
+Total token throughput (tok/s):          7694.95   
+Concurrency:                             7.40      
+----------------End-to-End Latency----------------
+Mean E2E Latency (ms):                   2542.89   
+Median E2E Latency (ms):                 1724.23   
+P90 E2E Latency (ms):                    5296.85   
+P99 E2E Latency (ms):                    5788.72   
+---------------Time to First Token----------------
+Mean TTFT (ms):                          86.09     
+Median TTFT (ms):                        49.16     
+P99 TTFT (ms):                           152.33    
+-----Time per Output Token (excl. 1st token)------
+Mean TPOT (ms):                          10.05     
+Median TPOT (ms):                        5.67      
+P99 TPOT (ms):                           50.38     
+---------------Inter-Token Latency----------------
+Mean ITL (ms):                           8.84      
+Median ITL (ms):                         4.89      
+P95 ITL (ms):                            5.19      
+P99 ITL (ms):                            37.76     
+Max ITL (ms):                            2788.96   
+==================================================
+[parse_trace] wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R4/profile_summary.json  (20 top kernels, 2 warnings)
+[run_profile] launching server (CUDA_VISIBLE_DEVICES=0)
+[run_profile] waiting for /health on 127.0.0.1:30000 ...
+[run_profile] running bench with --profile (num-steps=10)
+[run_profile] wrote server_info.json
+[run_profile] trace captured: /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R4/raw_trace/1780341288.3613727/p_-1780341288.362921-TP-0.trace.json.gz
+[hw-view] sampler pid=2177796 → /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R4/gpu_samples.csv
+[hw-view] run_profile.py rc=0 duration=56.9s
+[hw-view] wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R4/hardware_view.json
+================ gemma R5 ================
+benchmark_args=Namespace(backend='sglang', base_url=None, host='127.0.0.1', port=30000, dataset_name='random', dataset_path='', model='/data/hf/models/gemma-3-1b-it', served_model_name=None, tokenizer=None, num_prompts=128, sharegpt_output_len=None, sharegpt_context_len=None, random_input_len=512, random_output_len=256, random_range_ratio=0.0, image_count=1, image_resolution='1080p', random_image_count=False, image_format='jpeg', image_content='random', request_rate=inf, use_trace_timestamps=False, max_concurrency=64, output_file='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R5/bench.jsonl', output_details=False, print_requests=False, disable_tqdm=True, disable_stream=False, return_logprob=False, return_routed_experts=False, seed=1234, disable_ignore_eos=False, extra_request_body=None, apply_chat_template=False, profile=True, plot_throughput=False, profile_activities=['CPU', 'GPU'], profile_num_steps=10, profile_by_stage=False, profile_stages=None, profile_output_dir='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R5/raw_trace', profile_prefix='p_', lora_name=None, lora_request_distribution='uniform', lora_zipf_alpha=1.5, prompt_suffix='', pd_separated=False, profile_prefill_url=None, profile_decode_url=None, flush_cache=False, warmup_requests=8, tokenize_prompt=False, gsp_num_groups=64, gsp_prompts_per_group=16, gsp_system_prompt_len=2048, gsp_question_len=128, gsp_output_len=256, gsp_range_ratio=1.0, gsp_fast_prepare=False, gsp_send_routing_key=False, gsp_num_turns=1, gsp_ordered=False, mooncake_slowdown_factor=1.0, mooncake_num_rounds=1, mooncake_workload='conversation', tag=None, header=None)
+Namespace(backend='sglang', base_url=None, host='127.0.0.1', port=30000, dataset_name='random', dataset_path='', model='/data/hf/models/gemma-3-1b-it', served_model_name=None, tokenizer=None, num_prompts=128, sharegpt_output_len=None, sharegpt_context_len=None, random_input_len=512, random_output_len=256, random_range_ratio=0.0, image_count=1, image_resolution='1080p', random_image_count=False, image_format='jpeg', image_content='random', request_rate=inf, use_trace_timestamps=False, max_concurrency=64, output_file='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R5/bench.jsonl', output_details=False, print_requests=False, disable_tqdm=True, disable_stream=False, return_logprob=False, return_routed_experts=False, seed=1234, disable_ignore_eos=False, extra_request_body=None, apply_chat_template=False, profile=True, plot_throughput=False, profile_activities=['CPU', 'GPU'], profile_num_steps=10, profile_by_stage=False, profile_stages=None, profile_output_dir='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R5/raw_trace', profile_prefix='p_', lora_name=None, lora_request_distribution='uniform', lora_zipf_alpha=1.5, prompt_suffix='', pd_separated=False, profile_prefill_url=None, profile_decode_url=None, flush_cache=False, warmup_requests=8, tokenize_prompt=False, gsp_num_groups=64, gsp_prompts_per_group=16, gsp_system_prompt_len=2048, gsp_question_len=128, gsp_output_len=256, gsp_range_ratio=1.0, gsp_fast_prepare=False, gsp_send_routing_key=False, gsp_num_turns=1, gsp_ordered=False, mooncake_slowdown_factor=1.0, mooncake_num_rounds=1, mooncake_workload='conversation', tag=None, header=None)
+
+#Input tokens: 34316
+#Output tokens: 15901
+Starting warmup with 8 sequences...
+Warmup completed with 8 sequences. Starting main benchmark run...
+Starting profiler...
+async_request_profile api_url='http://127.0.0.1:30000/start_profile' body={'activities': ['CPU', 'GPU'], 'num_steps': 10, 'profile_by_stage': False, 'profile_stages': None, 'output_dir': '/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R5/raw_trace/1780341374.9191933', 'profile_prefix': 'p_'}
+Profiler started
+
+============ Serving Benchmark Result ============
+Backend:                                 sglang    
+Traffic request rate:                    inf       
+Max request concurrency:                 64        
+Successful requests:                     128       
+Benchmark duration (s):                  12.77     
+Total input tokens:                      34316     
+Total input text tokens:                 34316     
+Total generated tokens:                  15901     
+Total generated tokens (retokenized):    15132     
+Request throughput (req/s):              10.02     
+Input token throughput (tok/s):          2687.25   
+Output token throughput (tok/s):         1245.19   
+Peak output token throughput (tok/s):    3315.00   
+Peak concurrent requests:                86        
+Total token throughput (tok/s):          3932.44   
+Concurrency:                             57.28     
+----------------End-to-End Latency----------------
+Mean E2E Latency (ms):                   5714.36   
+Median E2E Latency (ms):                 5740.67   
+P90 E2E Latency (ms):                    10304.35  
+P99 E2E Latency (ms):                    11723.93  
+---------------Time to First Token----------------
+Mean TTFT (ms):                          2843.98   
+Median TTFT (ms):                        1800.88   
+P99 TTFT (ms):                           9532.16   
+-----Time per Output Token (excl. 1st token)------
+Mean TPOT (ms):                          26.87     
+Median TPOT (ms):                        12.33     
+P99 TPOT (ms):                           288.40    
+---------------Inter-Token Latency----------------
+Mean ITL (ms):                           23.29     
+Median ITL (ms):                         5.24      
+P95 ITL (ms):                            40.34     
+P99 ITL (ms):                            44.26     
+Max ITL (ms):                            6217.30   
+==================================================
+[parse_trace] wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R5/profile_summary.json  (20 top kernels, 2 warnings)
+[run_profile] launching server (CUDA_VISIBLE_DEVICES=0)
+[run_profile] waiting for /health on 127.0.0.1:30000 ...
+[run_profile] running bench with --profile (num-steps=10)
+[run_profile] wrote server_info.json
+[run_profile] trace captured: /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R5/raw_trace/1780341374.9191933/p_-1780341374.9208472-TP-0.trace.json.gz
+[hw-view] sampler pid=2179512 → /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R5/gpu_samples.csv
+[hw-view] run_profile.py rc=0 duration=88.2s
+[hw-view] wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R5/hardware_view.json
+================ gemma R6 ================
+benchmark_args=Namespace(backend='sglang', base_url=None, host='127.0.0.1', port=30000, dataset_name='random', dataset_path='', model='/data/hf/models/gemma-3-1b-it', served_model_name=None, tokenizer=None, num_prompts=16, sharegpt_output_len=None, sharegpt_context_len=None, random_input_len=512, random_output_len=256, random_range_ratio=0.0, image_count=1, image_resolution='1080p', random_image_count=False, image_format='jpeg', image_content='random', request_rate=inf, use_trace_timestamps=False, max_concurrency=1, output_file='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R6/bench.jsonl', output_details=False, print_requests=False, disable_tqdm=True, disable_stream=False, return_logprob=False, return_routed_experts=False, seed=1234, disable_ignore_eos=False, extra_request_body=None, apply_chat_template=False, profile=True, plot_throughput=False, profile_activities=['CPU', 'GPU'], profile_num_steps=10, profile_by_stage=False, profile_stages=None, profile_output_dir='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R6/raw_trace', profile_prefix='p_', lora_name=None, lora_request_distribution='uniform', lora_zipf_alpha=1.5, prompt_suffix='', pd_separated=False, profile_prefill_url=None, profile_decode_url=None, flush_cache=False, warmup_requests=8, tokenize_prompt=False, gsp_num_groups=64, gsp_prompts_per_group=16, gsp_system_prompt_len=2048, gsp_question_len=128, gsp_output_len=256, gsp_range_ratio=1.0, gsp_fast_prepare=False, gsp_send_routing_key=False, gsp_num_turns=1, gsp_ordered=False, mooncake_slowdown_factor=1.0, mooncake_num_rounds=1, mooncake_workload='conversation', tag=None, header=None)
+Namespace(backend='sglang', base_url=None, host='127.0.0.1', port=30000, dataset_name='random', dataset_path='', model='/data/hf/models/gemma-3-1b-it', served_model_name=None, tokenizer=None, num_prompts=16, sharegpt_output_len=None, sharegpt_context_len=None, random_input_len=512, random_output_len=256, random_range_ratio=0.0, image_count=1, image_resolution='1080p', random_image_count=False, image_format='jpeg', image_content='random', request_rate=inf, use_trace_timestamps=False, max_concurrency=1, output_file='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R6/bench.jsonl', output_details=False, print_requests=False, disable_tqdm=True, disable_stream=False, return_logprob=False, return_routed_experts=False, seed=1234, disable_ignore_eos=False, extra_request_body=None, apply_chat_template=False, profile=True, plot_throughput=False, profile_activities=['CPU', 'GPU'], profile_num_steps=10, profile_by_stage=False, profile_stages=None, profile_output_dir='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R6/raw_trace', profile_prefix='p_', lora_name=None, lora_request_distribution='uniform', lora_zipf_alpha=1.5, prompt_suffix='', pd_separated=False, profile_prefill_url=None, profile_decode_url=None, flush_cache=False, warmup_requests=8, tokenize_prompt=False, gsp_num_groups=64, gsp_prompts_per_group=16, gsp_system_prompt_len=2048, gsp_question_len=128, gsp_output_len=256, gsp_range_ratio=1.0, gsp_fast_prepare=False, gsp_send_routing_key=False, gsp_num_turns=1, gsp_ordered=False, mooncake_slowdown_factor=1.0, mooncake_num_rounds=1, mooncake_workload='conversation', tag=None, header=None)
+
+#Input tokens: 3439
+#Output tokens: 2360
+Starting warmup with 8 sequences...
+Warmup completed with 8 sequences. Starting main benchmark run...
+Starting profiler...
+async_request_profile api_url='http://127.0.0.1:30000/start_profile' body={'activities': ['CPU', 'GPU'], 'num_steps': 10, 'profile_by_stage': False, 'profile_stages': None, 'output_dir': '/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R6/raw_trace/1780341464.5353892', 'profile_prefix': 'p_'}
+Profiler started
+
+============ Serving Benchmark Result ============
+Backend:                                 sglang    
+Traffic request rate:                    inf       
+Max request concurrency:                 1         
+Successful requests:                     16        
+Benchmark duration (s):                  13.02     
+Total input tokens:                      3439      
+Total input text tokens:                 3439      
+Total generated tokens:                  2360      
+Total generated tokens (retokenized):    2232      
+Request throughput (req/s):              1.23      
+Input token throughput (tok/s):          264.17    
+Output token throughput (tok/s):         181.28    
+Peak output token throughput (tok/s):    215.00    
+Peak concurrent requests:                3         
+Total token throughput (tok/s):          445.45    
+Concurrency:                             1.00      
+----------------End-to-End Latency----------------
+Mean E2E Latency (ms):                   812.99    
+Median E2E Latency (ms):                 609.20    
+P90 E2E Latency (ms):                    1162.68   
+P99 E2E Latency (ms):                    2584.12   
+---------------Time to First Token----------------
+Mean TTFT (ms):                          50.98     
+Median TTFT (ms):                        47.64     
+P99 TTFT (ms):                           96.28     
+-----Time per Output Token (excl. 1st token)------
+Mean TPOT (ms):                          4.92      
+Median TPOT (ms):                        4.48      
+P99 TPOT (ms):                           10.62     
+---------------Inter-Token Latency----------------
+Mean ITL (ms):                           5.20      
+Median ITL (ms):                         4.49      
+P95 ITL (ms):                            4.51      
+P99 ITL (ms):                            4.66      
+Max ITL (ms):                            1707.49   
+==================================================
+[parse_trace] wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R6/profile_summary.json  (20 top kernels, 2 warnings)
+[run_profile] launching server (CUDA_VISIBLE_DEVICES=0)
+[run_profile] waiting for /health on 127.0.0.1:30000 ...
+[run_profile] running bench with --profile (num-steps=10)
+[run_profile] wrote server_info.json
+[run_profile] trace captured: /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R6/raw_trace/1780341464.5353892/p_-1780341464.5369954-TP-0.trace.json.gz
+[hw-view] sampler pid=2181375 → /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R6/gpu_samples.csv
+[hw-view] run_profile.py rc=0 duration=85.7s
+[hw-view] wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R6/hardware_view.json
+================ gemma R7 ================
+benchmark_args=Namespace(backend='sglang', base_url=None, host='127.0.0.1', port=30000, dataset_name='random', dataset_path='', model='/data/hf/models/gemma-3-1b-it', served_model_name=None, tokenizer=None, num_prompts=64, sharegpt_output_len=None, sharegpt_context_len=None, random_input_len=2048, random_output_len=256, random_range_ratio=0.95, image_count=1, image_resolution='1080p', random_image_count=False, image_format='jpeg', image_content='random', request_rate=inf, use_trace_timestamps=False, max_concurrency=32, output_file='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R7/bench.jsonl', output_details=False, print_requests=False, disable_tqdm=True, disable_stream=False, return_logprob=False, return_routed_experts=False, seed=1234, disable_ignore_eos=False, extra_request_body=None, apply_chat_template=False, profile=True, plot_throughput=False, profile_activities=['CPU', 'GPU'], profile_num_steps=10, profile_by_stage=False, profile_stages=None, profile_output_dir='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R7/raw_trace', profile_prefix='p_', lora_name=None, lora_request_distribution='uniform', lora_zipf_alpha=1.5, prompt_suffix='', pd_separated=False, profile_prefill_url=None, profile_decode_url=None, flush_cache=False, warmup_requests=8, tokenize_prompt=False, gsp_num_groups=64, gsp_prompts_per_group=16, gsp_system_prompt_len=2048, gsp_question_len=128, gsp_output_len=256, gsp_range_ratio=1.0, gsp_fast_prepare=False, gsp_send_routing_key=False, gsp_num_turns=1, gsp_ordered=False, mooncake_slowdown_factor=1.0, mooncake_num_rounds=1, mooncake_workload='conversation', tag=None, header=None)
+Namespace(backend='sglang', base_url=None, host='127.0.0.1', port=30000, dataset_name='random', dataset_path='', model='/data/hf/models/gemma-3-1b-it', served_model_name=None, tokenizer=None, num_prompts=64, sharegpt_output_len=None, sharegpt_context_len=None, random_input_len=2048, random_output_len=256, random_range_ratio=0.95, image_count=1, image_resolution='1080p', random_image_count=False, image_format='jpeg', image_content='random', request_rate=inf, use_trace_timestamps=False, max_concurrency=32, output_file='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R7/bench.jsonl', output_details=False, print_requests=False, disable_tqdm=True, disable_stream=False, return_logprob=False, return_routed_experts=False, seed=1234, disable_ignore_eos=False, extra_request_body=None, apply_chat_template=False, profile=True, plot_throughput=False, profile_activities=['CPU', 'GPU'], profile_num_steps=10, profile_by_stage=False, profile_stages=None, profile_output_dir='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R7/raw_trace', profile_prefix='p_', lora_name=None, lora_request_distribution='uniform', lora_zipf_alpha=1.5, prompt_suffix='', pd_separated=False, profile_prefill_url=None, profile_decode_url=None, flush_cache=False, warmup_requests=8, tokenize_prompt=False, gsp_num_groups=64, gsp_prompts_per_group=16, gsp_system_prompt_len=2048, gsp_question_len=128, gsp_output_len=256, gsp_range_ratio=1.0, gsp_fast_prepare=False, gsp_send_routing_key=False, gsp_num_turns=1, gsp_ordered=False, mooncake_slowdown_factor=1.0, mooncake_num_rounds=1, mooncake_workload='conversation', tag=None, header=None)
+
+#Input tokens: 127779
+#Output tokens: 15914
+Starting warmup with 8 sequences...
+Warmup completed with 8 sequences. Starting main benchmark run...
+Starting profiler...
+async_request_profile api_url='http://127.0.0.1:30000/start_profile' body={'activities': ['CPU', 'GPU'], 'num_steps': 10, 'profile_by_stage': False, 'profile_stages': None, 'output_dir': '/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R7/raw_trace/1780341551.548988', 'profile_prefix': 'p_'}
+Profiler started
+
+============ Serving Benchmark Result ============
+Backend:                                 sglang    
+Traffic request rate:                    inf       
+Max request concurrency:                 32        
+Successful requests:                     64        
+Benchmark duration (s):                  8.97      
+Total input tokens:                      127779    
+Total input text tokens:                 127779    
+Total generated tokens:                  15914     
+Total generated tokens (retokenized):    14503     
+Request throughput (req/s):              7.14      
+Input token throughput (tok/s):          14252.00  
+Output token throughput (tok/s):         1774.99   
+Peak output token throughput (tok/s):    5984.00   
+Peak concurrent requests:                64        
+Total token throughput (tok/s):          16026.99  
+Concurrency:                             31.75     
+----------------End-to-End Latency----------------
+Mean E2E Latency (ms):                   4447.17   
+Median E2E Latency (ms):                 4440.76   
+P90 E2E Latency (ms):                    7453.10   
+P99 E2E Latency (ms):                    7527.17   
+---------------Time to First Token----------------
+Mean TTFT (ms):                          208.01    
+Median TTFT (ms):                        166.25    
+P99 TTFT (ms):                           411.90    
+-----Time per Output Token (excl. 1st token)------
+Mean TPOT (ms):                          17.11     
+Median TPOT (ms):                        17.29     
+P99 TPOT (ms):                           28.80     
+---------------Inter-Token Latency----------------
+Mean ITL (ms):                           17.12     
+Median ITL (ms):                         5.35      
+P95 ITL (ms):                            5.48      
+P99 ITL (ms):                            40.39     
+Max ITL (ms):                            5395.18   
+==================================================
+[parse_trace] wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R7/profile_summary.json  (20 top kernels, 2 warnings)
+[run_profile] launching server (CUDA_VISIBLE_DEVICES=0)
+[run_profile] waiting for /health on 127.0.0.1:30000 ...
+[run_profile] running bench with --profile (num-steps=10)
+[run_profile] wrote server_info.json
+[run_profile] trace captured: /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R7/raw_trace/1780341551.548988/p_-1780341551.5508058-TP-0.trace.json.gz
+[hw-view] sampler pid=2183190 → /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R7/gpu_samples.csv
+[hw-view] run_profile.py rc=0 duration=80.5s
+[hw-view] wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R7/hardware_view.json
+================ gemma R8 ================
+benchmark_args=Namespace(backend='sglang', base_url=None, host='127.0.0.1', port=30000, dataset_name='generated-shared-prefix', dataset_path='', model='/data/hf/models/gemma-3-1b-it', served_model_name=None, tokenizer=None, num_prompts=64, sharegpt_output_len=None, sharegpt_context_len=None, random_input_len=1024, random_output_len=1024, random_range_ratio=0.0, image_count=1, image_resolution='1080p', random_image_count=False, image_format='jpeg', image_content='random', request_rate=inf, use_trace_timestamps=False, max_concurrency=32, output_file='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R8/bench.jsonl', output_details=False, print_requests=False, disable_tqdm=True, disable_stream=False, return_logprob=False, return_routed_experts=False, seed=1234, disable_ignore_eos=False, extra_request_body=None, apply_chat_template=False, profile=True, plot_throughput=False, profile_activities=['CPU', 'GPU'], profile_num_steps=10, profile_by_stage=False, profile_stages=None, profile_output_dir='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R8/raw_trace', profile_prefix='p_', lora_name=None, lora_request_distribution='uniform', lora_zipf_alpha=1.5, prompt_suffix='', pd_separated=False, profile_prefill_url=None, profile_decode_url=None, flush_cache=False, warmup_requests=8, tokenize_prompt=False, gsp_num_groups=8, gsp_prompts_per_group=8, gsp_system_prompt_len=2048, gsp_question_len=128, gsp_output_len=256, gsp_range_ratio=1.0, gsp_fast_prepare=False, gsp_send_routing_key=False, gsp_num_turns=1, gsp_ordered=False, mooncake_slowdown_factor=1.0, mooncake_num_rounds=1, mooncake_workload='conversation', tag=None, header=None)
+Namespace(backend='sglang', base_url=None, host='127.0.0.1', port=30000, dataset_name='generated-shared-prefix', dataset_path='', model='/data/hf/models/gemma-3-1b-it', served_model_name=None, tokenizer=None, num_prompts=64, sharegpt_output_len=None, sharegpt_context_len=None, random_input_len=1024, random_output_len=1024, random_range_ratio=0.0, image_count=1, image_resolution='1080p', random_image_count=False, image_format='jpeg', image_content='random', request_rate=inf, use_trace_timestamps=False, max_concurrency=32, output_file='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R8/bench.jsonl', output_details=False, print_requests=False, disable_tqdm=True, disable_stream=False, return_logprob=False, return_routed_experts=False, seed=1234, disable_ignore_eos=False, extra_request_body=None, apply_chat_template=False, profile=True, plot_throughput=False, profile_activities=['CPU', 'GPU'], profile_num_steps=10, profile_by_stage=False, profile_stages=None, profile_output_dir='/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R8/raw_trace', profile_prefix='p_', lora_name=None, lora_request_distribution='uniform', lora_zipf_alpha=1.5, prompt_suffix='', pd_separated=False, profile_prefill_url=None, profile_decode_url=None, flush_cache=False, warmup_requests=8, tokenize_prompt=False, gsp_num_groups=8, gsp_prompts_per_group=8, gsp_system_prompt_len=2048, gsp_question_len=128, gsp_output_len=256, gsp_range_ratio=1.0, gsp_fast_prepare=False, gsp_send_routing_key=False, gsp_num_turns=1, gsp_ordered=False, mooncake_slowdown_factor=1.0, mooncake_num_rounds=1, mooncake_workload='conversation', tag=None, header=None)
+
+
+Loading cached generated input data from /home/t-jialianggu/.cache/sglang/benchmark/gen_shared_prefix_1234_8_8_2048_128_256_GemmaTokenizerFast.pkl
+Starting warmup with 8 sequences...
+Warmup completed with 8 sequences. Starting main benchmark run...
+Starting profiler...
+async_request_profile api_url='http://127.0.0.1:30000/start_profile' body={'activities': ['CPU', 'GPU'], 'num_steps': 10, 'profile_by_stage': False, 'profile_stages': None, 'output_dir': '/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R8/raw_trace/1780341676.618583', 'profile_prefix': 'p_'}
+Profiler started
+
+============ Serving Benchmark Result ============
+Backend:                                 sglang    
+Traffic request rate:                    inf       
+Max request concurrency:                 32        
+Successful requests:                     64        
+Benchmark duration (s):                  8.44      
+Total input tokens:                      143186    
+Total input text tokens:                 143186    
+Total generated tokens:                  16384     
+Total generated tokens (retokenized):    5523      
+Request throughput (req/s):              7.59      
+Input token throughput (tok/s):          16974.22  
+Output token throughput (tok/s):         1942.27   
+Peak output token throughput (tok/s):    5664.00   
+Peak concurrent requests:                64        
+Total token throughput (tok/s):          18916.49  
+Concurrency:                             31.94     
+----------------End-to-End Latency----------------
+Mean E2E Latency (ms):                   4209.75   
+Median E2E Latency (ms):                 4210.19   
+P90 E2E Latency (ms):                    6833.24   
+P99 E2E Latency (ms):                    6834.32   
+---------------Time to First Token----------------
+Mean TTFT (ms):                          235.65    
+Median TTFT (ms):                        222.95    
+P99 TTFT (ms):                           309.09    
+-----Time per Output Token (excl. 1st token)------
+Mean TPOT (ms):                          15.58     
+Median TPOT (ms):                        15.58     
+P99 TPOT (ms):                           26.05     
+---------------Inter-Token Latency----------------
+Mean ITL (ms):                           15.58     
+Median ITL (ms):                         5.32      
+P95 ITL (ms):                            5.42      
+P99 ITL (ms):                            6.17      
+Max ITL (ms):                            5166.90   
+==================================================
+[parse_trace] wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R8/profile_summary.json  (20 top kernels, 2 warnings)
+[run_profile] launching server (CUDA_VISIBLE_DEVICES=0)
+[run_profile] waiting for /health on 127.0.0.1:30000 ...
+[run_profile] running bench with --profile (num-steps=10)
+[run_profile] wrote server_info.json
+[run_profile] trace captured: /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R8/raw_trace/1780341676.618583/p_-1780341676.6201336-TP-0.trace.json.gz
+[hw-view] sampler pid=2184953 → /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R8/gpu_samples.csv
+[hw-view] run_profile.py rc=0 duration=121.1s
+[hw-view] wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R8/hardware_view.json
+ALL DONE

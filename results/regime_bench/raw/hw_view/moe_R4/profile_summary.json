@@ -1,0 +1,205 @@
+{
+  "schema_version": 0,
+  "ok": true,
+  "captured_at": "2026-06-01T19:07:33Z",
+  "trace_path": "/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/moe_R4/raw_trace/1780340838.622345/p_-1780340838.624146-TP-0.trace.json.gz",
+  "candidate_config_sha256": "b7e2ead5f864755b51b4f8201e3ecce14af4d84a2e4a2023cad2ce5e9184c16a",
+  "workload": {
+    "regime_id": "R4_long_in_long_out",
+    "num_prompts": 24,
+    "max_concurrency": 8
+  },
+  "totals": {
+    "wallclock_ms": 375.08,
+    "gpu_active_ms": 479.51,
+    "gpu_idle_ms": null,
+    "gpu_utilization_pct": null
+  },
+  "phase_breakdown_pct": {
+    "other": 92.11,
+    "scheduler": 7.89,
+    "prefill": 0.0,
+    "decode": 0.0,
+    "tokenize": 0.0
+  },
+  "top_kernels": [
+    {
+      "rank": 1,
+      "name": "cudaEventSynchronize",
+      "self_time_pct": 37.71,
+      "calls": 8,
+      "avg_us": 22604.02,
+      "phase": "other"
+    },
+    {
+      "rank": 2,
+      "name": "fused_moe_kernel",
+      "self_time_pct": 29.49,
+      "calls": 864,
+      "avg_us": 163.68,
+      "phase": "other"
+    },
+    {
+      "rank": 3,
+      "name": "void cutlass::device_kernel<flash::enable_sm90_or_later<flash::FlashAttnFwdSm90<flash::CollectiveMainloopFwdSm90<2, cute::tuple<cute::C<1>, cute::C<1>, cute::C<1> >, cute::tuple<cute::C<128>, cute::C<128>, cute::C<128> >, 128, cutlass::bfloat16_t, float, cutlass::arch::Sm90, true, false, false, true, true, false, false, true, true, true, false, false, cutlass::bfloat16_t>, flash::CollectiveEpilogueFwd<cute::tuple<cute::C<128>, cute::C<128>, cute::C<128> >, cute::tuple<cute::C<1>, cute::C<1>, cute::C<1> >, cutlass::bfloat16_t, cutlass::arch::Sm90, 256, true, true, false, false>, flash::VarlenDynamicPersistentTileScheduler<128, 128, 256, 128, false, true, true, true, true, true> > > >(flash::enable_sm90_or_later<flash::FlashAttnFwdSm90<flash::CollectiveMainloopFwdSm90<2, cute::tuple<cute::C<1>, cute::C<1>, cute::C<1> >, cute::tuple<cute::C<128>, cute::C<128>, cute::C<128> >, 128, cutlass::bfloat16_t, float, cutlass::arch::Sm90, true, false, false, true, true, false, false, true, true, true, false, false, cutlass::bfloat16_t>, flash::CollectiveEpilogueFwd<cute::tuple<cute::C<128>, cute::C<128>, cute::C<128> >, cute::tuple<cute::C<1>, cute::C<1>, cute::C<1> >, cutlass::bfloat16_t, cutlass::arch::Sm90, 256, true, true, false, false>, flash::VarlenDynamicPersistentTileScheduler<128, 128, 256, 128, false, true, true, true, true, true> > >::Params)",
+      "self_time_pct": 6.54,
+      "calls": 48,
+      "avg_us": 653.47,
+      "phase": "scheduler"
+    },
+    {
+      "rank": 4,
+      "name": "nvjet_tst_256x160_64x4_1x2_h_bz_coopA_TNT",
+      "self_time_pct": 4.01,
+      "calls": 48,
+      "avg_us": 400.34,
+      "phase": "other"
+    },
+    {
+      "rank": 5,
+      "name": "nvjet_tst_256x152_64x4_1x2_h_bz_coopA_TNT",
+      "self_time_pct": 3.18,
+      "calls": 48,
+      "avg_us": 317.56,
+      "phase": "other"
+    },
+    {
+      "rank": 6,
+      "name": "cudaDeviceSynchronize",
+      "self_time_pct": 1.67,
+      "calls": 1,
+      "avg_us": 7989.87,
+      "phase": "other"
+    },
+    {
+      "rank": 7,
+      "name": "void at::native::elementwise_kernel<128, 4, at::native::gpu_kernel_impl_nocast<at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#12}::operator()() const::{lambda(c10::BFloat16)#1}>(at::TensorIteratorBase&, at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#12}::operator()() const::{lambda(c10::BFloat16)#1} const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#12}::operator()() const::{lambda(c10::BFloat16)#1}>(at::TensorIteratorBase&, at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#12}::operator()() const::{lambda(c10::BFloat16)#1} const&)::{lambda(int)#1})",
+      "self_time_pct": 1.65,
+      "calls": 384,
+      "avg_us": 20.61,
+      "phase": "other"
+    },
+    {
+      "rank": 8,
+      "name": "cudaGraphLaunch",
+      "self_time_pct": 1.63,
+      "calls": 7,
+      "avg_us": 1119.5,
+      "phase": "other"
+    },
+    {
+      "rank": 9,
+      "name": "void flashinfer::activation::act_and_mul_kernel<__nv_bfloat16, &(float silu<float>(float const&))>(__nv_bfloat16*, __nv_bfloat16 const*, int)",
+      "self_time_pct": 1.56,
+      "calls": 432,
+      "avg_us": 17.27,
+      "phase": "other"
+    },
+    {
+      "rank": 10,
+      "name": "void flashinfer::norm::FusedAddRMSNormKernel<8u, __nv_bfloat16>(__nv_bfloat16*, __nv_bfloat16*, __nv_bfloat16*, unsigned int, unsigned int, unsigned int, float, float)",
+      "self_time_pct": 1.54,
+      "calls": 864,
+      "avg_us": 8.53,
+      "phase": "other"
+    },
+    {
+      "rank": 11,
+      "name": "void cutlass::device_kernel<flash::enable_sm90_or_later<flash::FlashAttnFwdSm90<flash::CollectiveMainloopFwdSm90<2, cute::tuple<cute::C<1>, cute::C<1>, cute::C<1> >, cute::tuple<cute::C<128>, cute::C<128>, cute::C<128> >, 128, cutlass::bfloat16_t, float, cutlass::arch::Sm90, true, false, false, true, true, false, false, true, true, true, true, false, cutlass::bfloat16_t>, flash::CollectiveEpilogueFwd<cute::tuple<cute::C<128>, cute::C<128>, cute::C<128> >, cute::tuple<cute::C<1>, cute::C<1>, cute::C<1> >, cutlass::bfloat16_t, cutlass::arch::Sm90, 256, true, true, true, false>, flash::VarlenDynamicPersistentTileScheduler<128, 128, 256, 128, true, true, true, true, true, true> > > >(flash::enable_sm90_or_later<flash::FlashAttnFwdSm90<flash::CollectiveMainloopFwdSm90<2, cute::tuple<cute::C<1>, cute::C<1>, cute::C<1> >, cute::tuple<cute::C<128>, cute::C<128>, cute::C<128> >, 128, cutlass::bfloat16_t, float, cutlass::arch::Sm90, true, false, false, true, true, false, false, true, true, true, true, false, cutlass::bfloat16_t>, flash::CollectiveEpilogueFwd<cute::tuple<cute::C<128>, cute::C<128>, cute::C<128> >, cute::tuple<cute::C<1>, cute::C<1>, cute::C<1> >, cutlass::bfloat16_t, cutlass::arch::Sm90, 256, true, true, true, false>, flash::VarlenDynamicPersistentTileScheduler<128, 128, 256, 128, true, true, true, true, true, true> > >::Params)",
+      "self_time_pct": 1.35,
+      "calls": 384,
+      "avg_us": 16.81,
+      "phase": "scheduler"
+    },
+    {
+      "rank": 12,
+      "name": "void moe_sum_reduce_warp_per_token_vec_kernel<8>(c10::BFloat16 const*, c10::BFloat16*, long, long, long, long, long, long, float)",
+      "self_time_pct": 1.26,
+      "calls": 48,
+      "avg_us": 126.01,
+      "phase": "other"
+    },
+    {
+      "rank": 13,
+      "name": "void flashinfer::BatchQKApplyRotaryPosIdsCosSinCacheEnhancedKernel<true, false, 128u, 8u, 16u, __nv_bfloat16, long>(__nv_bfloat16*, __nv_bfloat16*, __nv_bfloat16*, __nv_bfloat16*, __nv_bfloat16*, __nv_bfloat16*, __nv_bfloat16*, float*, long*, unsigned int, unsigned int, unsigned int, unsigned int, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, long*)",
+      "self_time_pct": 0.94,
+      "calls": 48,
+      "avg_us": 94.09,
+      "phase": "other"
+    },
+    {
+      "rank": 14,
+      "name": "cudaLaunchKernel",
+      "self_time_pct": 0.89,
+      "calls": 813,
+      "avg_us": 5.26,
+      "phase": "other"
+    },
+    {
+      "rank": 15,
+      "name": "void (anonymous namespace)::fused_qknorm_warp<128l, true, __nv_bfloat16>((anonymous namespace)::QKNormParams)",
+      "self_time_pct": 0.88,
+      "calls": 432,
+      "avg_us": 9.77,
+      "phase": "other"
+    },
+    {
+      "rank": 16,
+      "name": "nvjet_tst_64x8_64x16_4x1_v_bz_TNT",
+      "self_time_pct": 0.63,
+      "calls": 384,
+      "avg_us": 7.86,
+      "phase": "other"
+    },
+    {
+      "rank": 17,
+      "name": "nvjet_tst_64x8_64x16_4x1_v_bz_splitK_TNT",
+      "self_time_pct": 0.61,
+      "calls": 384,
+      "avg_us": 7.58,
+      "phase": "other"
+    },
+    {
+      "rank": 18,
+      "name": "cudaLaunchKernelExC",
+      "self_time_pct": 0.54,
+      "calls": 530,
+      "avg_us": 4.9,
+      "phase": "other"
+    },
+    {
+      "rank": 19,
+      "name": "void moe_align_block_size_kernel<int>(int const*, int*, int*, int*, int, int, unsigned long, int*, bool, int, int)",
+      "self_time_pct": 0.48,
+      "calls": 432,
+      "avg_us": 5.33,
+      "phase": "other"
+    },
+    {
+      "rank": 20,
+      "name": "void count_and_sort_expert_tokens_kernel<int>(int const*, int*, int*, unsigned long)",
+      "self_time_pct": 0.43,
+      "calls": 432,
+      "avg_us": 4.8,
+      "phase": "other"
+    }
+  ],
+  "moe_overhead": {
+    "applicable": true,
+    "topk_pct": 0.0,
+    "dispatch_pct": 0.48,
+    "all_to_all_pct": 0.0,
+    "total_routing_pct": 0.48,
+    "verdict": "low"
+  },
+  "cuda_graph": {
+    "captured_bs_range": null,
+    "decode_steps_in_graph_pct": null,
+    "decode_steps_outside_graph_pct": null,
+    "fallback_reason_guess": null
+  },
+  "warnings": [
+    "cold-start tail detected; profile may be biased toward warmup",
+    "cuda_graph fields not yet computed; cross-check server_features.json"
+  ]
+}

@@ -8,10 +8,28 @@
 | Model | Regime | Attention | Sampling | Schedule | KV dtype | max_running | torch_compile_max_bs |
 |---|---|---|---|---|---|---|---|
 | dense | R1 | **fa3** | flashinfer | lpm | auto | 32 | 32 |
+| dense | R2 | **fa3** | flashinfer | lpm | auto | 32 | 32 |
+| dense | R3 | **fa3** | flashinfer | lpm | auto | 32 | 32 |
+| dense | R4 | **fa3** | flashinfer | lpm | auto | 32 | 32 |
 | dense | R5 | **fa3** | flashinfer | lpm | auto | 32 | 32 |
+| dense | R6 | **fa3** | flashinfer | lpm | auto | 32 | 32 |
+| dense | R7 | **fa3** | flashinfer | lpm | auto | 32 | 32 |
 | dense | R8 | **fa3** | flashinfer | lpm | auto | 32 | 32 |
+| gemma | R1 | **fa3** | flashinfer | lpm | auto | 32 | 32 |
+| gemma | R2 | **fa3** | flashinfer | lpm | auto | 32 | 32 |
+| gemma | R3 | **fa3** | flashinfer | lpm | auto | 32 | 32 |
+| gemma | R4 | **fa3** | flashinfer | lpm | auto | 32 | 32 |
+| gemma | R5 | **fa3** | flashinfer | lpm | auto | 32 | 32 |
+| gemma | R6 | **fa3** | flashinfer | lpm | auto | 32 | 32 |
+| gemma | R7 | **fa3** | flashinfer | lpm | auto | 32 | 32 |
+| gemma | R8 | **fa3** | flashinfer | lpm | auto | 32 | 32 |
 | moe | R1 | **fa3** | flashinfer | lpm | auto | 32 | 32 |
+| moe | R2 | **fa3** | flashinfer | lpm | auto | 32 | 32 |
+| moe | R3 | **fa3** | flashinfer | lpm | auto | 32 | 32 |
+| moe | R4 | **fa3** | flashinfer | lpm | auto | 32 | 32 |
 | moe | R5 | **fa3** | flashinfer | lpm | auto | 32 | 32 |
+| moe | R6 | **fa3** | flashinfer | lpm | auto | 32 | 32 |
+| moe | R7 | **fa3** | flashinfer | lpm | auto | 32 | 32 |
 | moe | R8 | **fa3** | flashinfer | lpm | auto | 32 | 32 |
 
 ## 2. Hardware view (`nvidia-smi` during bench window)
@@ -19,10 +37,28 @@
 | Model | Regime | Wall (s) | Samples | Mem peak (GiB) | Mem mean (GiB) | GPU util mean (%) | GPU util p95 (%) | Mem-ctrl util (%) | Power mean (W) | Power peak (W) | Peak temp (°C) | SM clock mean (MHz) |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | dense | R1 | 41.5 | 43 | 98.42 | 61.41 | 4.1 | 10 | 1.0 | 113 | 200 | 42 | 1411 |
+| dense | R2 | 59.1 | 53 | 98.48 | 64.99 | 11.0 | 100 | 3.3 | 133 | 384 | 48 | 1517 |
+| dense | R3 | 62.4 | 45 | 98.83 | 59.15 | 4.2 | 9 | 1.3 | 120 | 334 | 47 | 1398 |
+| dense | R4 | 63.9 | 50 | 99.02 | 61.16 | 6.0 | 18 | 1.9 | 132 | 426 | 49 | 1457 |
 | dense | R5 | 85.7 | 54 | 98.62 | 63.81 | 4.2 | 26 | 1.1 | 120 | 266 | 45 | 1526 |
+| dense | R6 | 92.1 | 48 | 98.48 | 63.56 | 15.2 | 100 | 3.2 | 122 | 227 | 43 | 1469 |
+| dense | R7 | 66.9 | 52 | 99.37 | 62.64 | 8.7 | 76 | 4.4 | 147 | 657 | 55 | 1476 |
 | dense | R8 | 64.6 | 48 | 98.95 | 59.58 | 12.7 | 100 | 4.5 | 147 | 630 | 56 | 1468 |
+| gemma | R1 | 55.1 | 59 | 98.47 | 65.13 | 8.9 | 69 | 1.0 | 114 | 172 | 41 | 1509 |
+| gemma | R2 | 75.3 | 71 | 98.63 | 68.48 | 20.6 | 100 | 2.5 | 126 | 206 | 43 | 1612 |
+| gemma | R3 | 66.2 | 59 | 99.81 | 65.88 | 9.3 | 78 | 1.2 | 119 | 237 | 44 | 1509 |
+| gemma | R4 | 56.9 | 64 | 99.81 | 67.00 | 13.7 | 100 | 1.8 | 124 | 225 | 43 | 1546 |
+| gemma | R5 | 88.2 | 72 | 99.11 | 69.04 | 9.0 | 67 | 1.0 | 120 | 190 | 42 | 1594 |
+| gemma | R6 | 85.7 | 71 | 98.59 | 71.24 | 27.0 | 100 | 3.2 | 126 | 183 | 42 | 1589 |
+| gemma | R7 | 80.5 | 66 | 100.25 | 66.64 | 10.9 | 100 | 2.0 | 126 | 355 | 49 | 1559 |
+| gemma | R8 | 121.1 | 59 | 99.95 | 64.44 | 8.8 | 100 | 1.1 | 120 | 232 | 43 | 1509 |
 | moe | R1 | 95.7 | 76 | 119.31 | 74.83 | 11.8 | 82 | 5.3 | 140 | 416 | 47 | 1636 |
+| moe | R2 | 114.5 | 103 | 119.47 | 84.97 | 31.5 | 100 | 24.3 | 249 | 608 | 56 | 1726 |
+| moe | R3 | 90.2 | 78 | 120.58 | 74.72 | 12.1 | 100 | 5.1 | 153 | 616 | 53 | 1638 |
+| moe | R4 | 82.9 | 85 | 120.58 | 79.38 | 22.3 | 100 | 11.7 | 186 | 572 | 59 | 1667 |
 | moe | R5 | 109.4 | 99 | 120.05 | 84.22 | 17.0 | 97 | 12.1 | 187 | 578 | 54 | 1749 |
+| moe | R6 | 84.4 | 83 | 119.47 | 78.63 | 23.0 | 100 | 7.8 | 155 | 319 | 46 | 1684 |
+| moe | R7 | 81.4 | 92 | 121.67 | 83.31 | 18.6 | 100 | 11.3 | 194 | 699 | 60 | 1704 |
 | moe | R8 | 97.9 | 80 | 121.26 | 74.63 | 14.7 | 100 | 5.0 | 159 | 555 | 54 | 1650 |
 
 ## 3. Kernel breakdown (`torch.profiler` trace, top-20 GPU events)
@@ -30,10 +66,28 @@
 | Model | Regime | Trace wall (ms) | GPU active (ms) | Kernel categories (% of top-20 self time) |
 |---|---|---|---|---|
 | dense | R1 | 74.5 | 23.3 | cuda runtime/overhead: 38.2%; GEMM: 23.9%; attention (FlashAttention): 6.7%; norm: 4.2% |
+| dense | R2 | 91.1 | 29.5 | cuda runtime/overhead: 30.0%; GEMM: 17.9%; attention (FlashAttention): 9.1%; norm: 4.2% |
+| dense | R3 | 107.5 | 61.4 | GEMM: 29.2%; attention (FlashAttention): 23.1%; cuda runtime/overhead: 9.9%; elementwise: 4.1% |
+| dense | R4 | 116.1 | 61.7 | GEMM: 28.1%; attention (FlashAttention): 22.8%; cuda runtime/overhead: 9.5%; norm: 4.1%; elementwise: 3.9% |
 | dense | R5 | 189.8 | 45.6 | cuda runtime/overhead: 22.3%; GEMM: 15.3%; attention (FlashAttention): 11.5%; norm: 4.0%; elementwise: 3.6% |
+| dense | R6 | 46.7 | 22.2 | cuda runtime/overhead: 31.8%; GEMM: 31.3%; attention (FlashAttention): 7.9%; norm: 4.5%; other: 3.2% |
+| dense | R7 | 228.0 | 177.8 | GEMM: 36.8%; attention (FlashAttention): 17.2%; elementwise: 5.0%; other: 4.2%; norm: 4.2% |
 | dense | R8 | 234.0 | 103.2 | attention (FlashAttention): 23.1%; GEMM: 21.6%; cuda runtime/overhead: 9.4%; elementwise: 4.3%; norm: 3.8% |
+| gemma | R1 | 170.4 | 83.0 | cuda runtime/overhead: 48.9%; elementwise: 16.0%; other: 8.1%; GEMM: 4.9% |
+| gemma | R2 | 184.8 | 90.4 | cuda runtime/overhead: 38.9%; elementwise: 20.0%; other: 9.6%; GEMM: 2.9% |
+| gemma | R3 | 185.6 | 161.0 | elementwise: 24.2%; cuda runtime/overhead: 18.7%; other: 17.4%; GEMM: 15.1% |
+| gemma | R4 | 187.9 | 160.7 | elementwise: 24.2%; cuda runtime/overhead: 18.9%; other: 17.0%; GEMM: 15.2% |
+| gemma | R5 | 371.5 | 129.9 | cuda runtime/overhead: 33.8%; elementwise: 24.8%; GEMM: 11.2%; other: 4.8% |
+| gemma | R6 | 109.0 | 71.2 | cuda runtime/overhead: 44.6%; elementwise: 16.8%; other: 8.4%; GEMM: 6.4% |
+| gemma | R7 | 435.3 | 438.7 | elementwise: 24.5%; GEMM: 20.1%; cuda runtime/overhead: 18.1%; other: 8.8% |
+| gemma | R8 | 338.7 | 267.0 | elementwise: 26.1%; cuda runtime/overhead: 17.4%; GEMM: 17.2%; other: 7.9% |
 | moe | R1 | 206.3 | 103.9 | MoE: 33.8%; cuda runtime/overhead: 20.0%; other: 19.5%; GEMM: 5.5%; attention (FlashAttention): 2.7%; norm: 1.9% |
+| moe | R2 | 271.0 | 220.8 | MoE: 42.9%; other: 25.5%; cuda runtime/overhead: 11.4%; GEMM: 3.8%; attention (FlashAttention): 1.5%; norm: 1.2% |
+| moe | R3 | 375.7 | 474.7 | other: 38.9%; MoE: 29.6%; GEMM: 7.2%; attention (FlashAttention): 6.5%; cuda runtime/overhead: 3.5%; elementwise: 1.7% |
+| moe | R4 | 375.1 | 479.5 | other: 39.3%; MoE: 29.5%; GEMM: 7.2%; attention (FlashAttention): 6.5%; cuda runtime/overhead: 3.3%; elementwise: 1.6% |
 | moe | R5 | 505.1 | 297.5 | MoE: 45.3%; other: 19.3%; GEMM: 6.7%; cuda runtime/overhead: 5.3%; attention (FlashAttention): 2.7%; norm: 1.8% |
+| moe | R6 | 119.4 | 62.7 | cuda runtime/overhead: 22.9%; MoE: 16.9%; other: 16.8%; GEMM: 13.8%; attention (FlashAttention): 5.0%; norm: 3.2% |
+| moe | R7 | 1056.5 | 1144.5 | MoE: 44.9%; other: 17.3%; attention (FlashAttention): 9.3%; GEMM: 8.1%; elementwise: 2.7%; norm: 2.2% |
 | moe | R8 | 696.1 | 598.0 | MoE: 46.5%; attention (FlashAttention): 13.4%; GEMM: 12.7%; other: 5.7%; elementwise: 2.9%; norm: 2.4% |
 
 **Top-2 kernels per cell (`self_time_pct` from the trace)**:
@@ -41,8 +95,26 @@
 | Model | Regime | #1 kernel | #1 % | calls | #2 kernel | #2 % |
 |---|---|---|---|---|---|---|
 | dense | R1 | `cudaGraphLaunch` | 17.9% | 7 | `nvjet_tst_64x8_64x16_4x1_v_bz_TNT` | 10.0% |
+| dense | R2 | `cudaGraphLaunch` | 14.1% | 7 | `void cutlass::device_kernel<flash::enable_sm90_or_later<flas` | 9.1% |
+| dense | R3 | `void cutlass::device_kernel<flash::enable_sm90_or_later<flas` | 14.1% | 56 | `nvjet_tst_128x256_64x4_2x1_v_bz_coopA_TNN` | 9.4% |
+| dense | R4 | `void cutlass::device_kernel<flash::enable_sm90_or_later<flas` | 13.8% | 56 | `nvjet_tst_192x192_64x4_1x2_h_bz_coopB_TNN` | 9.4% |
 | dense | R5 | `cudaLaunchKernel` | 9.9% | 916 | `cudaLaunchKernelExC` | 6.7% |
+| dense | R6 | `cudaGraphLaunch` | 18.8% | 8 | `nvjet_tst_8x64_64x16_2x1_v_bz_TNN` | 14.0% |
+| dense | R7 | `void cutlass::device_kernel<flash::enable_sm90_or_later<flas` | 17.2% | 140 | `nvjet_tst_128x248_64x4_2x1_v_bz_coopA_TNT` | 10.7% |
 | dense | R8 | `void cutlass::device_kernel<flash::enable_sm90_or_later<flas` | 15.6% | 112 | `void cutlass::device_kernel<flash::enable_sm90_or_later<flas` | 7.4% |
+| gemma | R1 | `cudaGraphLaunch` | 28.9% | 7 | `cudaLaunchKernel` | 16.2% |
+| gemma | R2 | `cudaGraphLaunch` | 19.9% | 7 | `cudaLaunchKernel` | 15.7% |
+| gemma | R3 | `cudaEventSynchronize` | 13.4% | 8 | `void at::native::elementwise_kernel<128, 2, at::native::gpu_` | 10.8% |
+| gemma | R4 | `cudaEventSynchronize` | 12.9% | 8 | `void at::native::elementwise_kernel<128, 2, at::native::gpu_` | 10.8% |
+| gemma | R5 | `cudaLaunchKernel` | 25.3% | 9051 | `void at::native::elementwise_kernel<128, 2, at::native::gpu_` | 9.7% |
+| gemma | R6 | `cudaGraphLaunch` | 28.2% | 8 | `cudaLaunchKernel` | 10.6% |
+| gemma | R7 | `void at::native::elementwise_kernel<128, 2, at::native::gpu_` | 13.8% | 2695 | `cudaLaunchKernel` | 12.1% |
+| gemma | R8 | `void at::native::elementwise_kernel<128, 2, at::native::gpu_` | 14.4% | 2695 | `cudaLaunchKernel` | 12.3% |
 | moe | R1 | `fused_moe_kernel` | 33.8% | 864 | `cudaEventSynchronize` | 19.5% |
+| moe | R2 | `fused_moe_kernel` | 42.9% | 864 | `cudaEventSynchronize` | 25.5% |
+| moe | R3 | `cudaEventSynchronize` | 37.3% | 8 | `fused_moe_kernel` | 29.6% |
+| moe | R4 | `cudaEventSynchronize` | 37.7% | 8 | `fused_moe_kernel` | 29.5% |
 | moe | R5 | `fused_moe_kernel` | 45.3% | 864 | `cudaEventSynchronize` | 16.8% |
+| moe | R6 | `fused_moe_kernel` | 16.9% | 864 | `cudaEventSynchronize` | 16.8% |
+| moe | R7 | `fused_moe_kernel` | 42.7% | 864 | `cudaEventSynchronize` | 14.8% |
 | moe | R8 | `fused_moe_kernel` | 46.5% | 864 | `void cutlass::device_kernel<flash::enable_sm90_or_later<flas` | 10.3% |

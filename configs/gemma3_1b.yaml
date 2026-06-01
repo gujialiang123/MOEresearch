@@ -1,0 +1,32 @@
+# SGLang server config for Gemma-3 1B (dense, sglang-supported).
+#
+# Added 2026-06-01 for the 3-model regime study. NOTE: the original target
+# was Gemma-4 26B-A4B MoE, but sglang 0.5.12 does not support
+# `model_type=gemma4`. See docs/regime_benchmark_experiment.md §16 for the
+# incompatibility note.
+
+model-path: "/data/hf/models/gemma-3-1b-it"
+served-model-name: "gemma-3-1b"
+
+host: "127.0.0.1"
+port: 30000
+
+_gpu_id: 0
+
+tensor-parallel-size: 1
+
+# Same memory budget as Qwen3-0.6B (small dense)
+mem-fraction-static: 0.7
+
+# Same scheduling knobs as configs/base.yaml + configs/moe_qwen3_30b.yaml so
+# cross-model comparisons are clean.
+schedule-policy: "lpm"
+schedule-conservativeness: 1.0
+max-running-requests: 32
+chunked-prefill-size: -1
+max-prefill-tokens: 16384
+disable-radix-cache: false
+disable-cuda-graph: false
+
+log-requests: false
+trust-remote-code: true

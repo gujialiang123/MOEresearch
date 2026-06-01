@@ -25,6 +25,28 @@
 - Lowest TTFT p50: **R6** (20.7 ms)
 - Highest TTFT p50: **R5** (544.6 ms)
 
+## Model: `gemma`
+
+- Attention backend: **fa3** · schedule policy: **lpm** · chunked_prefill_size: **-1** · max_prefill_tokens: **16384** · max_running_requests: **32** · mem_fraction_static: **0.7**
+- KV cache total: **95.4 GB**, max_total_num_tokens: **3848511**, cuda_graph captured up to bs **32**
+
+| Regime | InLen | OutLen | Conc | NumPrompts | Req/s | Out tok/s | TTFT mean | TTFT p95 | TPOT mean | ITL p95 | E2E p99 | n_pass | Gap vs R1 (out tok/s) | Notes |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| R1 | 128 | 128 | 4 | 32 | 8.88 | 600 | 50.4 | 120.5 | 5.62 | 5.08 | 835 | 2/2 | 0.0% |  |
+| R2 | 128 | 1024 | 32 | 64 | 7.37 | 3975 | 82.7 | 132.8 | 5.91 | 5.64 | 6278 | 2/2 | +562.5% |  |
+| R3 | 4096 | 128 | 8 | 32 | 13.31 | 900 | 67.6 | 143.5 | 6.63 | 30.99 | 1062 | 2/2 | +50.0% |  |
+| R4 | 4096 | 512 | 8 | 24 | 4.54 | 1266 | 74.3 | 141.5 | 5.31 | 5.05 | 2879 | 2/2 | +111.0% |  |
+| R5 | 512 | 256 | 64 | 128 | 22.32 | 2772 | 1058.9 | 2623.5 | 9.67 | 35.66 | 4707 | 2/2 | +362.1% | hit max_running cap |
+| R6 | 512 | 256 | 1 | 16 | 1.44 | 212 | 41.2 | 44.6 | 4.46 | 4.50 | 1166 | 2/2 | -64.7% |  |
+| R7 | 2048±95% | 256 | 32 | 64 | 18.03 | 4482 | 182.8 | 386.0 | 6.29 | 5.49 | 2122 | 2/2 | +647.1% |  |
+| R8 | 2048+128 | 256 | 32 | 64 | 19.57 | 5011 | 220.9 | 322.0 | 5.51 | 5.40 | 1687 | 2/2 | +735.2% |  |
+
+**Best/worst summary**:
+- Highest output throughput: **R8** (5011 tok/s)
+- Lowest output throughput: **R6** (212 tok/s)
+- Lowest TTFT p50: **R1** (40.4 ms)
+- Highest TTFT p50: **R5** (1043.5 ms)
+
 ## Model: `moe`
 
 - Attention backend: **fa3** · schedule policy: **lpm** · chunked_prefill_size: **-1** · max_prefill_tokens: **16384** · max_running_requests: **32** · mem_fraction_static: **0.8**

@@ -1,0 +1,200 @@
+{
+  "schema_version": 0,
+  "ok": true,
+  "captured_at": "2026-06-01T19:16:30Z",
+  "trace_path": "/home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/hw_view/gemma_R5/raw_trace/1780341374.9191933/p_-1780341374.9208472-TP-0.trace.json.gz",
+  "candidate_config_sha256": "0881af5a48fe10401d81633181e37cd150edee41b0cb5b08a8a68739d86990cc",
+  "workload": {
+    "regime_id": "R5_high_concurrency",
+    "num_prompts": 128,
+    "max_concurrency": 64
+  },
+  "totals": {
+    "wallclock_ms": 371.52,
+    "gpu_active_ms": 129.93,
+    "gpu_idle_ms": null,
+    "gpu_utilization_pct": null
+  },
+  "phase_breakdown_pct": {
+    "other": 96.53,
+    "scheduler": 3.47,
+    "prefill": 0.0,
+    "decode": 0.0,
+    "tokenize": 0.0
+  },
+  "top_kernels": [
+    {
+      "rank": 1,
+      "name": "cudaLaunchKernel",
+      "self_time_pct": 25.27,
+      "calls": 9051,
+      "avg_us": 3.63,
+      "phase": "other"
+    },
+    {
+      "rank": 2,
+      "name": "void at::native::elementwise_kernel<128, 2, at::native::gpu_kernel_impl_nocast<at::native::BinaryFunctor<float, float, float, at::native::binary_internal::MulFunctor<float> > >(at::TensorIteratorBase&, at::native::BinaryFunctor<float, float, float, at::native::binary_internal::MulFunctor<float> > const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::BinaryFunctor<float, float, float, at::native::binary_internal::MulFunctor<float> > >(at::TensorIteratorBase&, at::native::BinaryFunctor<float, float, float, at::native::binary_internal::MulFunctor<float> > const&)::{lambda(int)#1})",
+      "self_time_pct": 9.68,
+      "calls": 2695,
+      "avg_us": 4.67,
+      "phase": "other"
+    },
+    {
+      "rank": 3,
+      "name": "cudaGraphLaunch",
+      "self_time_pct": 8.55,
+      "calls": 4,
+      "avg_us": 2776.68,
+      "phase": "other"
+    },
+    {
+      "rank": 4,
+      "name": "void at::native::unrolled_elementwise_kernel<at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#7}::operator()() const::{lambda(float)#1}, std::array<char*, 2ul>, 4, TrivialOffsetCalculator<1, unsigned int>, TrivialOffsetCalculator<1, unsigned int>, at::native::memory::LoadWithCast<1>, at::native::memory::StoreWithCast<1> >(int, at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#7}::operator()() const::{lambda(float)#1}, std::array<char*, 2ul>, TrivialOffsetCalculator<1, unsigned int>, TrivialOffsetCalculator<1, unsigned int>, at::native::memory::LoadWithCast<1>, at::native::memory::StoreWithCast<1>)",
+      "self_time_pct": 7.15,
+      "calls": 2437,
+      "avg_us": 3.81,
+      "phase": "other"
+    },
+    {
+      "rank": 5,
+      "name": "nvjet_tst_192x192_64x4_2x1_v_bz_coopB_TNN",
+      "self_time_pct": 7.11,
+      "calls": 26,
+      "avg_us": 355.2,
+      "phase": "other"
+    },
+    {
+      "rank": 6,
+      "name": "void at::native::reduce_kernel<512, 1, at::native::ReduceOp<float, at::native::MeanOps<float, float, float, float>, unsigned int, float, 4, 4> >(at::native::ReduceOp<float, at::native::MeanOps<float, float, float, float>, unsigned int, float, 4, 4>)",
+      "self_time_pct": 4.77,
+      "calls": 1413,
+      "avg_us": 4.38,
+      "phase": "other"
+    },
+    {
+      "rank": 7,
+      "name": "nvjet_tst_128x160_64x5_1x2_h_bz_TNT",
+      "self_time_pct": 4.14,
+      "calls": 52,
+      "avg_us": 103.51,
+      "phase": "other"
+    },
+    {
+      "rank": 8,
+      "name": "void at::native::vectorized_elementwise_kernel<4, at::native::(anonymous namespace)::pow_tensor_scalar_kernel_impl<float, float>(at::TensorIteratorBase&, float)::{lambda(float)#1}, std::array<char*, 2ul> >(int, at::native::(anonymous namespace)::pow_tensor_scalar_kernel_impl<float, float>(at::TensorIteratorBase&, float)::{lambda(float)#1}, std::array<char*, 2ul>)",
+      "self_time_pct": 3.08,
+      "calls": 1413,
+      "avg_us": 2.83,
+      "phase": "other"
+    },
+    {
+      "rank": 9,
+      "name": "void at::native::vectorized_elementwise_kernel<8, at::native::bfloat16_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda(float)#1}, std::array<char*, 2ul> >(int, at::native::bfloat16_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda(float)#1}, std::array<char*, 2ul>)",
+      "self_time_pct": 2.65,
+      "calls": 1449,
+      "avg_us": 2.37,
+      "phase": "other"
+    },
+    {
+      "rank": 10,
+      "name": "void at::native::vectorized_elementwise_kernel<4, at::native::CUDAFunctorOnSelf_add<float>, std::array<char*, 2ul> >(int, at::native::CUDAFunctorOnSelf_add<float>, std::array<char*, 2ul>)",
+      "self_time_pct": 2.22,
+      "calls": 2826,
+      "avg_us": 1.02,
+      "phase": "other"
+    },
+    {
+      "rank": 11,
+      "name": "void flashinfer::activation::act_and_mul_kernel<__nv_bfloat16, &(float gelu_tanh<float>(float const&))>(__nv_bfloat16*, __nv_bfloat16 const*, int)",
+      "self_time_pct": 2.0,
+      "calls": 234,
+      "avg_us": 11.13,
+      "phase": "other"
+    },
+    {
+      "rank": 12,
+      "name": "void at::native::elementwise_kernel<128, 4, at::native::gpu_kernel_impl<at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#7}::operator()() const::{lambda(float)#1}>(at::TensorIteratorBase&, at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#7}::operator()() const::{lambda(float)#1} const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl<at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#7}::operator()() const::{lambda(float)#1}>(at::TensorIteratorBase&, at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#7}::operator()() const::{lambda(float)#1} const&)::{lambda(int)#1})",
+      "self_time_pct": 1.72,
+      "calls": 416,
+      "avg_us": 5.38,
+      "phase": "other"
+    },
+    {
+      "rank": 13,
+      "name": "triton_poi_fused__to_copy_add_cat_mul_neg_slice_unsqueeze_0",
+      "self_time_pct": 1.28,
+      "calls": 234,
+      "avg_us": 7.13,
+      "phase": "other"
+    },
+    {
+      "rank": 14,
+      "name": "void at::native::vectorized_elementwise_kernel<4, at::native::rsqrt_kernel_cuda(at::TensorIteratorBase&)::{lambda()#2}::operator()() const::{lambda()#2}::operator()() const::{lambda(float)#1}, std::array<char*, 2ul> >(int, at::native::rsqrt_kernel_cuda(at::TensorIteratorBase&)::{lambda()#2}::operator()() const::{lambda()#2}::operator()() const::{lambda(float)#1}, std::array<char*, 2ul>)",
+      "self_time_pct": 1.23,
+      "calls": 1413,
+      "avg_us": 1.13,
+      "phase": "other"
+    },
+    {
+      "rank": 15,
+      "name": "cudaLaunchKernelExC",
+      "self_time_pct": 1.23,
+      "calls": 286,
+      "avg_us": 5.58,
+      "phase": "other"
+    },
+    {
+      "rank": 16,
+      "name": "void cutlass::device_kernel<flash::enable_sm90_or_later<flash::FlashAttnFwdSm90<flash::CollectiveMainloopFwdSm90<2, cute::tuple<cute::C<1>, cute::C<1>, cute::C<1> >, cute::tuple<cute::C<128>, cute::C<80>, cute::C<256> >, 256, cutlass::bfloat16_t, float, cutlass::arch::Sm90, true, false, false, true, true, false, false, true, true, true, false, false, cutlass::bfloat16_t>, flash::CollectiveEpilogueFwd<cute::tuple<cute::C<128>, cute::C<256>, cute::C<80> >, cute::tuple<cute::C<1>, cute::C<1>, cute::C<1> >, cutlass::bfloat16_t, cutlass::arch::Sm90, 256, true, true, false, false>, flash::VarlenDynamicPersistentTileScheduler<128, 80, 256, 128, false, true, true, true, true, true> > > >(flash::enable_sm90_or_later<flash::FlashAttnFwdSm90<flash::CollectiveMainloopFwdSm90<2, cute::tuple<cute::C<1>, cute::C<1>, cute::C<1> >, cute::tuple<cute::C<128>, cute::C<80>, cute::C<256> >, 256, cutlass::bfloat16_t, float, cutlass::arch::Sm90, true, false, false, true, true, false, false, true, true, true, false, false, cutlass::bfloat16_t>, flash::CollectiveEpilogueFwd<cute::tuple<cute::C<128>, cute::C<256>, cute::C<80> >, cute::tuple<cute::C<1>, cute::C<1>, cute::C<1> >, cutlass::bfloat16_t, cutlass::arch::Sm90, 256, true, true, false, false>, flash::VarlenDynamicPersistentTileScheduler<128, 80, 256, 128, false, true, true, true, true, true> > >::Params)",
+      "self_time_pct": 1.11,
+      "calls": 78,
+      "avg_us": 18.47,
+      "phase": "scheduler"
+    },
+    {
+      "rank": 17,
+      "name": "cudaMemcpyAsync",
+      "self_time_pct": 1.01,
+      "calls": 198,
+      "avg_us": 6.63,
+      "phase": "other"
+    },
+    {
+      "rank": 18,
+      "name": "void at::native::vectorized_elementwise_kernel<8, at::native::CUDAFunctor_add<c10::BFloat16>, std::array<char*, 3ul> >(int, at::native::CUDAFunctor_add<c10::BFloat16>, std::array<char*, 3ul>)",
+      "self_time_pct": 1.0,
+      "calls": 468,
+      "avg_us": 2.78,
+      "phase": "other"
+    },
+    {
+      "rank": 19,
+      "name": "void cutlass::device_kernel<flash::enable_sm90_or_later<flash::FlashAttnFwdSm90<flash::CollectiveMainloopFwdSm90<2, cute::tuple<cute::C<1>, cute::C<1>, cute::C<1> >, cute::tuple<cute::C<128>, cute::C<80>, cute::C<256> >, 256, cutlass::bfloat16_t, float, cutlass::arch::Sm90, true, false, false, true, true, false, false, true, true, true, true, false, cutlass::bfloat16_t>, flash::CollectiveEpilogueFwd<cute::tuple<cute::C<128>, cute::C<256>, cute::C<80> >, cute::tuple<cute::C<1>, cute::C<1>, cute::C<1> >, cutlass::bfloat16_t, cutlass::arch::Sm90, 256, true, true, true, false>, flash::VarlenDynamicPersistentTileScheduler<128, 80, 256, 128, true, true, true, true, true, true> > > >(flash::enable_sm90_or_later<flash::FlashAttnFwdSm90<flash::CollectiveMainloopFwdSm90<2, cute::tuple<cute::C<1>, cute::C<1>, cute::C<1> >, cute::tuple<cute::C<128>, cute::C<80>, cute::C<256> >, 256, cutlass::bfloat16_t, float, cutlass::arch::Sm90, true, false, false, true, true, false, false, true, true, true, true, false, cutlass::bfloat16_t>, flash::CollectiveEpilogueFwd<cute::tuple<cute::C<128>, cute::C<256>, cute::C<80> >, cute::tuple<cute::C<1>, cute::C<1>, cute::C<1> >, cutlass::bfloat16_t, cutlass::arch::Sm90, 256, true, true, true, false>, flash::VarlenDynamicPersistentTileScheduler<128, 80, 256, 128, true, true, true, true, true, true> > >::Params)",
+      "self_time_pct": 0.96,
+      "calls": 26,
+      "avg_us": 47.91,
+      "phase": "scheduler"
+    },
+    {
+      "rank": 20,
+      "name": "nvjet_tst_192x192_64x4_1x2_h_bz_coopB_TNN",
+      "self_time_pct": 0.9,
+      "calls": 26,
+      "avg_us": 45.07,
+      "phase": "other"
+    }
+  ],
+  "moe_overhead": {
+    "applicable": false
+  },
+  "cuda_graph": {
+    "captured_bs_range": null,
+    "decode_steps_in_graph_pct": null,
+    "decode_steps_outside_graph_pct": null,
+    "fallback_reason_guess": null
+  },
+  "warnings": [
+    "cold-start tail detected; profile may be biased toward warmup",
+    "cuda_graph fields not yet computed; cross-check server_features.json"
+  ]
+}

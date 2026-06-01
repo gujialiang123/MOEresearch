@@ -1,0 +1,158 @@
+{
+  "schema_version": 1,
+  "config": "configs/gemma3_1b.yaml",
+  "workload": "regime_scout/candidates_regime_study/R6_low_concurrency.yaml",
+  "wall_window_s": 85.7,
+  "gpu_id": 0,
+  "gpu_sampling": {
+    "sample_count": 71,
+    "memory_used_mib_peak": 100956.0,
+    "memory_used_mib_mean": 72951.1,
+    "utilization_gpu_pct_mean": 27.0,
+    "utilization_gpu_pct_p95": 100.0,
+    "utilization_mem_pct_mean": 3.2,
+    "power_w_mean": 126.4,
+    "power_w_peak": 183.0,
+    "temperature_c_peak": 42.0,
+    "sm_clock_mhz_mean": 1589.0
+  },
+  "server_info_excerpt": {
+    "pp_size": 1,
+    "tp_size": 1,
+    "schedule_policy": "lpm",
+    "kv_cache_dtype": "auto",
+    "max_running_requests": 32,
+    "max_queued_requests": null,
+    "model_path": "/data/hf/models/gemma-3-1b-it",
+    "attention_backend": "fa3",
+    "sampling_backend": "flashinfer",
+    "tokenizer_path": "/data/hf/models/gemma-3-1b-it",
+    "torch_compile_max_bs": 32
+  },
+  "profile_totals": {
+    "wallclock_ms": 108.97,
+    "gpu_active_ms": 71.19,
+    "gpu_idle_ms": null,
+    "gpu_utilization_pct": null
+  },
+  "profile_phase_breakdown_pct": {
+    "other": 96.2,
+    "scheduler": 3.8,
+    "prefill": 0.0,
+    "decode": 0.0,
+    "tokenize": 0.0
+  },
+  "profile_moe_overhead": {
+    "applicable": false
+  },
+  "profile_cuda_graph": {
+    "captured_bs_range": null,
+    "decode_steps_in_graph_pct": null,
+    "decode_steps_outside_graph_pct": null,
+    "fallback_reason_guess": null
+  },
+  "top_kernels": [
+    {
+      "rank": 1,
+      "self_time_pct": 28.23,
+      "calls": 8,
+      "avg_us": 2512.67,
+      "phase": "other",
+      "name_short": "cudaGraphLaunch",
+      "category": "cuda runtime/overhead"
+    },
+    {
+      "rank": 2,
+      "self_time_pct": 10.64,
+      "calls": 1867,
+      "avg_us": 4.06,
+      "phase": "other",
+      "name_short": "cudaLaunchKernel",
+      "category": "cuda runtime/overhead"
+    },
+    {
+      "rank": 3,
+      "self_time_pct": 9.59,
+      "calls": 2853,
+      "avg_us": 2.39,
+      "phase": "other",
+      "name_short": "void at::native::unrolled_elementwise_kernel<at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}:...",
+      "category": "elementwise"
+    },
+    {
+      "rank": 4,
+      "self_time_pct": 5.77,
+      "calls": 1,
+      "avg_us": 4110.57,
+      "phase": "other",
+      "name_short": "cudaDeviceSynchronize",
+      "category": "cuda runtime/overhead"
+    },
+    {
+      "rank": 5,
+      "self_time_pct": 4.42,
+      "calls": 8,
+      "avg_us": 393.05,
+      "phase": "other",
+      "name_short": "cudaEventSynchronize",
+      "category": "other"
+    },
+    {
+      "rank": 6,
+      "self_time_pct": 4.12,
+      "calls": 2826,
+      "avg_us": 1.04,
+      "phase": "other",
+      "name_short": "void at::native::vectorized_elementwise_kernel<4, at::native::CUDAFunctorOnSelf_add<float>, std::array<char*, 2ul> >(int...",
+      "category": "elementwise"
+    },
+    {
+      "rank": 7,
+      "self_time_pct": 3.97,
+      "calls": 1413,
+      "avg_us": 2.0,
+      "phase": "other",
+      "name_short": "void at::native::reduce_kernel<512, 1, at::native::ReduceOp<float, at::native::MeanOps<float, float, float, float>, unsi...",
+      "category": "other"
+    },
+    {
+      "rank": 8,
+      "self_time_pct": 3.3,
+      "calls": 234,
+      "avg_us": 10.05,
+      "phase": "other",
+      "name_short": "nvjet_tst_64x8_64x16_4x1_v_bz_TNT",
+      "category": "GEMM"
+    },
+    {
+      "rank": 9,
+      "self_time_pct": 3.09,
+      "calls": 468,
+      "avg_us": 4.71,
+      "phase": "other",
+      "name_short": "nvjet_tst_16x64_64x16_4x1_v_bz_TNN",
+      "category": "GEMM"
+    },
+    {
+      "rank": 10,
+      "self_time_pct": 3.07,
+      "calls": 1647,
+      "avg_us": 1.33,
+      "phase": "other",
+      "name_short": "void at::native::elementwise_kernel<128, 2, at::native::gpu_kernel_impl_nocast<at::native::BinaryFunctor<float, float, f...",
+      "category": "elementwise"
+    }
+  ],
+  "kernel_category_pct": {
+    "cuda runtime/overhead": 44.6,
+    "elementwise": 16.8,
+    "other": 8.4,
+    "GEMM": 6.4
+  },
+  "profile_warnings": [
+    "cold-start tail detected; profile may be biased toward warmup",
+    "cuda_graph fields not yet computed; cross-check server_features.json"
+  ],
+  "profile_ok": true,
+  "rc": 0
+}

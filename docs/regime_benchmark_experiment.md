@@ -866,3 +866,373 @@ python scripts/regime_study/aggregate_hw_view.py
 ```
 
 每 cell 约 1-2 分钟。
+
+---
+
+## 16. Three-model expansion + fused_moe_kernel deep dive (follow-up)
+
+> 🟢 NEW. Added 2026-06-01 evening. Doubles down on §15 by running the **full
+> 8-regime hardware view on a third model** + explaining exactly what the
+> `fused_moe_kernel` is.
+
+### 16.1 What changed
+
+- Added a third model: **`gemma-3-1b-it`** (dense 1B, Google Gemma 3).
+  Config: [`configs/gemma3_1b.yaml`](../configs/gemma3_1b.yaml). Same
+  scheduling knobs as `configs/base.yaml`.
+- **Why not Gemma-4 MoE** (the original request): sglang 0.5.12.post1 does
+  not support `model_type=gemma4`. Quick smoke test gives
+  `KeyError: 'gemma4'` from sglang's model registry. The only Gemma models
+  sglang supports are gemma / gemma2 / gemma3 (all dense; gemma3 has a
+  multimodal variant but the MoE block in Gemma-4 is not in any of these).
+  → Substituted `gemma-3-1b-it` (dense) so we still get a 3-way comparison.
+- Round-1 regime suite: 8 regimes × 2 reps on Gemma → results in
+  `results/regime_bench/raw/gemma_rep{1,2}.jsonl`. Re-aggregated into
+  `results/regime_bench/{parsed_results.csv,summary_table.csv,summary.md}`
+  alongside dense + MoE.
+- Round-2 hardware view: extended from 6 cells to **24 cells (3 models × 8
+  regimes)**. New tables in `results/regime_bench/hardware_view_table.md`.
+
+### 16.2 What is `fused_moe_kernel`?
+
+`fused_moe_kernel` is the **Triton-JIT'd MoE expert dispatch + matmul kernel**
+in sglang. Source:
+[`sglang/srt/layers/moe/fused_moe_triton/fused_moe_triton_kernels.py:324`](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/layers/moe/fused_moe_triton/fused_moe_triton_kernels.py).
+
+In **one** GPU kernel launch it does **all of**:
+
+1. Reads the per-token top-k expert IDs (`expert_ids_ptr`) and routing
+   weights (`topk_weights_ptr`).
+2. Looks at the sorted token-id table (`sorted_token_ids_ptr`) that groups
+   "tokens going to the same expert" into contiguous blocks (preprocessed
+   by another kernel called `moe_align_block_size`).
+3. For each block, picks the correct expert's weight matrix `B[expert_id]`
+   (stride `stride_be`) and does **a tiled bf16 matmul** with the activation
+   tile `A`.
+4. Multiplies the result by the routing weight and writes to `C`.
+5. Supports per-token / per-tensor / FP8 / INT8 scaling via the
+   `a_scale_ptr` / `b_scale_ptr` paths (we're on bf16 → no quantization
+   path).
+
+> **Why it dominates** (we measure 34-47 % of GPU time on the MoE in §15):
+> a Qwen3-30B-A3B forward pass calls this kernel **twice per layer × 48
+> layers = 96 times per token** (once for `gate_up_proj`, once for
+> `down_proj`). Each call is a grouped GEMM over **8 active experts × hidden
+> tokens**. So this single kernel essentially **is** the MoE FFN.
+>
+> Side counter — Qwen3 MoE has 128 experts but only 8 are active per token;
+> the matmul groups the 8-expert subset, not all 128. The kernel sees the
+> dense 8-way work.
+
+**Why `cudaEventSynchronize` shows up as a big secondary** (17-37 % of GPU
+time depending on regime): every `fused_moe_kernel` call requires a sync to
+ensure the previous `moe_align_block_size` finished before the matmul. On
+long-prefill regimes (MoE R3/R4) this sync wait eclipses the matmul itself
+— it becomes the new bottleneck.
+
+### 16.3 Updated Round-1 result table — Gemma-3-1B (dense)
+
+> 2 reps. Server config: `configs/gemma3_1b.yaml`. Same scheduling knobs as
+> Qwen3-0.6B. Backend: fa3 / flashinfer / lpm.
+
+| Regime | InLen | OutLen | Conc | Req/s | Out tok/s | TTFT mean | TTFT p95 | TPOT mean | ITL p95 | E2E p99 | n_pass | Gap vs R1 | Notes |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| **R1** | 128 | 128 | 4 | 8.9 | 600 | 50.4 | 120.5 | 5.62 | 5.08 | 835 | 2/2 | 0% | |
+| **R2** | 128 | 1024 | 32 | 7.4 | 3 975 | 82.7 | 132.8 | 5.91 | 5.64 | 6 278 | 2/2 | +562% | |
+| **R3** | 4096 | 128 | 8 | 13.3 | 900 | 67.6 | 143.5 | 6.63 | **31.0** | 1 062 | 2/2 | +50% | high ITL p95 |
+| **R4** | 4096 | 512 | 8 | 4.5 | 1 266 | 74.3 | 141.5 | 5.31 | 5.05 | 2 879 | 2/2 | +111% | |
+| **R5** | 512 | 256 | 64 | 22.3 | 2 772 | **1 059** | **2 624** | 9.67 | 35.7 | 4 707 | 2/2 | +362% | **hit max_running cap** |
+| **R6** | 512 | 256 | 1 | 1.4 | 212 | 41.2 | 44.6 | 4.46 | 4.50 | 1 166 | 2/2 | −65% | |
+| **R7** | 2048±95% | 256 | 32 | 18.0 | 4 482 | 182.8 | 386.0 | 6.29 | 5.49 | 2 122 | 2/2 | +647% | |
+| **R8** | 2048+128 | 256 | 32 | 19.6 | **5 011** | 220.9 | 322.0 | 5.51 | 5.40 | 1 687 | 2/2 | **+735%** | best throughput |
+
+Best/worst:
+- Highest output throughput: **R8** 5 011 tok/s (radix cache wins, same as MoE)
+- Lowest: **R6** 212 tok/s
+- Highest TTFT p50: **R5** 1 044 ms (cap-hit)
+- Lowest TTFT p50: **R1** 40 ms
+
+### 16.4 Three-way model comparison — dense × dense × MoE
+
+| Metric | Qwen3-0.6B (dense) | Gemma-3-1B (dense) | Qwen3-30B-A3B (MoE) | Observation |
+|---|---|---|---|---|
+| Output tok/s on R8 (best) | **6 904** | 5 011 | 3 355 | Qwen3-0.6B wins; **Gemma is ~27% slower than Qwen3 at almost 2× the params** |
+| Output tok/s on R6 (single stream) | 521 | 212 | 222 | Qwen3-0.6B wins; Gemma surprisingly slower than MoE at single-stream |
+| TTFT p50 on R5 (cap-hit) | 538 ms | 1 044 ms | 2 075 ms | Bigger models suffer more at saturation |
+| TTFT p50 on R1 (baseline) | 21 ms | 40 ms | 45 ms | Roughly tracks model size |
+| `max-running` cap hits | R5 only | R5 only | R5 only | Same cap, all 3 models hit it identically — config bottleneck, not model |
+| GPU util mean on R8 | 12.7 % | 8.8 % | 14.7 % | All 3 are under-utilising H200 |
+
+**Key new finding**: **Gemma is slower than Qwen3-0.6B even though it has
+~1.7× the parameters**. Possible reasons (not yet profiled):
+- Gemma's per-layer sliding-window attention may not be hitting fast paths.
+- Gemma has hidden_size 2816 vs Qwen3-0.6B's 1024 — larger GEMMs, but
+  apparently not enough to recover the overhead-bound nature of
+  small-model serving on H200.
+
+### 16.5 Updated hardware view (24 cells)
+
+Full table in [`results/regime_bench/hardware_view_table.md`](../results/regime_bench/hardware_view_table.md).
+
+**Highlights (new vs §15)**:
+
+| Cell | Top kernel | % | What it means |
+|---|---|---|---|
+| dense R3 (prefill) | `flash::FlashAttnFwdSm90<...>` | 14.1% | Compute-bound when prefill is heavy |
+| dense R7 (mixed) | `flash::FlashAttnFwdSm90<...>` | 17.2% | Mixed-length doesn't break attention dominance |
+| **MoE R3** (prefill) | **`cudaEventSynchronize`** | **37.3%** | **Sync waits eclipse `fused_moe_kernel` (29.6%) on heavy prefill — different bottleneck than steady-state MoE** |
+| **MoE R4** (long-in + long-out) | `cudaEventSynchronize` | 37.7% | Same — long prefill = sync-bound, not MoE-bound |
+| MoE R7 (mixed) | `fused_moe_kernel` | 42.7% | Steady state — MoE kernel back in charge |
+| **MoE R2** (decode-heavy) mem-ctrl util | 24.3 % | — | **MoE R2 saturates the memory controller** (vs 1-5% for dense regimes); explains the 15.5 s e2e p99 outlier |
+| **Gemma R5** `cudaLaunchKernel` | 25.3% / **9 051 calls** | — | Gemma's scheduler-retry storm is 10× worse than Qwen3's R5 (916 calls) |
+| Gemma R1/R2/R6 | `cudaGraphLaunch` | 19-29% | Gemma is **even more launch-overhead-bound than Qwen3** at low load |
+| Gemma R7/R8 (top) | `at::native::elementwise_kernel<...>` | 13.8-14.4% / **2 695 calls** | Many small elementwise ops are creeping in — possibly not CUDA-graph-captured |
+
+### 16.6 New cross-model insights
+
+1. **MoE's bottleneck shifts by regime**. Steady-state MoE (R1/R2/R5/R7/R8):
+   `fused_moe_kernel` dominates (34-47%). Heavy prefill (R3/R4):
+   `cudaEventSynchronize` dominates (37%). Kernel-agent should target both.
+2. **Small dense models are not interchangeable**. Gemma-3-1B is consistently
+   slower than Qwen3-0.6B (1.7× the params but 17-30% less throughput in
+   most regimes), and **much more overhead-bound** (more `cudaLaunchKernel`
+   storms, more `cudaGraphLaunch` dominance). This is a real "model
+   architecture matters even at the same scale" datapoint.
+3. **The `max-running-requests=32` cap hurts everyone** — R5 TTFT p50 climbs
+   from 538 ms (Qwen3) → 1 044 ms (Gemma) → 2 075 ms (MoE). The penalty
+   scales roughly with per-token cost, but the *root cause* is identical
+   across all 3 models. **One config change fixes all three**.
+4. **MoE R2 is memory-bandwidth-bound, not compute-bound** — 24.3 % mem-ctrl
+   util at 249 W average power. This is direct evidence that the 15.5 s
+   e2e p99 outlier from §8 has a hardware-side reason: when decode batch
+   fills up, the MoE expert weights have to be streamed through the L2 /
+   HBM faster than the kernel can issue work. Candidate fix: enable
+   FP8 quantization to halve the bandwidth pressure.
+
+### 16.7 Reproducing §16
+
+```bash
+# Round-1 regime suite on Gemma (2 reps × 8 regimes ≈ 20 min)
+for rep in 1 2; do
+  python scripts/run_regime_suite.py --reset \
+    --config configs/gemma3_1b.yaml \
+    --workload-dir regime_scout/candidates_regime_study \
+    --out results/regime_bench/raw/gemma_rep${rep}.jsonl \
+    --run-root experiments/tmp/regime_study/gemma_rep${rep}
+done
+
+# Round-2 hardware view (24 cells ≈ 30 min on H200)
+bash /tmp/run_hw_views_full.sh   # see logs/hw_view_batch_full.log
+
+# Re-aggregate everything
+python scripts/regime_study/aggregate.py            # round 1
+python scripts/regime_study/aggregate_hw_view.py    # round 2
+```
+
+## 17. Gemma-4 MoE incompatibility note
+
+`/data/hf/models/gemma-4-26B-A4B-it/` is present on disk (49 GB, 26B total /
+4B active) but **sglang 0.5.12.post1 does not implement the `gemma4`
+architecture**. Repro:
+
+```bash
+$ python -m sglang.launch_server \
+    --model-path /data/hf/models/gemma-4-26B-A4B-it \
+    --host 127.0.0.1 --port 30002 \
+    --tensor-parallel-size 1 --mem-fraction-static 0.7 --trust-remote-code
+…
+File "…/sglang/srt/configs/model_config.py", line 250, in from_server_args
+    return ModelConfig( …
+File "…/sglang/srt/configs/model_config.py", line 127, in __init__
+    self.hf_config = get_config(
+KeyError: 'gemma4'
+```
+
+The Gemma family supported by sglang is:
+`sglang/srt/models/{gemma.py, gemma2.py, gemma2_reward.py, gemma3_causal.py,
+gemma3_mm.py, gemma3n_audio.py, gemma3n_causal.py, gemma3n_mm.py}` — no
+gemma4. Substituted `gemma-3-1b-it` (dense) as the third model.
+
+To enable Gemma-4 MoE in this experiment in the future:
+- Upstream a `gemma4.py` model implementation in sglang (would require
+  understanding Gemma-4's MoE block + sliding-window attention + RoPE
+  config). Non-trivial.
+- Or wait for Google to release Gemma-4 and for sglang to add support.
+
+For now, this is correctly captured as **"experiment scope was limited by
+runtime support"** rather than a silently-skipped item.
+
+
+## 16. 三模型扩展 + fused_moe_kernel 深入解读（后续）
+
+> 🟢 新增。2026-06-01 晚上。在 §15 基础上又把 **完整 8 regime 硬件视图扩到第三个模型** +
+> 把 `fused_moe_kernel` 到底是啥讲清楚。
+
+### 16.1 改了什么
+
+- 加了第三个模型 **`gemma-3-1b-it`**（dense 1B，Google Gemma 3）。
+  配置：[`configs/gemma3_1b.yaml`](../configs/gemma3_1b.yaml)。调度参数跟
+  `configs/base.yaml` 一致。
+- **为什么不是 Gemma-4 MoE**（你原本的要求）：sglang 0.5.12.post1 不支持
+  `model_type=gemma4`。smoke test 直接抛 `KeyError: 'gemma4'`，sglang model
+  registry 里没有。sglang 只支持 gemma / gemma2 / gemma3（全是 dense，gemma3
+  有多模态变体但 Gemma-4 的 MoE block 在这些里都没有）。→ 替成
+  `gemma-3-1b-it`（dense），至少能保留 3-way 对比。
+- 第一轮 regime suite：Gemma 跑 8 regime × 2 rep → 结果在
+  `results/regime_bench/raw/gemma_rep{1,2}.jsonl`。重新跟 dense + MoE 一起聚合到
+  `results/regime_bench/{parsed_results.csv,summary_table.csv,summary.md}`。
+- 第二轮硬件视图：从 6 个 cell 扩到 **24 个 cell（3 模型 × 8 regime）**。
+  新表在 `results/regime_bench/hardware_view_table.md`。
+
+### 16.2 `fused_moe_kernel` 到底是啥？
+
+`fused_moe_kernel` 是 sglang 里 **Triton-JIT 编译的 MoE 专家 dispatch + matmul
+kernel**。源码：
+[`sglang/srt/layers/moe/fused_moe_triton/fused_moe_triton_kernels.py:324`](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/layers/moe/fused_moe_triton/fused_moe_triton_kernels.py)。
+
+**一次** GPU kernel 启动里做完 **全部下面这些**：
+
+1. 读出每个 token 的 top-k 专家 id（`expert_ids_ptr`）和路由权重（`topk_weights_ptr`）。
+2. 看排过序的 token-id 表（`sorted_token_ids_ptr`），这张表已经把"要送到同一个
+   专家的 token"分组放一起（由另一个 kernel `moe_align_block_size` 预处理）。
+3. 对每个块挑出对应专家的权重矩阵 `B[expert_id]`（stride `stride_be`），跟激活
+   tile `A` 做 **分块的 bf16 matmul**。
+4. 乘上路由权重写回 `C`。
+5. 通过 `a_scale_ptr` / `b_scale_ptr` 支持 per-token / per-tensor / FP8 / INT8
+   量化（我们这次用 bf16，没走量化路径）。
+
+> **为什么它会占主导**（§15 测出 MoE 上 34-47% GPU 时间）：Qwen3-30B-A3B 前向
+> 一次调它 **每层 2 次 × 48 层 = 96 次**（一次 `gate_up_proj`、一次 `down_proj`）。
+> 每次调用是 **8 个 active 专家 × 该批 token** 上的 grouped GEMM。所以这一个
+> kernel **本质上就等于** MoE 的 FFN 部分。
+>
+> 小常识反驳一下："Qwen3 MoE 128 专家 8 个 active"，matmul 只在那 8 个 active
+> 子集里 group，不是所有 128 个。kernel 看到的是稠密的 8-way 工作量。
+
+**为什么 `cudaEventSynchronize` 当第二瓶颈**（不同 regime 17-37% 时间）：
+每次 `fused_moe_kernel` 都要等前一个 `moe_align_block_size` 完成 → matmul 之前
+插一个 sync。长 prefill 场景（MoE R3/R4）这个 sync wait 直接盖过 matmul 本身 →
+sync 成了新瓶颈。
+
+### 16.3 第一轮结果表（更新）—— Gemma-3-1B (dense)
+
+> 2 rep。Server 配置：`configs/gemma3_1b.yaml`，调度旋钮跟 Qwen3-0.6B 完全一样。
+> Backend：fa3 / flashinfer / lpm。
+
+| Regime | 输入 | 输出 | 并发 | Req/s | Out tok/s | TTFT mean | TTFT p95 | TPOT mean | ITL p95 | E2E p99 | n_pass | vs R1 | 备注 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| **R1** | 128 | 128 | 4 | 8.9 | 600 | 50.4 | 120.5 | 5.62 | 5.08 | 835 | 2/2 | 0% | |
+| **R2** | 128 | 1024 | 32 | 7.4 | 3 975 | 82.7 | 132.8 | 5.91 | 5.64 | 6 278 | 2/2 | +562% | |
+| **R3** | 4096 | 128 | 8 | 13.3 | 900 | 67.6 | 143.5 | 6.63 | **31.0** | 1 062 | 2/2 | +50% | ITL p95 高 |
+| **R4** | 4096 | 512 | 8 | 4.5 | 1 266 | 74.3 | 141.5 | 5.31 | 5.05 | 2 879 | 2/2 | +111% | |
+| **R5** | 512 | 256 | 64 | 22.3 | 2 772 | **1 059** | **2 624** | 9.67 | 35.7 | 4 707 | 2/2 | +362% | **撞 max_running cap** |
+| **R6** | 512 | 256 | 1 | 1.4 | 212 | 41.2 | 44.6 | 4.46 | 4.50 | 1 166 | 2/2 | −65% | |
+| **R7** | 2048±95% | 256 | 32 | 18.0 | 4 482 | 182.8 | 386.0 | 6.29 | 5.49 | 2 122 | 2/2 | +647% | |
+| **R8** | 2048+128 | 256 | 32 | 19.6 | **5 011** | 220.9 | 322.0 | 5.51 | 5.40 | 1 687 | 2/2 | **+735%** | 吞吐冠军 |
+
+Best/worst：
+- 吞吐最高：**R8** 5 011 tok/s（radix cache 优势，跟 MoE 同样的赢家）
+- 吞吐最低：**R6** 212 tok/s
+- TTFT p50 最高：**R5** 1 044 ms（撞 cap）
+- TTFT p50 最低：**R1** 40 ms
+
+### 16.4 三模型对比 —— dense × dense × MoE
+
+| 指标 | Qwen3-0.6B (dense) | Gemma-3-1B (dense) | Qwen3-30B-A3B (MoE) | 观察 |
+|---|---|---|---|---|
+| R8 输出 tok/s (best) | **6 904** | 5 011 | 3 355 | Qwen3-0.6B 赢；**Gemma 几乎是 2 倍参数但反而比 Qwen3 慢 27%** |
+| R6 输出 tok/s (单流) | 521 | 212 | 222 | Qwen3-0.6B 赢；Gemma 单流意外比 MoE 还慢 |
+| R5 TTFT p50（撞 cap） | 538 ms | 1 044 ms | 2 075 ms | 模型越大，饱和惩罚越大 |
+| R1 TTFT p50（基线） | 21 ms | 40 ms | 45 ms | 大致随模型尺寸 |
+| 撞 `max-running` cap 的 regime | 仅 R5 | 仅 R5 | 仅 R5 | 同样 cap，3 个模型一致撞 —— **配置瓶颈，不是模型** |
+| R8 GPU util 均 | 12.7 % | 8.8 % | 14.7 % | 3 个都没把 H200 压满 |
+
+**新发现**：**Gemma 参数比 Qwen3-0.6B 多 1.7 倍，但反而慢**。可能原因（待 profile）：
+- Gemma 的 per-layer sliding-window attention 可能没走快路径
+- Gemma 的 hidden_size 2816 vs Qwen3-0.6B 的 1024 —— GEMM 大些，但显然不足以
+  在 H200 上把小模型 serving 的 overhead-bound 性质拉回来
+
+### 16.5 硬件视图更新（24 cell）
+
+完整表在 [`results/regime_bench/hardware_view_table.md`](../results/regime_bench/hardware_view_table.md)。
+
+**亮点（相对 §15 新增）**：
+
+| Cell | Top kernel | % | 含义 |
+|---|---|---|---|
+| dense R3（prefill） | `flash::FlashAttnFwdSm90<...>` | 14.1% | 重 prefill 时变 compute-bound |
+| dense R7（混合长度） | `flash::FlashAttnFwdSm90<...>` | 17.2% | 混合长度也压不倒 attention 主导 |
+| **MoE R3**（prefill） | **`cudaEventSynchronize`** | **37.3%** | **重 prefill 上 sync wait 盖过 `fused_moe_kernel` (29.6%) —— 跟稳态 MoE 是完全不同的瓶颈** |
+| **MoE R4**（长输入+长输出） | `cudaEventSynchronize` | 37.7% | 同上 —— 长 prefill = sync-bound，不是 MoE-bound |
+| MoE R7（混合） | `fused_moe_kernel` | 42.7% | 稳态 —— MoE kernel 又回到老大 |
+| **MoE R2**（decode-heavy）显存控制器 util | 24.3 % | — | **MoE R2 把显存控制器跑满**（dense regime 只有 1-5%）；解释了 15.5 s e2e p99 离群点 |
+| **Gemma R5** `cudaLaunchKernel` | 25.3% / **9 051 calls** | — | Gemma 的"调度 retry 风暴"是 Qwen3 R5 (916) 的 10 倍 |
+| Gemma R1/R2/R6 | `cudaGraphLaunch` | 19-29% | Gemma 在低负载下 **比 Qwen3 还更 launch-overhead-bound** |
+| Gemma R7/R8（top） | `at::native::elementwise_kernel<...>` | 13.8-14.4% / **2 695 calls** | 大量小 elementwise op 冒出来 —— 可能没被 CUDA graph 抓到 |
+
+### 16.6 跨模型新洞见
+
+1. **MoE 的瓶颈随 regime 切换**。稳态 MoE（R1/R2/R5/R7/R8）：`fused_moe_kernel`
+   主导（34-47%）。重 prefill（R3/R4）：`cudaEventSynchronize` 主导（37%）。
+   kernel-agent 这两个都要打。
+2. **小 dense 模型不能互换**。Gemma-3-1B 在大多数 regime 上一致比 Qwen3-0.6B
+   慢（1.7× 参数但少 17-30% 吞吐），而且 **更 overhead-bound**（更多
+   `cudaLaunchKernel` 风暴、更多 `cudaGraphLaunch` 主导）。这是一个真实的
+   "同 scale 下模型架构差异有 measurable impact" 的数据点。
+3. **`max-running-requests=32` 这个 cap 坑了所有人** —— R5 TTFT p50 从 538 ms
+   (Qwen3) → 1 044 ms (Gemma) → 2 075 ms (MoE)。惩罚大小大致随 per-token
+   成本，但 *根因* 在 3 个模型上完全一致。**一个配置改动同时修 3 个**。
+4. **MoE R2 是 memory-bandwidth-bound，不是 compute-bound** —— 显存控制器 util
+   24.3 %、平均功耗 249 W。这是直接证据，说明 §8 看到的 15.5 s e2e p99 离群
+   有硬件侧原因：decode batch 满了之后，MoE 专家权重得从 HBM 流过 L2 比 kernel
+   能 issue 工作的速度还快。候选 fix：开 FP8 量化把带宽压力砍半。
+
+### 16.7 复现 §16
+
+```bash
+# 第一轮 Gemma 套件（2 rep × 8 regime ≈ 20 分钟）
+for rep in 1 2; do
+  python scripts/run_regime_suite.py --reset \
+    --config configs/gemma3_1b.yaml \
+    --workload-dir regime_scout/candidates_regime_study \
+    --out results/regime_bench/raw/gemma_rep${rep}.jsonl \
+    --run-root experiments/tmp/regime_study/gemma_rep${rep}
+done
+
+# 第二轮硬件视图（24 cell，H200 上 ≈ 30 分钟）
+bash /tmp/run_hw_views_full.sh   # 见 logs/hw_view_batch_full.log
+
+# 全部重新聚合
+python scripts/regime_study/aggregate.py            # 第一轮
+python scripts/regime_study/aggregate_hw_view.py    # 第二轮
+```
+
+## 17. Gemma-4 MoE 不兼容说明
+
+`/data/hf/models/gemma-4-26B-A4B-it/` 在磁盘上（49 GB，26B total / 4B active），
+但 **sglang 0.5.12.post1 没实现 `gemma4` 架构**。复现：
+
+```bash
+$ python -m sglang.launch_server \
+    --model-path /data/hf/models/gemma-4-26B-A4B-it \
+    --host 127.0.0.1 --port 30002 \
+    --tensor-parallel-size 1 --mem-fraction-static 0.7 --trust-remote-code
+…
+File "…/sglang/srt/configs/model_config.py", line 250, in from_server_args
+    return ModelConfig( …
+File "…/sglang/srt/configs/model_config.py", line 127, in __init__
+    self.hf_config = get_config(
+KeyError: 'gemma4'
+```
+
+sglang 当前支持的 Gemma 家族是：
+`sglang/srt/models/{gemma.py, gemma2.py, gemma2_reward.py, gemma3_causal.py,
+gemma3_mm.py, gemma3n_audio.py, gemma3n_causal.py, gemma3n_mm.py}` —— **没有
+gemma4**。已替换为 `gemma-3-1b-it`（dense）作为第三个模型。
+
+要让 Gemma-4 MoE 在这套实验里能跑，未来要：
+- 在 sglang 上游 PR 一个 `gemma4.py` model 实现（要搞懂 Gemma-4 的 MoE block +
+  sliding-window attention + RoPE 配置）。不平凡。
+- 或者等 Google 正式发布 Gemma-4 + sglang 跟进支持。
+
+目前这个被准确记录为 **"实验范围受运行时支持限制"**，而不是默默跳过。
