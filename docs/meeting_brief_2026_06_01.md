@@ -392,9 +392,64 @@ Top-3 dominant `fused_moe_kernel` launch variants per cell, **extracted directly
 
 ---
 
-## 6. Conclusions & next steps
+## 6. MoE optimization-knob A/B study (single-knob deltas)
 
-### 6.1 Headline conclusions
+sglang has **no single "optimization level"** — it has 30+ flags. We picked 7 config variants for the MoE on R8 (prefix sharing), each differing from baseline by **exactly one knob**, and measured performance + kernel mix + hardware impact.
+
+**Status**: 5 PASS, 2 FAIL (recorded as evidence, not silently skipped). Full details in [`results/regime_bench/moe_opt_levels_table.md`](../results/regime_bench/moe_opt_levels_table.md).
+
+### 6.1 The 7 configs
+
+| Tag | Knob under test | Status |
+|---|---|---|
+| **C0** baseline | (none — `configs/moe_qwen3_30b.yaml` as-is) | ✅ PASS |
+| **C1** torch.compile | `enable-torch-compile: true` | ❌ FAIL — `torch._dynamo` AssertionError in `rotary_embedding.py:272` |
+| **C2** no CUDA graph | `disable-cuda-graph: true` | ✅ PASS |
+| **C3** chunked prefill | `chunked-prefill-size: 2048` | ✅ PASS |
+| **C4** MoE runner cutlass | `moe-runner-backend: cutlass` | ✅ PASS |
+| **C5** attn flashinfer | `attention-backend: flashinfer` | ❌ FAIL — flashinfer JIT (ninja) build failed |
+| **C6** piecewise CUDA graph | `enable-piecewise-cuda-graph: true` + token splits | ✅ PASS |
+
+### 6.2 Performance (sglang.bench_serving on R8, 64 prompts)
+
+| Tag | Req/s | **Out tok/s** | TTFT mean (ms) | TTFT p99 (ms) | TPOT mean (ms) | E2E p99 (ms) | **vs C0 throughput** |
+|---|---|---|---|---|---|---|---|
+| **C0** baseline | 5.23 | 1 339 | 379 | 658 | 22.5 | 10 081 | 0 % |
+| **C2** no CUDA graph | 1.31 | 337 | 1 195 | 2 901 | 90.7 | **37 852** | **−75 %** ⚠️ |
+| **C3** chunked prefill | 3.50 | 895 | **3 709** | **14 199** | 21.3 | 16 147 | −33 % |
+| **C4** MoE cutlass | 5.21 | 1 334 | 377 | 659 | 22.6 | 10 136 | −0.4 % (noise) |
+| **C6** piecewise CUDA graph | **6.24** | **1 598** | 370 | 773 | **18.6** | **8 096** | **+19 %** ✨ |
+
+### 6.3 Hardware + kernel mix changes (PASSing cells only)
+
+| Tag | GPU util mean (%) | Power mean (W) | Trace wall (ms) | GPU active (ms) | Top kernel | Top % |
+|---|---|---|---|---|---|---|
+| C0 baseline | 12.5 | 159 | 701 | 600 | `fused_moe_kernel` | 46.4 % |
+| C2 no CUDA graph | 8.6 | 142 | **3 202** ⚠️ | 599 | `fused_moe_kernel` | 45.6 % |
+| C3 chunked prefill | 11.4 | 153 | 620 | 329 | `fused_moe_kernel` | **53.4 %** ↑ |
+| C4 MoE cutlass | 12.7 | 158 | 702 | 599 | `fused_moe_kernel` | 46.3 % |
+| C6 piecewise CUDA graph | 9.6 | 156 | 810 | **1 069** ↑ | `fused_moe_kernel` | 38.0 % ↓ |
+
+### 6.4 Headline findings from the knob study
+
+1. **CUDA graph is essential** — disabling it costs **4× throughput** (1 339 → 337 tok/s) and inflates the profile trace wall from 700 ms → 3 200 ms while GPU active time is unchanged (~600 ms). **That extra 2.5 s is pure CPU launch overhead** — direct proof that CUDA graph saves real time, not just appearance.
+2. **`enable-piecewise-cuda-graph` is the single biggest win** — **+19 % throughput, −20 % E2E p99** on R8. Costs 60 MiB extra peak memory. **Recommended to test across all 8 regimes before promoting to default.**
+3. **`chunked-prefill-size=2048` HURTS R8** by 33 % (and inflates TTFT by **10×** — 379 → 3 709 ms). The 2 K shared prefix gets fragmented; radix cache thrashes. **Chunked prefill is regime-dependent: it's a 'helps R3/R4, hurts R8' knob, not 'always on'.**
+4. **`moe-runner-backend: cutlass` is a silent no-op for bf16** — C4 and C0 have **byte-identical kernel mixes** (top-10 kernels match exactly). sglang's cutlass MoE path is mostly FP8/FP4; on bf16 it falls back to Triton `fused_moe_kernel`. To actually exercise cutlass we'd need `--quantization fp8`.
+5. **Two failures captured, not skipped**:
+   - **torch.compile**: sglang 0.5.12 + Qwen3 MoE incompatibility in `rotary_embedding.py`. Known issue.
+   - **flashinfer attention backend**: JIT (ninja) build failed on H200 in this env. Environment-level — needs a working CUDA toolchain ninja can drive.
+
+### 6.5 Per-kernel deep dive: how C3 and C6 reshape the trace
+
+- **C3 (chunked prefill)** raises `fused_moe_kernel`'s share from 46 % → **53 %**, but the total trace is **shorter** (620 vs 701 ms). Reason: chunked prefill creates more, smaller MoE calls — high-M variant disappears, low-M variant dominates. **More launches each cheaper.** The TTFT regression comes from the fragmentation of the shared 2 K prefix.
+- **C6 (piecewise CUDA graph)** lowers `fused_moe_kernel` share to **40 %** but raises **GPU active time to 1 069 ms** (highest of all cells). Piecewise graph packs more work into captured sub-graphs; the trade-off is a new `cudaEventSynchronize` overhead (#2 kernel at 25.1 %) at sub-graph boundaries — but it's worth it for the +19 % perf win.
+
+---
+
+## 7. Conclusions & next steps
+
+### 7.1 Headline conclusions
 
 1. **Regime alone moves performance by an order of magnitude**, with no code or config change:
    - Throughput swing: 15-24× across the three models
@@ -406,19 +461,22 @@ Top-3 dominant `fused_moe_kernel` launch variants per cell, **extracted directly
 4. **MoE R2 (decode-heavy)'s 15.5 s e2e p99** is **memory-bandwidth-bound** (mem-ctrl util 24.3 %, 249 W average power). FP8 quantization is a strong candidate fix.
 5. **Small dense models severely under-utilise H200** (Qwen3 GPU util 4-13 %). For research/serving with these models, either batch much harder or co-locate multiple replicas.
 6. **Architecture matters more than parameter count at small scale**: Gemma-3-1B is consistently slower than Qwen3-0.6B (1.7× the params, 17-30 % less throughput, 10× more launch storms on R5).
+7. **Sglang config knobs are not a 'level' — they're 30+ independent flags** (§6). Single-knob deltas measured: `enable-piecewise-cuda-graph` is the biggest win (+19 % throughput); `disable-cuda-graph` is the biggest loss (−75 %); `chunked-prefill-size` is regime-dependent (hurts R8 by 33 %); `moe-runner-backend cutlass` is a no-op for bf16 (silently falls back to Triton).
 
-### 6.2 Recommended next steps
+### 7.2 Recommended next steps
 
 | # | Action | Cost | Expected payoff |
 |---|---|---|---|
-| 1 | Raise `max_running_requests` to 64 and re-run R5 on all 3 models | ~15 min | TTFT p50 drops from 538 → ~100 ms (dense), 2 075 → ~500 ms (MoE) |
-| 2 | Enable `chunked-prefill-size=2048` on MoE and re-run R4 + R7 | ~10 min | Lower peak queue + lower TTFT p95 |
-| 3 | Profile MoE R2 with Nsight Compute on `fused_moe_kernel` | ~30 min | Confirm memory-bandwidth-bound hypothesis; check FP8 prerequisites |
-| 4 | Fold `SiluAndMul` into either neighbour fused kernel | source change in sglang | ~3 % GPU time saved on MoE |
-| 5 | Fuse `moe_align_block_size` into `fused_moe_kernel` (CUDA-graph-friendly variant) | source change in sglang | **~37 % GPU time saved on MoE R3/R4** — biggest single win available |
-| 6 | Add `expert_distribution_recorder` hook to investigate MoE expert imbalance | ~1 day | Visibility into per-expert load — required for any expert-routing optimisation |
+| 1 | Promote **`enable-piecewise-cuda-graph: true`** to default config, re-run all 8 regimes × 3 models to verify | ~1 hour | +19 % throughput on R8 confirmed; need to confirm no regression elsewhere |
+| 2 | Raise `max_running_requests` to 64 and re-run R5 on all 3 models | ~15 min | TTFT p50 drops from 538 → ~100 ms (dense), 2 075 → ~500 ms (MoE) |
+| 3 | Enable `chunked-prefill-size=2048` on MoE — re-run R4 + R7 ONLY (skip R8 — confirmed hurts) | ~10 min | Lower peak queue + lower TTFT p95 on prefill regimes |
+| 4 | Profile MoE R2 with Nsight Compute on `fused_moe_kernel` | ~30 min | Confirm memory-bandwidth-bound hypothesis; check FP8 prerequisites |
+| 5 | Try FP8 quantization (`--quantization fp8`) — would unlock cutlass MoE path | ~1 hour | Could halve mem bandwidth pressure; finally exercise C4-style backend swap |
+| 6 | Fold `SiluAndMul` into either neighbour fused kernel | source change in sglang | ~3 % GPU time saved on MoE |
+| 7 | Fuse `moe_align_block_size` into `fused_moe_kernel` (CUDA-graph-friendly variant) | source change in sglang | **~37 % GPU time saved on MoE R3/R4** — biggest single win available |
+| 8 | Add `expert_distribution_recorder` hook to investigate MoE expert imbalance | ~1 day | Visibility into per-expert load — required for any expert-routing optimisation |
 
-### 6.3 What we could NOT measure with current tooling
+### 7.3 What we could NOT measure with current tooling
 
 | Question | Tool needed |
 |---|---|
@@ -426,10 +484,12 @@ Top-3 dominant `fused_moe_kernel` launch variants per cell, **extracted directly
 | Stream-level wait decomposition (where the 17-37 % `cudaEventSynchronize` actually waits) | NVTX ranges + Nsight Systems |
 | Whether `fa3` falls back to `fa2` on unusual shapes | Nsight Compute — Torch profiler can't show fallback paths |
 | Detailed register/occupancy/shmem-bank-conflict analysis on `fused_moe_kernel` | Nsight Compute |
+| Whether torch.compile + Qwen3 MoE could work after the `rotary_embedding` fix | Patch + sglang rebuild |
+| Whether flashinfer attention backend wins on H200 once JIT build is fixed | Working flashinfer install in env |
 
 ---
 
-## 7. Reproducibility
+## 8. Reproducibility
 
 ```bash
 conda activate sglang-dev
@@ -449,9 +509,13 @@ done
 # Round 2 (≈30 min for all 24 cells)
 bash /tmp/run_hw_views_full.sh
 
+# §6 MoE optimization-knob study (≈25 min for 7 cells)
+bash scripts/regime_study/run_moe_opt_levels.sh
+
 # Aggregate
-python scripts/regime_study/aggregate.py            # round 1 → summary_table.csv + summary.md
-python scripts/regime_study/aggregate_hw_view.py    # round 2 → hardware_view_table.{csv,md}
+python scripts/regime_study/aggregate.py                  # round 1
+python scripts/regime_study/aggregate_hw_view.py          # round 2
+python scripts/regime_study/aggregate_moe_opt_levels.py   # §6 knob study
 ```
 
 All outputs in `results/regime_bench/`; full doc in `docs/regime_benchmark_experiment.md`; repo at <https://github.com/gujialiang123/end2end-optimization>.

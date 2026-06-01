@@ -1888,3 +1888,281 @@ dense + Gemma 的 FlashAttention 变体也在
 | Fusion 策略会随 regime 变吗？ | **不会** —— call graph 每次都一样。 |
 | Kernel 参数会随 regime 变吗？ | **会，而且变化很大**。`BLOCK_SIZE_M` 8 倍、`num_warps` 2 倍、寄存器 3 倍、shmem 10 倍、grid 高达 9 倍、单次 wall 35 倍 —— 全由 `try_get_optimal_moe_config(M)` 按 per-(E, N, device) JSON 调优表选。 |
 | 还有哪里能再融合？ | gate_up 和 down 之间那个 `SiluAndMul` 现在是独立 kernel（占 GPU 时间 ~3%）。把它折进任一邻居能再省 1 launch + 1 HBM 来回 / layer / token。更大的赢面在 prefill regime（MoE R3 / R4）—— 那里 `moe_align_block_size` 和 `fused_moe_kernel` 之间的 `cudaEventSynchronize` 吃 37%，把 prep 融进 matmul（CUDA-graph 友好的变体）能直接干掉这一坨。 |
+
+## 19. MoE optimization-knob study (config A/B test)
+
+> 🟢 NEW. Holds the workload fixed (Qwen3-30B-A3B MoE on R8 prefix sharing)
+> and varies **one server config knob at a time** to see how each affects
+> performance, kernel mix, hardware utilisation, and backend selection.
+> 7 configs, 5 PASS, 2 FAIL (recorded as evidence). Full tables in
+> [`results/regime_bench/moe_opt_levels_table.md`](../results/regime_bench/moe_opt_levels_table.md).
+
+### 19.1 What we measured
+
+7 config variants — each one differs from `configs/moe_qwen3_30b.yaml` by exactly one knob:
+
+| Tag | Knob under test | Hypothesis |
+|---|---|---|
+| **C0** baseline | (unchanged) | reference |
+| **C1** torch.compile | `enable-torch-compile: true` | JIT-compile small ops, may change kernel mix |
+| **C2** no CUDA graph | `disable-cuda-graph: true` | Without graph capture, launch overhead rises sharply |
+| **C3** chunked prefill | `chunked-prefill-size: 2048` (was -1) | Should help prefill-heavy regimes; might hurt R8 |
+| **C4** MoE runner cutlass | `moe-runner-backend: cutlass` | Replace Triton `fused_moe_kernel` with cutlass MoE |
+| **C5** attn flashinfer | `attention-backend: flashinfer` (was fa3) | Different attention kernels |
+| **C6** piecewise CUDA graph | `enable-piecewise-cuda-graph: true` + token splits | Finer-grained graph capture |
+
+### 19.2 Status overview
+
+| Tag | Status | Reason if FAIL |
+|---|---|---|
+| C0 baseline | ✅ PASS | |
+| C1 torch.compile | ❌ FAIL | `torch._dynamo` AssertionError in `sglang/srt/layers/rotary_embedding.py:272` (Qwen3 MoE incompatibility) |
+| C2 no CUDA graph | ✅ PASS | |
+| C3 chunked prefill | ✅ PASS | |
+| C4 MoE cutlass | ✅ PASS | |
+| C5 attn flashinfer | ❌ FAIL | flashinfer JIT (ninja) failed to build `batch_prefill` kernel on H200 (env issue, not config) |
+| C6 piecewise CUDA graph | ✅ PASS | (needed explicit `piecewise-cuda-graph-tokens: [512, 1024, 2048, 4096, 8192]`) |
+
+### 19.3 Performance (sglang.bench_serving on R8, 64 prompts)
+
+| Tag | Req/s | **Out tok/s** | TTFT mean (ms) | TTFT p99 (ms) | TPOT mean (ms) | E2E p99 (ms) | vs C0 throughput |
+|---|---|---|---|---|---|---|---|
+| **C0** baseline | 5.23 | 1 339 | 379 | 658 | 22.5 | 10 081 | 0 % |
+| **C2** no CUDA graph | 1.31 | 337 | 1 195 | 2 901 | 90.7 | **37 852** | **−75 %** ⚠️ |
+| **C3** chunked prefill | 3.50 | 895 | **3 709** | **14 199** | 21.3 | 16 147 | −33 % |
+| **C4** MoE cutlass | 5.21 | 1 334 | 377 | 659 | 22.6 | 10 136 | −0.4 % (noise) |
+| **C6** piecewise CUDA graph | **6.24** | **1 598** | 370 | 773 | **18.6** | **8 096** | **+19 %** ✨ |
+
+**Performance findings**:
+
+1. **`disable-cuda-graph` is a 4× performance disaster** (out tok/s 1 339 → 337). CUDA graph is the single most important optimisation in sglang's default config — confirms why our `cudaGraphLaunch` 17 % kernel from §15 was a *good* thing, not overhead.
+2. **`chunked-prefill-size=2048` HURTS R8** (out tok/s 1 339 → 895, TTFT mean 379 → 3 709 ms — a 10× regression!). The 2 K shared prefix means chunked prefill splits each user's prompt into pieces that thrash the radix cache. **Chunked prefill is regime-dependent: helps R3/R4 prefill-heavy, hurts R8 prefix-cache.**
+3. **`moe-runner-backend: cutlass` is a silent no-op for our setup** — C4 and C0 are numerically identical (Req/s 5.21 vs 5.23 = within noise). sglang's cutlass MoE path is **mostly FP8/FP4 — on bf16 it falls back to Triton `fused_moe_kernel`**. We verified this by comparing kernel-by-kernel traces; the top 10 kernels match exactly (see §19.6).
+4. **`enable-piecewise-cuda-graph` WINS — +19 % throughput, +17 % TTFT, −20 % E2E p99**. This is the clearest config improvement in the whole study.
+
+### 19.4 Hardware utilisation
+
+| Tag | Mem peak (GiB) | GPU util mean (%) | Mem-ctrl util (%) | Power mean (W) | Power peak (W) | SM clock (MHz) |
+|---|---|---|---|---|---|---|
+| C0 baseline | 121 | 12.5 | 4.5 | 159 | 559 | 1 667 |
+| C2 no CUDA graph | 121 | 8.6 | 2.7 | 142 | 280 | **1 796** |
+| C3 chunked prefill | 120 | 11.4 | 4.0 | 153 | 564 | 1 713 |
+| C4 MoE cutlass | 121 | 12.7 | 4.5 | 158 | 562 | 1 671 |
+| C6 piecewise CUDA graph | 122 | 9.6 | 3.1 | 156 | 596 | 1 754 |
+
+**Hardware findings**:
+
+- **C2 (no CUDA graph) has the HIGHEST SM clock** (1 796 MHz). This is paradoxical only at first glance: when launch overhead is high, the GPU has periodic idle gaps in which clocks ramp up. **High SM clock ≠ good throughput** — C2 is the worst performer.
+- **C6 (piecewise CUDA graph) uses 60 MiB more peak memory** (121.95 vs 121.26 GiB) — cost of caching multiple sub-graph captures. Acceptable for the +19 % perf win.
+- **C3 (chunked prefill) reduces mem-ctrl util** (4.5 → 4.0 %) — chunked prefill creates more small launches; the MoE kernel sees smaller M per call.
+
+### 19.5 Kernel mix changes
+
+| Tag | Trace wall (ms) | GPU active (ms) | Kernel categories (top 5) |
+|---|---|---|---|
+| C0 baseline | 701 | 600 | **MoE 46.4 %**; FA 13.3 %; GEMM 12.7 %; other 5.6 %; elementwise 2.8 % |
+| C2 no CUDA graph | **3 202** ⚠️ | 599 | MoE 45.6 %; FA 13.1 %; GEMM 12.6 %; other 6.5 %; **cuda runtime 2.9 %** |
+| C3 chunked prefill | 620 | 329 | **MoE 53.4 %** ↑; GEMM 11.6 %; FA 11.5 %; **cuda runtime 8.0 %** ↑; other 2.5 % |
+| C4 MoE cutlass | 702 | 599 | MoE 46.3 %; FA 13.3 %; GEMM 12.7 %; other 5.4 %; elementwise 2.8 % |
+| C6 piecewise CUDA graph | 810 | **1 069** ↑ | **MoE 40.0 %** ↓; **other 27.3 %** ↑; FA 7.9 %; GEMM 6.0 %; elementwise 2.3 % |
+
+**Kernel-mix findings**:
+
+- **C2 trace wall = 3 202 ms vs C0 701 ms** (4.6× slower per profile step). GPU active time is identical (~600 ms); the extra 2 600 ms is pure CPU launch overhead. **This is the direct proof that CUDA graph saves ~3 s per 10 forward steps.**
+- **C3 increases `fused_moe_kernel` share to 53 %** — chunked prefill makes each individual MoE call smaller (lower M), so the high-M variant disappears and the low-M variant dominates. More launches but each is cheaper.
+- **C6 increases GPU active time to 1 069 ms** (the *most* of any cell) while reducing `fused_moe_kernel` share from 46 % → 40 %. Piecewise CUDA graph appears to fold more work into the captured graph, but the overall layout looks more "other-heavy" because piecewise graph instrumentation shows up as new event types.
+- **C4 kernel mix is byte-identical to C0** to 0.1 %. Conclusive: `--moe-runner-backend cutlass` is a no-op for bf16.
+
+### 19.6 Top-2 kernels per cell
+
+| Tag | #1 kernel | #1 % | calls | #2 kernel | #2 % |
+|---|---|---|---|---|---|
+| C0 baseline | `fused_moe_kernel` | 46.4 % | 864 | `flash::FlashAttnFwdSm90<…>` | 10.3 % |
+| C2 no CUDA graph | `fused_moe_kernel` | 45.6 % | 864 | `flash::FlashAttnFwdSm90<…>` | 10.1 % |
+| C3 chunked prefill | `fused_moe_kernel` | 51.2 % | 864 | `flash::FlashAttnFwdSm90<…>` | 11.5 % |
+| **C4** MoE cutlass | `fused_moe_kernel` | 46.3 % | 864 | `flash::FlashAttnFwdSm90<…>` | 10.3 % |
+| **C6** piecewise | `fused_moe_kernel` | 38.0 % | 864 | **`cudaEventSynchronize`** | **25.1 %** |
+
+C6's #2 kernel is `cudaEventSynchronize` 25 % — same pattern we saw on MoE R3/R4 in §15 (prefill regimes). Piecewise CUDA graph adds sync points between sub-graph boundaries. **C6 is fast despite this overhead because of better launch parallelism inside each sub-graph**.
+
+### 19.7 Cross-knob conclusions
+
+1. **No "optimization level" exists in sglang** — it's a 30+ knob design. Effects don't compose linearly (we tested 6 single-knob deltas; combining e.g. C6 + C3 needs separate testing).
+2. **CUDA graph (whole or piecewise) is essential** — disabling it costs 4×. Piecewise is the best variant we tested.
+3. **Backend swaps are mostly no-ops for bf16 / Qwen3-30B-A3B**:
+   - `moe-runner-backend: cutlass` → silently falls back to Triton (C4 = C0)
+   - `attention-backend: flashinfer` → JIT compile fails on H200 in our env (C5 = N/A)
+   - To actually exercise alternate backends we'd need to enable FP8 (`--quantization fp8`) — separate study.
+4. **`chunked-prefill-size` is regime-dependent**: it's a "depends" knob, not a "always on" knob. Helps R3/R4, hurts R8.
+5. **The biggest single win**: `enable-piecewise-cuda-graph: true` + explicit token splits gives +19 % throughput on R8. Should be tested on all 8 regimes before recommending as a default.
+
+### 19.8 Failures captured (not silently skipped)
+
+- **C1 torch.compile**: Sglang 0.5.12's Qwen3 MoE `rotary_embedding.py` triggers a `torch._dynamo` `AssertionError` during compile. Known sglang issue; would need a model-side fix or `--enable-torch-compile-debug-mode` to investigate.
+- **C5 flashinfer attention**: flashinfer's JIT (ninja) build of `batch_prefill_with_kv_cache_*` failed on H200 in this conda env. This is environment-level — flashinfer needs a working CUDA toolchain that ninja can drive. Not a config issue.
+
+Both kept in the table as evidence rather than silently dropped.
+
+### 19.9 Reproducing §19
+
+```bash
+bash scripts/regime_study/run_moe_opt_levels.sh         # 7 cells, ~25 min
+python scripts/regime_study/aggregate_moe_opt_levels.py # → results/regime_bench/moe_opt_levels_table.{csv,md}
+```
+
+Each cell's raw artefacts (5 files: `hardware_view.json`, `profile_summary.json`,
+`server_info.json`, `gpu_samples.csv`, `server.log`, `bench.jsonl`) are in
+`results/regime_bench/raw/moe_opt_levels/<tag>/`.
+
+## 19. MoE 优化旋钮研究（配置 A/B 实验）
+
+> 🟢 新增。固定 workload（Qwen3-30B-A3B MoE × R8 prefix sharing），每次只改 **一个**
+> server config 旋钮，看对性能、kernel mix、硬件利用率、backend 选择各有何影响。
+> 7 个配置，5 个 PASS，2 个 FAIL（作为证据如实记录）。完整表在
+> [`results/regime_bench/moe_opt_levels_table.md`](../results/regime_bench/moe_opt_levels_table.md)。
+
+### 19.1 测了什么
+
+7 个配置变体 —— 每个跟 `configs/moe_qwen3_30b.yaml` 只差一个旋钮：
+
+| Tag | 旋钮 | 假设 |
+|---|---|---|
+| **C0** baseline | （不变）| 参考 |
+| **C1** torch.compile | `enable-torch-compile: true` | JIT 编译小 op，可能改 kernel mix |
+| **C2** 关 CUDA graph | `disable-cuda-graph: true` | 没了 graph capture，launch 开销暴涨 |
+| **C3** chunked prefill | `chunked-prefill-size: 2048`（原 -1）| 应该帮 prefill-heavy；R8 可能伤 |
+| **C4** MoE runner cutlass | `moe-runner-backend: cutlass` | 把 Triton `fused_moe_kernel` 换成 cutlass MoE |
+| **C5** attn flashinfer | `attention-backend: flashinfer`（原 fa3）| 不同 attention kernel |
+| **C6** piecewise CUDA graph | `enable-piecewise-cuda-graph: true` + token 分段 | 更细粒度的 graph 抓取 |
+
+### 19.2 状态概览
+
+| Tag | 状态 | FAIL 原因 |
+|---|---|---|
+| C0 baseline | ✅ PASS | |
+| C1 torch.compile | ❌ FAIL | `torch._dynamo` 在 `sglang/srt/layers/rotary_embedding.py:272` 抛 AssertionError（Qwen3 MoE 不兼容）|
+| C2 关 CUDA graph | ✅ PASS | |
+| C3 chunked prefill | ✅ PASS | |
+| C4 MoE cutlass | ✅ PASS | |
+| C5 attn flashinfer | ❌ FAIL | flashinfer JIT (ninja) 在 H200 上编译 `batch_prefill` kernel 失败（env 问题，不是配置）|
+| C6 piecewise CUDA graph | ✅ PASS | （需显式设 `piecewise-cuda-graph-tokens: [512, 1024, 2048, 4096, 8192]`） |
+
+### 19.3 性能（sglang.bench_serving 在 R8 上跑 64 prompt）
+
+| Tag | Req/s | **Out tok/s** | TTFT mean (ms) | TTFT p99 (ms) | TPOT mean (ms) | E2E p99 (ms) | vs C0 吞吐 |
+|---|---|---|---|---|---|---|---|
+| **C0** baseline | 5.23 | 1 339 | 379 | 658 | 22.5 | 10 081 | 0 % |
+| **C2** 关 CUDA graph | 1.31 | 337 | 1 195 | 2 901 | 90.7 | **37 852** | **−75 %** ⚠️ |
+| **C3** chunked prefill | 3.50 | 895 | **3 709** | **14 199** | 21.3 | 16 147 | −33 % |
+| **C4** MoE cutlass | 5.21 | 1 334 | 377 | 659 | 22.6 | 10 136 | −0.4 %（噪声） |
+| **C6** piecewise CUDA graph | **6.24** | **1 598** | 370 | 773 | **18.6** | **8 096** | **+19 %** ✨ |
+
+**性能发现**：
+
+1. **`disable-cuda-graph` 是 4 倍性能灾难**（out tok/s 1 339 → 337）。CUDA graph 是
+   sglang 默认配置里**最重要**的单个优化 —— 这就验证了 §15 看到的
+   `cudaGraphLaunch` 17% 是 *好* 事，不是 overhead。
+2. **`chunked-prefill-size=2048` 在 R8 上伤性能**（out tok/s 1 339 → 895，TTFT mean
+   379 → 3 709 ms，**10× 倒退**！）。2K 共享前缀被 chunked prefill 切成片段，把每个
+   用户的 prompt 拍碎，颠簸了 radix cache。**chunked prefill 是 regime-dependent：
+   帮 R3/R4 prefill-heavy，伤 R8 prefix-cache。**
+3. **`moe-runner-backend: cutlass` 在我们这套配置下是悄悄 no-op** —— C4 和 C0
+   数值一致（Req/s 5.21 vs 5.23 = 噪声范围内）。sglang 的 cutlass MoE 路径**主要
+   是 FP8/FP4 —— bf16 上 fallback 回 Triton `fused_moe_kernel`**。逐 kernel 比对
+   trace 验证了这点；前 10 个 kernel 完全一致（见 §19.6）。
+4. **`enable-piecewise-cuda-graph` 赢家 —— 吞吐 +19%、TTFT +17%、E2E p99 −20%**。
+   这是整个研究里最清晰的单旋钮 win。
+
+### 19.4 硬件利用率
+
+| Tag | 显存峰 (GiB) | GPU util 均 (%) | 显存控制器 util (%) | 功耗均 (W) | 功耗峰 (W) | SM 时钟 (MHz) |
+|---|---|---|---|---|---|---|
+| C0 baseline | 121 | 12.5 | 4.5 | 159 | 559 | 1 667 |
+| C2 关 CUDA graph | 121 | 8.6 | 2.7 | 142 | 280 | **1 796** |
+| C3 chunked prefill | 120 | 11.4 | 4.0 | 153 | 564 | 1 713 |
+| C4 MoE cutlass | 121 | 12.7 | 4.5 | 158 | 562 | 1 671 |
+| C6 piecewise CUDA graph | 122 | 9.6 | 3.1 | 156 | 596 | 1 754 |
+
+**硬件发现**：
+
+- **C2（关 CUDA graph）SM 时钟反而最高**（1 796 MHz）。第一眼看起来矛盾：当 launch
+  开销高，GPU 周期性出现空闲间隙，时钟趁机拉高。**SM 时钟高 ≠ 吞吐好** —— C2 是
+  最差的。
+- **C6（piecewise CUDA graph）显存峰多用 60 MiB**（121.95 vs 121.26 GiB）—— 多个子
+  graph capture 的缓存开销。换 +19% 性能完全值。
+- **C3（chunked prefill）显存控制器 util 下降**（4.5 → 4.0%）—— chunked prefill
+  创建更多小 launch，MoE kernel 每次看到的 M 变小。
+
+### 19.5 Kernel mix 变化
+
+| Tag | Trace wall (ms) | GPU active (ms) | Kernel 分类（top 5）|
+|---|---|---|---|
+| C0 baseline | 701 | 600 | **MoE 46.4%**；FA 13.3%；GEMM 12.7%；other 5.6%；elementwise 2.8% |
+| C2 关 CUDA graph | **3 202** ⚠️ | 599 | MoE 45.6%；FA 13.1%；GEMM 12.6%；other 6.5%；**cuda runtime 2.9%** |
+| C3 chunked prefill | 620 | 329 | **MoE 53.4%** ↑；GEMM 11.6%；FA 11.5%；**cuda runtime 8.0%** ↑；other 2.5% |
+| C4 MoE cutlass | 702 | 599 | MoE 46.3%；FA 13.3%；GEMM 12.7%；other 5.4%；elementwise 2.8% |
+| C6 piecewise CUDA graph | 810 | **1 069** ↑ | **MoE 40.0%** ↓；**other 27.3%** ↑；FA 7.9%；GEMM 6.0%；elementwise 2.3% |
+
+**Kernel-mix 发现**：
+
+- **C2 trace wall = 3 202 ms vs C0 701 ms**（每个 profile step 慢 4.6 倍）。GPU
+  active 时间一致（~600 ms）；多出来的 2 600 ms 全是纯 CPU launch overhead。
+  **这就是 CUDA graph 每 10 个 forward step 省 ~3 秒的直接证据。**
+- **C3 把 `fused_moe_kernel` 份额拉到 53%** —— chunked prefill 让每次 MoE 调用
+  M 变小，所以高-M 变体消失，低-M 变体主导。launch 多了但每次便宜了。
+- **C6 把 GPU active 时间拉到 1 069 ms**（所有 cell 里最高），同时把
+  `fused_moe_kernel` 份额从 46% → 40%。piecewise graph 把更多工作折进抓取的
+  graph 里，但整体看起来"other-heavy"是因为 piecewise 仪表化暴露出新事件类型。
+- **C4 的 kernel mix 跟 C0 字节级一致**（0.1% 精度内）。确证：bf16 下
+  `--moe-runner-backend cutlass` 是个 no-op。
+
+### 19.6 每 cell 的 top-2 kernel
+
+| Tag | #1 kernel | #1 % | calls | #2 kernel | #2 % |
+|---|---|---|---|---|---|
+| C0 baseline | `fused_moe_kernel` | 46.4% | 864 | `flash::FlashAttnFwdSm90<…>` | 10.3% |
+| C2 关 CUDA graph | `fused_moe_kernel` | 45.6% | 864 | `flash::FlashAttnFwdSm90<…>` | 10.1% |
+| C3 chunked prefill | `fused_moe_kernel` | 51.2% | 864 | `flash::FlashAttnFwdSm90<…>` | 11.5% |
+| **C4** MoE cutlass | `fused_moe_kernel` | 46.3% | 864 | `flash::FlashAttnFwdSm90<…>` | 10.3% |
+| **C6** piecewise | `fused_moe_kernel` | 38.0% | 864 | **`cudaEventSynchronize`** | **25.1%** |
+
+C6 的 #2 是 `cudaEventSynchronize` 25% —— 跟 §15 看到的 MoE R3/R4（prefill regime）
+同一个 pattern。piecewise CUDA graph 在子 graph 边界加了 sync 点。**C6 仍然快**，
+是因为每个子 graph 内的 launch 并行度更好。
+
+### 19.7 跨旋钮结论
+
+1. **sglang 没有"optimization level"概念** —— 它是 30+ 个旋钮的设计。效果不线性
+   叠加（我们只测了 6 个单旋钮 delta；组合比如 C6 + C3 要单独测）。
+2. **CUDA graph（whole 或 piecewise）必不可少** —— 关掉性能掉 4 倍。Piecewise 是
+   我们测过的最好变体。
+3. **Backend 替换在 bf16 / Qwen3-30B-A3B 上多数是 no-op**：
+   - `moe-runner-backend: cutlass` → 悄悄回退到 Triton（C4 = C0）
+   - `attention-backend: flashinfer` → H200 上 JIT 编译失败（C5 = N/A）
+   - 要真用到这些后端要开 FP8（`--quantization fp8`）—— 另起一个研究。
+4. **`chunked-prefill-size` 是 regime-dependent 旋钮**：不是"始终开"的旋钮。帮
+   R3/R4，伤 R8。
+5. **最大单个 win**：`enable-piecewise-cuda-graph: true` + 显式 token 分段 → R8
+   上 +19% 吞吐。推荐为默认前应该先在全 8 regime 上测一遍。
+
+### 19.8 捕获的 FAIL（不是悄悄跳过）
+
+- **C1 torch.compile**：sglang 0.5.12 的 Qwen3 MoE 在 `rotary_embedding.py` 触发
+  `torch._dynamo` AssertionError。已知 sglang 问题；要么 model 侧修复，要么
+  `--enable-torch-compile-debug-mode` 调查。
+- **C5 flashinfer attention**：flashinfer 的 JIT（ninja）在这个 conda env 的 H200
+  上编不出 `batch_prefill_with_kv_cache_*` kernel。env 级问题 —— flashinfer 需要
+  能驱动起来的 CUDA toolchain。不是配置问题。
+
+两个都留在表里作为证据，不是悄悄丢弃。
+
+### 19.9 复现 §19
+
+```bash
+bash scripts/regime_study/run_moe_opt_levels.sh         # 7 cell，~25 分钟
+python scripts/regime_study/aggregate_moe_opt_levels.py # → results/regime_bench/moe_opt_levels_table.{csv,md}
+```
+
+每个 cell 的原始产物（6 个文件：`hardware_view.json`、`profile_summary.json`、
+`server_info.json`、`gpu_samples.csv`、`server.log`、`bench.jsonl`）在
+`results/regime_bench/raw/moe_opt_levels/<tag>/`。

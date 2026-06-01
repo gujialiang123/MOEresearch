@@ -181,6 +181,7 @@ BOOL_FLAG_KEYS = {
     "log-requests",
     "enable-metrics",
     "enable-torch-compile",
+    "enable-piecewise-cuda-graph",
     "skip-tokenizer-init",
 }
 
@@ -202,6 +203,11 @@ def yaml_config_to_argv(config: dict) -> list[str]:
         if key in BOOL_FLAG_KEYS or isinstance(val, bool):
             if bool(val):
                 argv.append(flag)
+            continue
+        if isinstance(val, list):
+            # nargs='+' style: --flag v1 v2 v3
+            argv.append(flag)
+            argv.extend(str(v) for v in val)
             continue
         argv.extend([flag, str(val)])
     return argv

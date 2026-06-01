@@ -1,0 +1,165 @@
+{
+  "schema_version": 1,
+  "config": "configs/moe_variants/C6_piecewise_cuda_graph.yaml",
+  "workload": "regime_scout/candidates_regime_study/R8_prefix_sharing.yaml",
+  "wall_window_s": 95.4,
+  "gpu_id": 0,
+  "gpu_sampling": {
+    "sample_count": 117,
+    "memory_used_mib_peak": 124880.0,
+    "memory_used_mib_mean": 91127.6,
+    "utilization_gpu_pct_mean": 9.6,
+    "utilization_gpu_pct_p95": 100.0,
+    "utilization_mem_pct_mean": 3.1,
+    "power_w_mean": 155.7,
+    "power_w_peak": 595.82,
+    "temperature_c_peak": 56.0,
+    "sm_clock_mhz_mean": 1754.0
+  },
+  "server_info_excerpt": {
+    "pp_size": 1,
+    "tp_size": 1,
+    "schedule_policy": "lpm",
+    "kv_cache_dtype": "auto",
+    "max_running_requests": 32,
+    "max_queued_requests": null,
+    "model_path": "/data/hf/models/Qwen3-30B-A3B-Instruct-2507",
+    "attention_backend": "fa3",
+    "sampling_backend": "flashinfer",
+    "tokenizer_path": "/data/hf/models/Qwen3-30B-A3B-Instruct-2507",
+    "torch_compile_max_bs": 32
+  },
+  "profile_totals": {
+    "wallclock_ms": 809.57,
+    "gpu_active_ms": 1068.54,
+    "gpu_idle_ms": null,
+    "gpu_utilization_pct": null
+  },
+  "profile_phase_breakdown_pct": {
+    "other": 91.51,
+    "scheduler": 8.49,
+    "prefill": 0.0,
+    "decode": 0.0,
+    "tokenize": 0.0
+  },
+  "profile_moe_overhead": {
+    "applicable": true,
+    "topk_pct": 0.0,
+    "dispatch_pct": 0.47,
+    "all_to_all_pct": 0.0,
+    "total_routing_pct": 0.47,
+    "verdict": "low"
+  },
+  "profile_cuda_graph": {
+    "captured_bs_range": null,
+    "decode_steps_in_graph_pct": null,
+    "decode_steps_outside_graph_pct": null,
+    "fallback_reason_guess": null
+  },
+  "top_kernels": [
+    {
+      "rank": 1,
+      "self_time_pct": 38.02,
+      "calls": 864,
+      "avg_us": 470.19,
+      "phase": "other",
+      "name_short": "fused_moe_kernel",
+      "category": "MoE"
+    },
+    {
+      "rank": 2,
+      "self_time_pct": 25.12,
+      "calls": 8,
+      "avg_us": 33552.29,
+      "phase": "other",
+      "name_short": "cudaEventSynchronize",
+      "category": "other"
+    },
+    {
+      "rank": 3,
+      "self_time_pct": 7.9,
+      "calls": 192,
+      "avg_us": 439.62,
+      "phase": "scheduler",
+      "name_short": "void cutlass::device_kernel<flash::enable_sm90_or_later<flash::FlashAttnFwdSm90<flash::CollectiveMainloopFwdSm90<2, cute...",
+      "category": "attention (FlashAttention)"
+    },
+    {
+      "rank": 4,
+      "self_time_pct": 2.27,
+      "calls": 432,
+      "avg_us": 56.19,
+      "phase": "other",
+      "name_short": "void at::native::elementwise_kernel<128, 4, at::native::gpu_kernel_impl_nocast<at::native::direct_copy_kernel_cuda(at::T...",
+      "category": "elementwise"
+    },
+    {
+      "rank": 5,
+      "self_time_pct": 2.19,
+      "calls": 432,
+      "avg_us": 54.27,
+      "phase": "other",
+      "name_short": "void flashinfer::activation::act_and_mul_kernel<__nv_bfloat16, &(float silu<float>(float const&))>(__nv_bfloat16*, __nv_...",
+      "category": "other"
+    },
+    {
+      "rank": 6,
+      "self_time_pct": 2.09,
+      "calls": 96,
+      "avg_us": 232.29,
+      "phase": "other",
+      "name_short": "nvjet_tst_320x128_64x3_1x2_h_bz_coopB_TNT",
+      "category": "GEMM"
+    },
+    {
+      "rank": 7,
+      "self_time_pct": 2.02,
+      "calls": 48,
+      "avg_us": 450.07,
+      "phase": "other",
+      "name_short": "nvjet_tst_192x208_64x4_1x2_h_bz_coopB_TNT",
+      "category": "GEMM"
+    },
+    {
+      "rank": 8,
+      "self_time_pct": 1.94,
+      "calls": 336,
+      "avg_us": 61.59,
+      "phase": "other",
+      "name_short": "void moe_sum_reduce_warp_per_token_vec_kernel<8>(c10::BFloat16 const*, c10::BFloat16*, long, long, long, long, long, lon...",
+      "category": "MoE"
+    },
+    {
+      "rank": 9,
+      "self_time_pct": 1.87,
+      "calls": 48,
+      "avg_us": 415.32,
+      "phase": "other",
+      "name_short": "nvjet_tst_128x272_64x4_2x1_v_bz_coopA_TNT",
+      "category": "GEMM"
+    },
+    {
+      "rank": 10,
+      "self_time_pct": 1.85,
+      "calls": 864,
+      "avg_us": 22.86,
+      "phase": "other",
+      "name_short": "void flashinfer::norm::FusedAddRMSNormKernel<8u, __nv_bfloat16>(__nv_bfloat16*, __nv_bfloat16*, __nv_bfloat16*, unsigned...",
+      "category": "norm"
+    }
+  ],
+  "kernel_category_pct": {
+    "MoE": 40.0,
+    "other": 27.3,
+    "attention (FlashAttention)": 7.9,
+    "GEMM": 6.0,
+    "elementwise": 2.3,
+    "norm": 1.9
+  },
+  "profile_warnings": [
+    "cold-start tail detected; profile may be biased toward warmup",
+    "cuda_graph fields not yet computed; cross-check server_features.json"
+  ],
+  "profile_ok": true,
+  "rc": 0
+}

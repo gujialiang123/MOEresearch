@@ -1,0 +1,27 @@
+# MoE config — C3: enable chunked prefill (2048)
+# Hypothesis: long-prefill regimes (R3/R4) will see lower TTFT tail and
+# the cudaEventSynchronize between moe_align and fused_moe should shrink.
+
+model-path: "/data/hf/models/Qwen3-30B-A3B-Instruct-2507"
+served-model-name: "qwen3-30b-a3b-moe"
+
+host: "127.0.0.1"
+port: 30000
+
+_gpu_id: 0
+
+tensor-parallel-size: 1
+mem-fraction-static: 0.85
+context-length: 32768
+
+schedule-policy: "lpm"
+schedule-conservativeness: 1.0
+max-running-requests: 32
+# ★ knob under test — was -1 (disabled)
+chunked-prefill-size: 2048
+max-prefill-tokens: 16384
+disable-radix-cache: false
+disable-cuda-graph: false
+
+log-requests: false
+trust-remote-code: true

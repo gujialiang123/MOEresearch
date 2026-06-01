@@ -1,0 +1,28 @@
+# MoE config — C2: disable CUDA graph
+# Hypothesis: cudaGraphLaunch will disappear from the trace and be
+# replaced by per-step cudaLaunchKernel; total launch overhead rises.
+
+model-path: "/data/hf/models/Qwen3-30B-A3B-Instruct-2507"
+served-model-name: "qwen3-30b-a3b-moe"
+
+host: "127.0.0.1"
+port: 30000
+
+_gpu_id: 0
+
+tensor-parallel-size: 1
+mem-fraction-static: 0.85
+context-length: 32768
+
+schedule-policy: "lpm"
+schedule-conservativeness: 1.0
+max-running-requests: 32
+chunked-prefill-size: -1
+max-prefill-tokens: 16384
+disable-radix-cache: false
+
+# ★ knob under test
+disable-cuda-graph: true
+
+log-requests: false
+trust-remote-code: true
