@@ -1236,3 +1236,345 @@ gemma4**。已替换为 `gemma-3-1b-it`（dense）作为第三个模型。
 - 或者等 Google 正式发布 Gemma-4 + sglang 跟进支持。
 
 目前这个被准确记录为 **"实验范围受运行时支持限制"**，而不是默默跳过。
+
+## 18. Kernel fusion deep dive — un-fused vs fused, and how regime changes the launch params
+
+> 🟢 NEW. Follow-up to §16.2 — explains WHAT kernel fusion is doing in
+> general, shows the exact "before vs after" for the MoE FFN, and uses our
+> 24-cell traces to prove that the fused kernel's launch parameters
+> (block, registers, shared memory, grid) **do change per regime**.
+
+### 18.1 What is "kernel fusion", in one paragraph
+
+Each GPU kernel launch costs ~5-10 µs of CPU overhead plus a kernel-launch
+barrier; each intermediate tensor between kernels has to be *written* to HBM
+by the producer and *read back* from HBM by the consumer (HBM bandwidth on
+H200 is ~4.8 TB/s — fast but **not free**). "Kernel fusion" means: instead
+of `K1 → write → K2 → write → K3 → ...`, you generate a single kernel that
+**keeps intermediate values in registers / shared memory** and writes only
+the final output to HBM. The savings are (a) launch-overhead × (N-1), and
+(b) memory traffic = sum of intermediate tensor sizes × 2 (write + read).
+
+### 18.2 Un-fused MoE FFN — what would run without fusion
+
+sglang keeps a reference Torch-native implementation in
+[`sglang/srt/layers/moe/fused_moe_native.py`](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/layers/moe/fused_moe_native.py)
+(`fused_moe_forward_native`):
+
+```python
+# For each token, w13/w2 are gathered by topk_ids → per-expert weight tensors
+w13_weights = layer.w13_weight[topk_ids]        # gather
+w1_weights, w3_weights = torch.chunk(w13_weights, 2, dim=2)
+w2_weights  = layer.w2_weight[topk_ids]         # gather
+x1 = torch.einsum("ti,taoi -> tao",  x, w1_weights)   # K1: per-expert GEMM (gate)
+x1 = F.silu(x1)                                       # K2: SiLU
+x3 = torch.einsum("ti,taoi -> tao",  x, w3_weights)   # K3: per-expert GEMM (up)
+y  = x1 * x3                                          # K4: elementwise mul
+y  = torch.einsum("tao,taio -> tai", y, w2_weights)   # K5: per-expert GEMM (down)
+y  = torch.einsum("tai,ta -> ti",   y, topk_weights)  # K6: weighted reduce-sum
+```
+
+Per MoE FFN that's **~6 separate kernel launches plus 3 intermediate
+HBM round-trips** (`x1`, `x3`, `x1*x3`). Across 48 layers per token, that's
+288 launches + a *lot* of HBM traffic just for the FFN.
+
+### 18.3 Fused MoE FFN — what actually runs in sglang
+
+sglang collapses the 6 ops into **2 `fused_moe_kernel` launches per layer**:
+
+```python
+# In sglang/srt/layers/moe/fused_moe_triton/fused_moe.py:475 (gate_up part)
+invoke_fused_moe_kernel(
+    A=hidden_states,
+    B=w1,                       # w1 (== concat of gate_proj and up_proj)
+    C=intermediate_cache1,      # output of gate+up GEMM
+    A_scale=..., B_scale=...,
+    topk_weights=...,
+    sorted_token_ids=...,       # tokens grouped by expert
+    expert_ids=...,
+    num_tokens_post_padded=...,
+    mul_routed_weight=False,    # weight applied later
+    top_k=topk,
+    config=config,              # BLOCK_SIZE_M/N/K, num_warps, num_stages
+    compute_type=tl.bfloat16,
+    use_fp8_w8a8=False,
+    ...
+)
+# In sglang/srt/layers/moe/fused_moe_triton/fused_moe.py:534 (down part)
+invoke_fused_moe_kernel(
+    A=intermediate_cache2,      # SiLU(gate) * up — done in a tiny fused activation kernel
+    B=w2,
+    C=intermediate_cache3,
+    ...
+    mul_routed_weight=True,     # weighted reduce folded INTO this kernel
+    ...
+)
+```
+
+So the actual call graph in sglang is:
+
+```
+[1 prep kernel]   moe_align_block_size  → sorted_token_ids / expert_ids / num_post_padded
+[1 fused kernel]  fused_moe_kernel #1   → gate+up grouped GEMM (K1+K3 in one)
+[1 tiny kernel]   SiluAndMul             → element-wise gate*up fused activation
+[1 fused kernel]  fused_moe_kernel #2   → down grouped GEMM with weighted reduce baked in (K5+K6 in one)
+```
+
+That's **4 kernels** vs the 6+ from the native path, **0 HBM round-trips
+for the intermediate `x1*x3`** (it stays in registers across SiLU), and
+**routing-weight scaling lives inside the down kernel** so K6 disappears.
+
+Across a 48-layer Qwen3-30B-A3B forward, the fused path issues
+`48 × 4 = 192` kernels per token vs `48 × 6 = 288` unfused — and avoids
+`48 × 3 = 144` HBM round-trips of intermediates per token. That's why the
+fused version even being a single Triton-JIT kernel can dominate at 34-47 %
+of GPU time: it's **doing the work of 5 native ops in 1**, so its share is
+proportionally large.
+
+### 18.4 Does the fusion strategy change per regime? — **No, but the kernel parameters do**
+
+The **shape of the call graph is fixed**: same 4-kernel sequence (prep +
+gate_up + activation + down) every time. There is no per-regime
+"more-fused-or-less-fused" switch in current sglang.
+
+What **does** change per regime is the **kernel launch configuration**.
+sglang ships per-`(E, N, device, dtype)` tuned JSON tables under
+[`sglang/srt/layers/moe/fused_moe_triton/configs/triton_3_X_X/`](https://github.com/sgl-project/sglang/tree/main/python/sglang/srt/layers/moe/fused_moe_triton/configs).
+For Qwen3-30B-A3B on H200, the relevant file is
+`configs/triton_3_2_0/E=128,N=768,device_name=NVIDIA_H200.json`, keyed by
+`M` (tokens being dispatched after expansion):
+
+| M (tokens) | BLOCK_SIZE_M | BLOCK_SIZE_N | BLOCK_SIZE_K | GROUP_SIZE_M | num_warps | num_stages |
+|---|---|---|---|---|---|---|
+| 1 | 16 | 64 | 64 | 1 | 4 | 5 |
+| 4 | 16 | 64 | 128 | 16 | 4 | 2 |
+| 16 | 16 | 64 | 256 | 1 | 4 | 2 |
+| 32 | 16 | 64 | 128 | 16 | 4 | 2 |
+| 48 | 16 | 128 | 128 | 16 | 4 | 3 |
+| 64 | 16 | 256 | 128 | 1 | **8** | 2 |
+| 512 | 64 | 128 | 64 | 1 | 4 | 3 |
+| 1024 | **128** | 256 | 64 | 16 | **8** | 4 |
+| 2048 | **128** | 256 | 64 | 1 | **8** | 4 |
+| 4096 | **128** | 256 | 64 | 16 | **8** | 4 |
+
+(`BLOCK_SIZE_M` jumps **8×** between low-M and high-M regimes; `num_warps`
+doubles from 4 to 8.)
+
+`try_get_optimal_moe_config(M, ...)` picks one row per call based on the
+**current batch's total token-times-topk count** `M = num_tokens × topk`.
+When `M` doesn't exactly match a key it picks the nearest one (rounding
+down).
+
+### 18.5 The above prediction in our actual traces
+
+We extracted the per-launch `grid / block / registers / shared_memory` from
+the `fused_moe_kernel` events in each MoE cell's `.trace.json.gz`. The
+dominant launch shape across regimes:
+
+| Cell | Token-load class | Dominant grid | block | regs/thread | shmem | mean dur | Calls in 10 prof steps |
+|---|---|---|---|---|---|---|---|
+| MoE R1 (M small: conc 4, in 128, all decode-class) | low-M | (768, 1, 1) | **128** | **64** | **20 KB** | 43 µs | 336 |
+| MoE R2 (M mixed: in 128 + out 1024 decode steps) | low-M (decode-dominated) | (3288, 1, 1) | 128 | 64 | 20 KB | 139 µs | 336 |
+| MoE R3 (M huge during the prefill: 8×4096×topk-8 ≈ 256 K) | high-M | (6246, 1, 1) | **256** | **194** | **192 KB** | 1 346 µs | 48 |
+| MoE R5 (M big: cap-capped 32×512×topk-8) | high-M | (4008, 1, 1) | **256** | **194** | **192 KB** | 807 µs | 48 |
+| MoE R8 (M biggest: 32×(2048 prefix+128)×topk-8) | high-M | (6774, 1, 1) | **256** | **194** | **192 KB** | 1 487 µs | 48 |
+
+> Note: most cells produce **both** low-M and high-M launches in the same
+> trace — high-M for the prefill step(s), low-M for subsequent decode
+> steps. The "dominant" column above shows the variant that ate the most
+> total time. Full per-cell breakdown:
+> [`results/regime_bench/kernel_launch_params.csv`](../results/regime_bench/kernel_launch_params.csv).
+
+What this means:
+
+- **The block size doubles** (128 → 256 threads) when M crosses the boundary
+  between the small and large config buckets — that's the JSON config
+  switching from `BLOCK_SIZE_M=16` (4 warps × 32) to `BLOCK_SIZE_M=128`
+  (8 warps × 32).
+- **Register pressure triples** (64 → 194 per thread) for the high-M
+  config — Triton allocates more registers to hold larger tile fragments.
+  This affects how many concurrent threadblocks an SM can run.
+- **Shared memory per block jumps 10×** (20 KB → 192 KB) — the high-M
+  config uses bigger software-pipelined buffers (`num_stages=4`) and
+  bigger tiles, so each block needs more shmem. On H200 SMs (228 KB
+  shmem cap) this means **only one block of the high-M config can fit
+  per SM**.
+- **Grid scales with tokens** — R1 grid = 768 tiles, R5 grid = 6774 tiles
+  (8.8 × more) — directly tracks `(M × N / (BLOCK_SIZE_M × BLOCK_SIZE_N))`.
+- **Per-call duration scales 35×** (43 µs → 1 487 µs). The kernel works
+  harder per launch, but is launched **far fewer times** (336 → 48 calls
+  in the same 10-step profile window). Total time is dominated by R5 / R8
+  / R2 even though they call the kernel less often.
+
+### 18.6 Takeaway
+
+| Question | Answer |
+|---|---|
+| What was un-fused before? | 6 separate ops: 3 grouped GEMMs (w1, w3, w2) + SiLU + elementwise-mul + weighted-reduce. Plus the per-token gathers `weight[topk_ids]`. |
+| What's fused now? | **2 calls** to `fused_moe_kernel` per MoE FFN (gate_up + down), plus a tiny `SiluAndMul` between them and a `moe_align_block_size` prep. |
+| Why does it dominate kernel time? | Because in the *new* topology it's literally **5-of-6 native ops collapsed into one Triton kernel**. Its share of GPU time should be high — that's the *point*. |
+| Does fusion strategy change per regime? | **No** — same call graph every time. |
+| Do the kernel parameters change per regime? | **Yes, substantially**. `BLOCK_SIZE_M` jumps 8 ×, `num_warps` 2 ×, registers 3 ×, shared memory 10 ×, grid up to 9 ×, per-call duration 35 ×, all tracked by `try_get_optimal_moe_config(M)` against the per-(E, N, device) JSON tuning table. |
+| Where would more fusion still pay off? | The `SiluAndMul` between gate_up and down is currently a separate kernel (~3 % of GPU time on the MoE). Folding it into either neighbour would save 1 launch + 1 HBM round-trip per layer per token. The bigger win is on the prefill regimes (MoE R3 / R4) where `cudaEventSynchronize` between `moe_align_block_size` and `fused_moe_kernel` eats 37 % — fusing the prep into the matmul (a CUDA-graph or graph-capture-friendly variant) would attack that directly. |
+
+---
+
+## 18. Kernel fusion 深入解读 —— 融合前 vs 融合后，以及 regime 如何改变 launch 参数
+
+> 🟢 新增。承接 §16.2 —— 把 kernel fusion 到底在干嘛说清楚，给出 MoE FFN 的
+> "融合前 vs 融合后" 精确对比，再用我们 24 个 cell 的 trace 证明融合后 kernel
+> 的 launch 参数 **真的会随 regime 变**。
+
+### 18.1 一句话讲清 kernel fusion
+
+每次 GPU kernel launch 有 ~5-10 µs 的 CPU 开销 + 一个 kernel-launch
+barrier；每个中间 tensor 都得被生产者 *写* 进 HBM、被消费者 *读* 出来（H200
+HBM 带宽 ~4.8 TB/s —— 快但 **不免费**）。所谓 kernel fusion 就是：与其
+`K1 → 写 → K2 → 写 → K3 → ...`，不如生成一个 kernel **把中间值留在寄存器 /
+shared memory**，只把最终结果写 HBM。节省的就是：(a) launch overhead × (N-1)，
+(b) 内存流量 = 所有中间 tensor 大小 × 2（写+读）。
+
+### 18.2 MoE FFN 融合 *前* 应该跑啥
+
+sglang 在 [`sglang/srt/layers/moe/fused_moe_native.py`](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/layers/moe/fused_moe_native.py)
+留了一份 Torch-native 参考实现（`fused_moe_forward_native`）：
+
+```python
+# 每个 token，按 topk_ids 把 w13/w2 gather 出来 → per-expert 权重 tensor
+w13_weights = layer.w13_weight[topk_ids]        # gather
+w1_weights, w3_weights = torch.chunk(w13_weights, 2, dim=2)
+w2_weights  = layer.w2_weight[topk_ids]         # gather
+x1 = torch.einsum("ti,taoi -> tao",  x, w1_weights)   # K1: per-expert GEMM (gate)
+x1 = F.silu(x1)                                       # K2: SiLU
+x3 = torch.einsum("ti,taoi -> tao",  x, w3_weights)   # K3: per-expert GEMM (up)
+y  = x1 * x3                                          # K4: elementwise mul
+y  = torch.einsum("tao,taio -> tai", y, w2_weights)   # K5: per-expert GEMM (down)
+y  = torch.einsum("tai,ta -> ti",   y, topk_weights)  # K6: 加权 reduce-sum
+```
+
+每个 MoE FFN **~6 次 kernel launch + 3 次中间 HBM 来回**（`x1`、`x3`、`x1*x3`
+都要写 HBM 再读出来）。48 层下来每 token 就 288 次 launch，单 FFN 部分 HBM
+流量大得离谱。
+
+### 18.3 MoE FFN 融合 *后* sglang 实际跑啥
+
+sglang 把上面 6 个 op 压成 **每层 2 次 `fused_moe_kernel` launch**：
+
+```python
+# sglang/srt/layers/moe/fused_moe_triton/fused_moe.py:475 (gate_up 部分)
+invoke_fused_moe_kernel(
+    A=hidden_states,
+    B=w1,                       # w1（== gate_proj 和 up_proj concat）
+    C=intermediate_cache1,      # gate+up GEMM 的输出
+    A_scale=..., B_scale=...,
+    topk_weights=...,
+    sorted_token_ids=...,       # 按专家分组过的 token
+    expert_ids=...,
+    num_tokens_post_padded=...,
+    mul_routed_weight=False,    # 路由权重之后才乘
+    top_k=topk,
+    config=config,              # BLOCK_SIZE_M/N/K, num_warps, num_stages
+    compute_type=tl.bfloat16,
+    use_fp8_w8a8=False,
+    ...
+)
+# sglang/srt/layers/moe/fused_moe_triton/fused_moe.py:534 (down 部分)
+invoke_fused_moe_kernel(
+    A=intermediate_cache2,      # SiLU(gate) * up —— 在一个很小的融合激活 kernel 里完成
+    B=w2,
+    C=intermediate_cache3,
+    ...
+    mul_routed_weight=True,     # 加权 reduce 折叠进这个 kernel
+    ...
+)
+```
+
+所以 sglang 的实际 call graph 是：
+
+```
+[1 个 prep kernel]   moe_align_block_size  → sorted_token_ids / expert_ids / num_post_padded
+[1 个 融合 kernel]   fused_moe_kernel #1   → gate+up 分组 GEMM（K1+K3 合一）
+[1 个 小 kernel]     SiluAndMul            → 逐元素 gate*up 融合激活
+[1 个 融合 kernel]   fused_moe_kernel #2   → down 分组 GEMM + 加权 reduce 烤进 kernel（K5+K6 合一）
+```
+
+也就是 **4 个 kernel** vs 原生路径的 6+，**`x1*x3` 中间 tensor 0 次 HBM 来回**
+（一直留寄存器里跨过 SiLU），**路由权重缩放搬到 down kernel 里了** 所以 K6 没了。
+
+48 层 Qwen3-30B-A3B 前向，融合路径每 token issue `48 × 4 = 192` kernel，原生路径
+`48 × 6 = 288` —— 还省了 `48 × 3 = 144` 次中间 HBM 来回。这就是为什么单个
+Triton-JIT 的融合 kernel 能占 34-47% GPU 时间：它**一个抵 5 个 native op**，
+份额自然大。
+
+### 18.4 Fusion 策略会随 regime 变吗？ —— **不会，但 kernel 参数会**
+
+call graph 的**形状是固定的**：永远是上面 4-kernel 序列（prep + gate_up +
+activation + down）。当前 sglang 没有 per-regime "融合更多 / 更少" 的开关。
+
+随 regime 变的是 **kernel 的 launch 配置**。sglang 在
+[`sglang/srt/layers/moe/fused_moe_triton/configs/triton_3_X_X/`](https://github.com/sgl-project/sglang/tree/main/python/sglang/srt/layers/moe/fused_moe_triton/configs)
+里塞了一堆 per-`(E, N, device, dtype)` 调好的 JSON 表。Qwen3-30B-A3B 在 H200
+上用的是 `configs/triton_3_2_0/E=128,N=768,device_name=NVIDIA_H200.json`，
+按 `M`（分发后的 token 数）查：
+
+| M (tokens) | BLOCK_SIZE_M | BLOCK_SIZE_N | BLOCK_SIZE_K | GROUP_SIZE_M | num_warps | num_stages |
+|---|---|---|---|---|---|---|
+| 1 | 16 | 64 | 64 | 1 | 4 | 5 |
+| 4 | 16 | 64 | 128 | 16 | 4 | 2 |
+| 16 | 16 | 64 | 256 | 1 | 4 | 2 |
+| 32 | 16 | 64 | 128 | 16 | 4 | 2 |
+| 48 | 16 | 128 | 128 | 16 | 4 | 3 |
+| 64 | 16 | 256 | 128 | 1 | **8** | 2 |
+| 512 | 64 | 128 | 64 | 1 | 4 | 3 |
+| 1024 | **128** | 256 | 64 | 16 | **8** | 4 |
+| 2048 | **128** | 256 | 64 | 1 | **8** | 4 |
+| 4096 | **128** | 256 | 64 | 16 | **8** | 4 |
+
+（低 M → 高 M，`BLOCK_SIZE_M` 跳 **8 倍**，`num_warps` 从 4 翻到 8。）
+
+`try_get_optimal_moe_config(M, ...)` 每次调用按当前 batch 的 `M = num_tokens × topk`
+选一行。M 不刚好匹配 key 就向下取最近的。
+
+### 18.5 上面这套预言 —— 在我们真实 trace 里看到
+
+从每个 MoE cell 的 `.trace.json.gz` 里把 `fused_moe_kernel` 事件的
+`grid / block / registers / shared_memory` 拉出来。各 regime 的主流 launch 形状：
+
+| Cell | Token-load 级别 | 主流 grid | block | regs/thread | shmem | 平均 dur | 10 个 profile step 的调用次数 |
+|---|---|---|---|---|---|---|---|
+| MoE R1（M 小：conc 4，in 128，全 decode 类）| 低-M | (768, 1, 1) | **128** | **64** | **20 KB** | 43 µs | 336 |
+| MoE R2（M 混合：in 128 + 1024 步 decode）| 低-M（被 decode 主导）| (3288, 1, 1) | 128 | 64 | 20 KB | 139 µs | 336 |
+| MoE R3（prefill 中 M 巨大：8×4096×topk-8 ≈ 256 K）| 高-M | (6246, 1, 1) | **256** | **194** | **192 KB** | 1 346 µs | 48 |
+| MoE R5（M 大：撞 cap 后 32×512×topk-8）| 高-M | (4008, 1, 1) | **256** | **194** | **192 KB** | 807 µs | 48 |
+| MoE R8（M 最大：32×(2048 prefix+128)×topk-8）| 高-M | (6774, 1, 1) | **256** | **194** | **192 KB** | 1 487 µs | 48 |
+
+> 注：大多数 cell 实际同时产出 **低-M 和 高-M 两种 launch** —— 高-M 给
+> prefill 步，低-M 给后续 decode 步。上表的"主流"指总耗时最高的那个变体。
+> 每 cell 完整分解：
+> [`results/regime_bench/kernel_launch_params.csv`](../results/regime_bench/kernel_launch_params.csv)。
+
+含义：
+
+- **block size 翻倍**（128 → 256 线程）—— 当 M 跨过小/大 config 分界，JSON 表
+  从 `BLOCK_SIZE_M=16`（4 warps × 32）切到 `BLOCK_SIZE_M=128`（8 warps × 32）。
+- **寄存器压力 3 倍**（64 → 194 / thread）—— Triton 给高-M config 分配更多
+  寄存器存大 tile 片段。这直接影响每个 SM 能并发跑多少 threadblock。
+- **每 block shared memory 10 倍**（20 KB → 192 KB）—— 高-M config 用更大的
+  软件流水缓冲（`num_stages=4`）+ 更大的 tile，每个 block 需要更多 shmem。
+  H200 SM 上限 228 KB shmem → **高-M config 每个 SM 只能塞 1 个 block**。
+- **grid 随 token 数线性扩**（R1 768 tiles → R5 6 774 tiles，8.8 倍），直接
+  对应 `(M × N / (BLOCK_SIZE_M × BLOCK_SIZE_N))`。
+- **每次调用 wall 35 倍**（43 µs → 1 487 µs）。单 launch 干活更多，但调用次数
+  **少得多**（同一 10-step 窗口内 336 → 48 次）。R5 / R8 / R2 的总时间是被
+  少而重的 launch 主导。
+
+### 18.6 一表打包
+
+| 问题 | 答案 |
+|---|---|
+| 融合前是啥？ | 6 个 op：3 次 grouped GEMM（w1、w3、w2）+ SiLU + elementwise mul + 加权 reduce。还有 `weight[topk_ids]` 的 per-token gather。 |
+| 融合后是啥？ | 每个 MoE FFN **2 次** `fused_moe_kernel`（gate_up + down）+ 中间一次小 `SiluAndMul` + 前置 `moe_align_block_size` 准备 kernel。 |
+| 为啥它在 kernel 时间里占主导？ | 因为在新拓扑里它字面意义上 **把 6 个 native op 中的 5 个折叠成一个 Triton kernel**。它占 GPU 时间比例大 —— 这正是融合的 *目的*。 |
+| Fusion 策略会随 regime 变吗？ | **不会** —— call graph 每次都一样。 |
+| Kernel 参数会随 regime 变吗？ | **会，而且变化很大**。`BLOCK_SIZE_M` 8 倍、`num_warps` 2 倍、寄存器 3 倍、shmem 10 倍、grid 高达 9 倍、单次 wall 35 倍 —— 全由 `try_get_optimal_moe_config(M)` 按 per-(E, N, device) JSON 调优表选。 |
+| 还有哪里能再融合？ | gate_up 和 down 之间那个 `SiluAndMul` 现在是独立 kernel（占 GPU 时间 ~3%）。把它折进任一邻居能再省 1 launch + 1 HBM 来回 / layer / token。更大的赢面在 prefill regime（MoE R3 / R4）—— 那里 `moe_align_block_size` 和 `fused_moe_kernel` 之间的 `cudaEventSynchronize` 吃 37%，把 prep 融进 matmul（CUDA-graph 友好的变体）能直接干掉这一坨。 |
