@@ -153,6 +153,8 @@ Selected high-load regimes (R5/R7/R8) per model. Full 24-cell table in [`results
 
 Top-20 GPU events per cell, classified by name regex. Shows **what % of GPU time each kernel category consumes**:
 
+> **Note on the "MoE" category**: this label aggregates `fused_moe_kernel` plus its small helpers (`moe_align_block_size`, `topk_softmax`). In practice `fused_moe_kernel` accounts for almost all of it, so the "MoE" percentage in this table is essentially the `fused_moe_kernel` percentage — see §4 for what that kernel actually is.
+
 | Cell | Trace wall | Kernel mix (top categories) |
 |---|---|---|
 | Qwen3 R1 | 75 ms | **cuda runtime/overhead 38 %**; GEMM 24 %; FlashAttention 7 % |
