@@ -3103,3 +3103,801 @@ A：**不会，且有 3 种失败模式（取决于哪一层）：**
 
 悄悄 no-op 是最危险的 —— 这就是为啥我们必须做 kernel-by-kernel trace 对比，才能
 确认 C4 真的 no-op 了、而不是"cutlass 恰好性能一样"。
+
+## 22. Three follow-up questions on fallback / model architecture / backend selection
+
+> 🟢 NEW. Three questions raised after §21:
+> (1) Why does sglang sometimes SILENTLY no-op instead of raising "cutlass not available"?
+> (2) "Model not found → raise" means every model is re-implemented from scratch (not torch transformers)?
+> (3) Walk me through the backend-selection logic in detail — what happens on H200 vs Blackwell vs AMD vs Intel?
+
+### 22.1 Why silent no-ops exist (not always an error)
+
+The reason is **dispatch is conditioned on TWO things**, not one: the
+backend flag AND the model's quantization config. The flag is consulted
+**inside the quant method's `__init__`**, not at a top-level dispatcher.
+
+Concrete contrast for our MoE on R8:
+
+| Model dtype | Code path entered | Reads `--moe-runner-backend cutlass`? | Result |
+|---|---|---|---|
+| **bf16 (unquantized)** | `UnquantizedFusedMoEMethod.create_moe_runner()` | **NO** — code hard-codes `MoeRunnerBackend.TRITON` | **silent no-op** (our C4) |
+| **FP8** | `Fp8MoEMethod.__init__()` | **YES** — explicit `if get_moe_runner_backend().is_cutlass(): …` | Either uses cutlass (if asserts pass) or raises AssertionError |
+
+The FP8 path actually does the right thing
+([`sglang/srt/layers/quantization/fp8.py:678-686`](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/layers/quantization/fp8.py)):
+
+```python
+class Fp8MoEMethod(FusedMoEMethodBase):
+    def __init__(self, quant_config):
+        ...
+        if get_moe_runner_backend().is_cutlass():
+            assert cutlass_fp8_supported(), \
+                "cutlass_fp8 MoE requires CUDA 12.0+ with SM90 or CUDA 12.4+ with SM89"
+            assert self.block_quant, "cutlass_fp8 MoE requires block quantization"
+            assert is_sm100_supported() or is_sm90_supported()
+```
+
+If you're on FP8 + your CUDA is too old, you get a **clear AssertionError**.
+
+The bf16 path simply doesn't have this branch
+([`sglang/srt/layers/quantization/unquant.py:321-330`](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/layers/quantization/unquant.py)):
+
+```python
+class UnquantizedFusedMoEMethod(FusedMoEMethodBase, MultiPlatformOp):
+    def create_moe_runner(self, layer, moe_runner_config):
+        backend = (MoeRunnerBackend.TRITON_KERNELS
+                   if self.use_triton_kernels
+                   else MoeRunnerBackend.TRITON)
+        self.runner = MoeRunner(backend, moe_runner_config)
+        # never even looks at server_args.moe_runner_backend
+```
+
+**Why this design** (best guess from reading the code, not from sglang
+maintainers):
+
+1. **Cutlass MoE is a quantization-bound optimisation**. The whole reason
+   cutlass paths exist is to exploit FP8/FP4 tensor-core throughput on
+   Hopper/Blackwell. There is no "bf16 cutlass MoE" kernel in the cutlass
+   library that's faster than the Triton path on this shape; the
+   maintainers didn't write a cutlass bf16 path because it wouldn't win.
+2. **`auto` is the default value** of `--moe-runner-backend`. Most users
+   never set this flag. The code is written assuming `cutlass`/`deep_gemm`
+   only get passed by users who know what quant they're using.
+3. **A loud error per missing-combination would explode the validation
+   matrix**: sglang would need a 10-backend × 8-quantization × 5-hardware
+   compatibility table maintained by hand. They chose to validate only at
+   the points where the flag actually does anything.
+
+**But** the no-op IS a bug for our use case (config A/B test where we
+*want* to know our flag was ignored). For now, **the only way to detect
+it is kernel-by-kernel trace diff** — which is exactly what §19.5 did.
+
+The fix-it-yourself patch (if you wanted upstream-able):
+
+```python
+# in unquant.py UnquantizedFusedMoEMethod.create_moe_runner
+requested = get_moe_runner_backend()
+if requested != MoeRunnerBackend.AUTO and requested != MoeRunnerBackend.TRITON \
+        and requested != MoeRunnerBackend.TRITON_KERNELS:
+    logger.warning(
+        f"--moe-runner-backend={requested.value} is ignored for unquantized "
+        f"(bf16/fp16) MoE; falling back to TRITON. "
+        f"Use --quantization fp8 to enable cutlass/deep_gemm backends.")
+```
+
+(Filed as a candidate sglang upstream issue in our notes.)
+
+### 22.2 Yes — every supported model is hand-implemented in sglang
+
+`sglang/srt/models/` contains **one Python file per model architecture**.
+Each file defines `nn.Module` classes that build the forward pass using
+sglang-native primitives (not transformers').
+
+Concrete example —
+[`sglang/srt/models/qwen3_moe.py`](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/models/qwen3_moe.py),
+the model we benchmarked:
+
+```python
+# Imports show what's used INSTEAD of transformers
+from sglang.srt.distributed import get_moe_expert_parallel_world_size, get_pp_group
+from sglang.srt.layers.linear import RowParallelLinear, ColumnParallelLinear
+from sglang.srt.layers.moe.fused_moe_triton.layer import FusedMoE     # ← our fused_moe_kernel
+from sglang.srt.layers.radix_attention import RadixAttention            # ← @register_split_op boundary
+from sglang.srt.layers.vocab_parallel_embedding import VocabParallelEmbedding
+from transformers import PretrainedConfig  # ← only the config dataclass
+
+# Layer classes
+class Qwen3MoeSparseMoeBlock(nn.Module):
+    def forward(self, hidden_states, ...): ...        # custom forward
+    def forward_normal(self, ...): ...
+    def forward_deepep(self, ...): ...                 # expert parallel variant
+
+class Qwen3MoeAttention(nn.Module):
+    def __init__(self, ...):
+        ...
+        self.o_proj = RowParallelLinear(...)
+        self.attn = RadixAttention(...)               # sglang's KV-cache-aware attention
+    def forward_prepare_native(self, ...): ...
+    def forward_core(self, intermediate_state): ...
+    def forward(self, ...): ...
+```
+
+The forward path **uses sglang-native layers**:
+
+| Concept | HuggingFace transformers | sglang |
+|---|---|---|
+| Linear | `nn.Linear` | `RowParallelLinear` / `ColumnParallelLinear` (tensor-parallel-aware) |
+| Attention | `Qwen3Attention.forward` (Q/K/V proj + SDPA) | `RadixAttention` (KV-cache-aware, FlashAttention, paged) |
+| MoE FFN | `Qwen3MoeSparseMoeBlock` (Python loop over experts) | `FusedMoE` → `fused_moe_kernel` (one Triton kernel) |
+| Vocab embedding | `nn.Embedding` | `VocabParallelEmbedding` (sharded across TP) |
+| RoPE | `apply_rotary_pos_emb` | `flashinfer.BatchQKApplyRotaryPosIdsCosSinCacheEnhancedKernel` |
+| RMSNorm | `Qwen3RMSNorm` | `flashinfer.FusedAddRMSNormKernel` (fused with residual add) |
+
+What sglang DOES use from transformers: **only `PretrainedConfig`** (the
+dataclass that parses `config.json`). The model **weights** are loaded
+directly from `safetensors` files using sglang's own weight loader
+(`sglang/srt/model_loader/loader.py`).
+
+**Why fully re-implement?** Three reasons:
+
+1. **Tensor parallelism / expert parallelism**: transformers' models are
+   single-GPU. sglang needs to shard weights across TP, dispatch tokens
+   across EP, gather across PP. Adding this to transformers' classes
+   would require rewriting most layers anyway.
+2. **Custom kernels**: transformers uses `torch.nn.Linear` (cuBLAS GEMM)
+   and `F.scaled_dot_product_attention` (PyTorch SDPA). sglang wants
+   `flashinfer`/`fa3`/`triton` kernels with KV-cache awareness, paged
+   attention, prefix sharing — none of which transformers supports.
+3. **Quantization integration**: sglang loads FP8/FP4/INT8 weights
+   directly into quant-aware layer classes (`Fp8MoEMethod`, etc.). HF's
+   `bitsandbytes` integration is generic but not as fast.
+
+**Consequences for our workflow**:
+
+- New model architecture = new Python file in `sglang/srt/models/`. **No model = no support.**
+- Even if the underlying ops are "standard transformer" (which Gemma-4
+  basically is), there's no auto-derivation — someone has to map the
+  config fields and weight names to sglang's layer classes.
+- This is the same model on `huggingface_hub`, but the *runtime* is
+  sglang's, not transformers'. Numerical outputs may differ slightly
+  (different RoPE epsilon, different attention masking conventions, etc.) —
+  sglang's model files always note the reference HF implementation in
+  comments + try to match it.
+
+`sglang/srt/models/*.py` count as of 0.5.12:
+
+```bash
+$ ls sglang/srt/models/*.py | wc -l
+~120 files  # ~75 distinct model families (some have *_mm.py for multimodal)
+```
+
+That's *a lot* of code maintained by hand. New families added on demand
+(Gemma-4 will appear when someone writes `gemma4.py`).
+
+### 22.3 The backend-selection logic — full walkthrough
+
+Source: [`sglang/srt/server_args.py:1772-1850`](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/server_args.py)
+`_handle_attention_backend_compatibility()` (runs once at startup before
+the model loads).
+
+#### Step 1 — Check if the user supplied prefill/decode-specific backends
+
+```python
+if self.prefill_attention_backend is not None and (
+    self.prefill_attention_backend == self.decode_attention_backend
+):
+    # User set both to the same value → just promote to global attention_backend
+    self.attention_backend = self.prefill_attention_backend
+```
+
+If user passes `--prefill-attention-backend fa3 --decode-attention-backend fa3`,
+that's the same as `--attention-backend fa3`. If they differ, the **hybrid
+attention backend** is constructed later (see Step 4).
+
+#### Step 2 — If user did NOT pass `--attention-backend`, auto-select
+
+This is **the only place fallback chains happen** (per §21). Two parallel
+chains based on whether the model uses MLA (Multi-head Latent Attention,
+DeepSeek-V2-style) or standard MHA (most other models).
+
+##### Step 2a — MHA models (Llama, Qwen, Gemma, …)
+
+The decision tree (`sglang/srt/server_args.py:1797-1818`):
+
+```
+                        ┌──────────────────────────────┐
+                        │ user didn't pass             │
+                        │ --attention-backend          │
+                        └──────────────┬───────────────┘
+                                       │
+                  ┌────────────────────┴────────────────────┐
+                  │ is_hopper_with_cuda_12_3()  AND          │
+                  │ is_no_spec_infer_or_topk_one(self)      │
+                  └────────────────────┬────────────────────┘
+                                       │
+                YES (H100, H200) ──────► attention_backend = "fa3"   ★
+                                       │
+                                       NO
+                                       │
+                  ┌────────────────────┴────────────────────┐
+                  │ is_sm100_supported()  AND               │
+                  │ is_no_spec_infer_or_topk_one(self)  AND │
+                  │ (no spec OR eagle topk set)             │
+                  └────────────────────┬────────────────────┘
+                                       │
+                YES (B200/GB200/B300) ──► attention_backend = "trtllm_mha"
+                                       │
+                                       NO
+                                       │
+                  ┌────────────────────┴────────────────────┐
+                  │ is_hip()  (AMD GPU)                     │
+                  └────────────────────┬────────────────────┘
+                                       │
+                                  YES ──► attention_backend = "aiter"
+                                       │
+                                       NO
+                                       │
+                  ┌────────────────────┴────────────────────┐
+                  │ is_flashinfer_available() (Python pkg) │
+                  └────────────────────┬────────────────────┘
+                                       │
+                  YES ──► attention_backend = "flashinfer"
+                  NO  ──► attention_backend = "triton"  (the always-works default)
+```
+
+The comment in source:
+
+> 1. Models with MHA Architecture (e.g: Llama, QWen)
+>    1.1 We will turn on **FA3 on hopper** unless user use spec decode with topk > 1 or page_size > 1.
+>    1.2 Use **trtllm_mha for SM100/SM103 (Blackwell B200/GB200/B300)** excluding spec with topk > 1.
+>        Note: trtllm_mha does not support SM120, which will fall back to flashinfer.
+>    1.3 In other cases, we will use **flashinfer if available, otherwise use triton**.
+
+##### Step 2b — MLA models (DeepSeek-V2, V3, R1)
+
+```
+                        ┌──────────────────────────────┐
+                        │ user didn't pass             │
+                        │ --attention-backend          │
+                        │ AND model uses MLA           │
+                        └──────────────┬───────────────┘
+                                       │
+                                       │
+                  ┌────────────────────┴────────────────────┐
+                  │ is_hopper_with_cuda_12_3()              │
+                  └────────────────────┬────────────────────┘
+                                       │
+                YES (H100, H200) ──────► attention_backend = "fa3"
+                                       │
+                                       NO
+                                       │
+                  ┌────────────────────┴────────────────────┐
+                  │ is_sm100_supported()                    │
+                  └────────────────────┬────────────────────┘
+                                       │
+                YES (Blackwell) ────────► attention_backend = "flashinfer"
+                                       │
+                                       NO
+                                       │
+                  ┌────────────────────┴────────────────────┐
+                  │ is_hip() (AMD)                          │
+                  └────────────────────┬────────────────────┘
+                                       │
+                YES ──► aiter (if head_num == 128 or 16)
+                YES ──► triton (otherwise)
+                                       │
+                                       NO
+                                       │
+                                  ───► attention_backend = "triton"
+```
+
+#### Step 3 — Side effects of certain backends
+
+After picking the backend, the system may further disable features that
+the backend can't support
+(`sglang/srt/server_args.py:1840-1860`):
+
+```python
+if self.attention_backend == "torch_native":
+    logger.warning("Cuda graph is disabled because of using torch native attention backend")
+    self.disable_cuda_graph = True
+
+if self.attention_backend == "flex_attention":
+    logger.warning("Cuda graph is disabled because of using torch Flex Attention backend")
+    self.disable_cuda_graph = True
+    assert (self.speculative_algorithm is None), "..."
+
+if self.attention_backend == "intel_amx":
+    # ...
+if self.attention_backend == "ascend":
+    # ...
+```
+
+Each backend has its own quirks; sglang silently disables incompatible
+features and logs a warning.
+
+#### Step 4 — Hybrid backend (per-stage)
+
+If user set `--prefill-attention-backend X --decode-attention-backend Y`
+with X≠Y, sglang constructs a **HybridAttnBackend** that dispatches
+per-batch (`model_runner.py:1755-1779`):
+
+```python
+if self.decode_attention_backend_str != self.prefill_attention_backend_str:
+    attn_backend = HybridAttnBackend(
+        decode_backend=self._get_attention_backend_from_str(self.decode_attention_backend_str),
+        prefill_backend=self._get_attention_backend_from_str(self.prefill_attention_backend_str),
+    )
+    logger.warning(
+        "Warning: Attention backend specified by --attention-backend or default backend "
+        "might be overridden. The feature of hybrid attention backend is experimental and "
+        "unstable. Please raise an issue if you encounter any problem."
+    )
+```
+
+(Experimental — sglang says so loudly.)
+
+#### Step 5 — Now actually load the backend
+
+`model_runner.py:1792-1799`:
+
+```python
+def _get_attention_backend_from_str(self, backend_str, ...):
+    if backend_str not in ATTENTION_BACKENDS:
+        raise ValueError(f"Invalid attention backend: {backend_str}")
+    full_attention_backend = ATTENTION_BACKENDS[backend_str](self)
+    return attn_backend_wrapper(self, full_attention_backend)
+```
+
+The backend's constructor runs here. **If it raises, the server exits.**
+This is Layer C from §21 — explicit backend, no fallback.
+
+#### Step 6 — Concrete walkthrough by hardware
+
+| Hardware | Model | Auto path → final backend | Why |
+|---|---|---|---|
+| **H100 / H200** | MHA (Qwen, Llama, Gemma) | `fa3` | hopper + CUDA 12.3 + standard inference path |
+| H100 / H200 | MHA + `--speculative-eagle-topk 4` | `flashinfer` or `triton` | spec decode topk > 1 → falls through to general chain |
+| H100 / H200 | MHA + `--page-size 2` | `flashinfer` or `triton` | page > 1 → falls through |
+| **H100 / H200** | MLA (DeepSeek) | `fa3` | same hopper detection |
+| **B200 / GB200 / B300** | MHA | `trtllm_mha` | SM100/103 detected |
+| **B200 / GB200 / B300** | MHA + spec topk > 1 | `flashinfer` or `triton` | trtllm not supported |
+| **B200 / GB200 / B300** | MLA | `flashinfer` | MLA path on Blackwell |
+| RTX 5090 (SM120) | any | `flashinfer` or `triton` | SM120 not supported by trtllm; auto skips |
+| **AMD MI300X / MI300A** | MHA | `aiter` | `is_hip()` true |
+| AMD MI300X | MLA | `aiter` (if 128 or 16 heads) or `triton` | aiter constrained |
+| **Intel Gaudi / Xeon** (CPU AMX) | any | `intel_amx` only if explicit, else manual config | Intel paths aren't in auto chain — need explicit `--attention-backend intel_amx` |
+| **A100** (SM80) | MHA | `flashinfer` if installed, else `triton` | A100 isn't hopper; trtllm is sm90+ |
+| A100 | MLA | `triton` | no MLA fast path for SM80 |
+
+**The "always-works default" is always `triton`** — it's pure Python +
+PyTorch + Triton kernels, with no proprietary CUDA library dependency.
+Slower than fa3/flashinfer/trtllm on supported hardware, but it runs
+everywhere CUDA runs.
+
+#### Step 7 — What the MoE/sampling/gemm backends do similarly
+
+The same "auto + per-hardware chain + explicit-no-fallback" pattern repeats
+for several other dispatchers:
+
+- `--moe-runner-backend` (auto → triton for bf16; FP8 path may pick deep_gemm)
+- `--sampling-backend` (auto → flashinfer on CUDA, pytorch on CPU)
+- `--fp8-gemm-backend` (auto → deep_gemm if installed, else triton)
+- `--fp4-gemm-backend` (default `flashinfer_cutlass`)
+- `--moe-a2a-backend` (default `none`, can be `deepep`/`mooncake`/etc.)
+
+Each has its own dispatcher in `server_args.py` or in the relevant layer
+module, but they all follow Layer B (auto) / Layer C (explicit hard-fail)
+/ sometimes Layer D (silent no-op if the code path doesn't read the flag).
+
+### 22.4 TL;DR — three answers in one paragraph each
+
+**Why silent no-op instead of "cutlass not available" error**: Backend
+dispatch is **per-quantization-method**, not centralised. The cutlass MoE
+path only exists inside `Fp8MoEMethod.__init__()` (which `assert`s
+correctly). The bf16 path (`UnquantizedFusedMoEMethod`) doesn't have a
+cutlass branch at all — and doesn't even read `--moe-runner-backend`. It
+hardcodes Triton. So passing `cutlass` to a bf16 model silently picks
+Triton. The architectural reason is that cutlass MoE only makes sense
+for FP8/FP4 (which is what cutlass MoE kernels are written for); no one
+wrote a bf16 cutlass path because Triton already wins on that shape.
+
+**Yes, every supported model is hand-implemented**: ~120 Python files in
+`sglang/srt/models/`. Each one defines `nn.Module` classes that build the
+forward pass using sglang-native primitives (`RowParallelLinear`,
+`FusedMoE`, `RadixAttention`, `VocabParallelEmbedding`) instead of
+transformers' classes. Sglang uses transformers ONLY for the
+`PretrainedConfig` dataclass that parses `config.json`. Weights are
+loaded directly from `safetensors`. New model = new Python file in
+`sglang/srt/models/`. This is why Gemma-4 fails — there's no
+`gemma4.py`.
+
+**Backend-selection logic, in 3 lines**: At startup
+(`server_args.py:_handle_attention_backend_compatibility`), if you did
+NOT pass `--attention-backend`, sglang picks one from a hardware-aware
+chain: **H100/H200 → fa3; Blackwell → trtllm_mha; AMD → aiter;
+otherwise → flashinfer if installed, else triton**. If you DID pass the
+flag, sglang tries that exact backend and **raises an exception if it
+can't load** (no fallback). The MLA models (DeepSeek) follow a parallel
+but simpler chain (fa3 on hopper, flashinfer on Blackwell, triton
+otherwise). The "always-works" default is **triton** — pure Python +
+PyTorch + Triton, no proprietary dependencies.
+
+---
+
+## 22. 三个 fallback / 模型架构 / backend 选择的后续问题
+
+> 🟢 新增。§21 之后的 3 个问题：
+> (1) 为啥 sglang 有时候 **悄悄 no-op**，而不是直接"cutlass 不可用"报错？
+> (2) "模型没有就报错" 是不是意味着 sglang 把所有模型都自己另实现了一份？
+> (3) 详细讲讲 backend 选择逻辑 —— H200 / Blackwell / AMD / Intel 各会咋走？
+
+### 22.1 为啥会有"悄悄 no-op"（不总是个错误）
+
+原因是 **dispatch 同时依赖两件事**：backend flag **和** 模型的量化配置。flag 是
+在 **每个量化方法的 `__init__` 里** 读的，不是顶层 dispatcher 统一处理。
+
+我们 MoE 上的具体对比：
+
+| 模型 dtype | 走的代码路径 | 读 `--moe-runner-backend cutlass`？ | 结果 |
+|---|---|---|---|
+| **bf16（未量化）** | `UnquantizedFusedMoEMethod.create_moe_runner()` | **不读** —— 代码硬编码 `MoeRunnerBackend.TRITON` | **悄悄 no-op**（我们的 C4） |
+| **FP8** | `Fp8MoEMethod.__init__()` | **读** —— 显式 `if get_moe_runner_backend().is_cutlass(): …` | 要么用 cutlass（assert 过了），要么 AssertionError |
+
+FP8 路径其实写得很对
+（[`sglang/srt/layers/quantization/fp8.py:678-686`](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/layers/quantization/fp8.py)）：
+
+```python
+class Fp8MoEMethod(FusedMoEMethodBase):
+    def __init__(self, quant_config):
+        ...
+        if get_moe_runner_backend().is_cutlass():
+            assert cutlass_fp8_supported(), \
+                "cutlass_fp8 MoE requires CUDA 12.0+ with SM90 or CUDA 12.4+ with SM89"
+            assert self.block_quant, "cutlass_fp8 MoE requires block quantization"
+            assert is_sm100_supported() or is_sm90_supported()
+```
+
+FP8 + CUDA 太老 → 清晰 AssertionError。
+
+bf16 路径根本没有这一分支
+（[`sglang/srt/layers/quantization/unquant.py:321-330`](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/layers/quantization/unquant.py)）：
+
+```python
+class UnquantizedFusedMoEMethod(FusedMoEMethodBase, MultiPlatformOp):
+    def create_moe_runner(self, layer, moe_runner_config):
+        backend = (MoeRunnerBackend.TRITON_KERNELS
+                   if self.use_triton_kernels
+                   else MoeRunnerBackend.TRITON)
+        self.runner = MoeRunner(backend, moe_runner_config)
+        # 完全没看 server_args.moe_runner_backend
+```
+
+**为什么这么设计**（从读源码猜，不是从 sglang 维护者那听来的）：
+
+1. **Cutlass MoE 是量化导向的优化**。cutlass 路径存在就是为了利用 Hopper/Blackwell
+   上 FP8/FP4 的 tensor core 吞吐。**根本没"bf16 cutlass MoE" kernel**
+   能在这个 shape 上比 Triton 快；维护者没写 bf16 cutlass 路径，因为没法赢。
+2. **`--moe-runner-backend` 默认 `auto`**。绝大多数用户根本不设这个 flag。代码假定
+   写 `cutlass` / `deep_gemm` 的人知道自己用的是什么量化。
+3. **每个缺失组合都报错会让 validation matrix 爆炸**：sglang 得维护 10-backend
+   × 8-quantization × 5-hardware 的兼容性表。他们选择只在 flag 真起作用的地方校验。
+
+**但对我们的使用场景（config A/B 测试，想知道 flag 被忽略了），这个 no-op 就是 bug**。
+目前只能靠 kernel-by-kernel trace diff 检测（§19.5 干的就是这事）。
+
+可以提 upstream 的补丁：
+
+```python
+# unquant.py UnquantizedFusedMoEMethod.create_moe_runner 里
+requested = get_moe_runner_backend()
+if requested != MoeRunnerBackend.AUTO and requested != MoeRunnerBackend.TRITON \
+        and requested != MoeRunnerBackend.TRITON_KERNELS:
+    logger.warning(
+        f"--moe-runner-backend={requested.value} is ignored for unquantized "
+        f"(bf16/fp16) MoE; falling back to TRITON. "
+        f"Use --quantization fp8 to enable cutlass/deep_gemm backends.")
+```
+
+### 22.2 是的 —— sglang 支持的每个模型都是手写实现的
+
+`sglang/srt/models/` 里 **每个模型架构一个 Python 文件**。每个文件定义
+`nn.Module` 类，用 sglang 自己的原语（不是 transformers 的）构造 forward。
+
+具体例子 ——
+[`sglang/srt/models/qwen3_moe.py`](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/models/qwen3_moe.py)，
+我们 benchmark 的那个：
+
+```python
+# import 显示用了什么 *替代* transformers
+from sglang.srt.distributed import get_moe_expert_parallel_world_size, get_pp_group
+from sglang.srt.layers.linear import RowParallelLinear, ColumnParallelLinear
+from sglang.srt.layers.moe.fused_moe_triton.layer import FusedMoE     # ← 我们的 fused_moe_kernel
+from sglang.srt.layers.radix_attention import RadixAttention            # ← @register_split_op 边界
+from sglang.srt.layers.vocab_parallel_embedding import VocabParallelEmbedding
+from transformers import PretrainedConfig  # ← 只用 config 数据类
+
+# Layer 类
+class Qwen3MoeSparseMoeBlock(nn.Module):
+    def forward(self, hidden_states, ...): ...        # 自己写的 forward
+    def forward_normal(self, ...): ...
+    def forward_deepep(self, ...): ...                 # expert parallel 变体
+
+class Qwen3MoeAttention(nn.Module):
+    def __init__(self, ...):
+        ...
+        self.o_proj = RowParallelLinear(...)
+        self.attn = RadixAttention(...)               # sglang 的 KV-cache-aware attention
+    def forward(self, ...): ...
+```
+
+forward 用的是 **sglang 自己的 layer**：
+
+| 概念 | HuggingFace transformers | sglang |
+|---|---|---|
+| Linear | `nn.Linear` | `RowParallelLinear` / `ColumnParallelLinear`（TP 感知） |
+| Attention | `Qwen3Attention.forward`（Q/K/V proj + SDPA） | `RadixAttention`（KV-cache 感知、FlashAttention、paged） |
+| MoE FFN | `Qwen3MoeSparseMoeBlock`（Python 循环遍历专家） | `FusedMoE` → `fused_moe_kernel`（一个 Triton kernel） |
+| Vocab embedding | `nn.Embedding` | `VocabParallelEmbedding`（TP 分片） |
+| RoPE | `apply_rotary_pos_emb` | `flashinfer.BatchQKApplyRotaryPosIdsCosSinCacheEnhancedKernel` |
+| RMSNorm | `Qwen3RMSNorm` | `flashinfer.FusedAddRMSNormKernel`（融合 residual add） |
+
+sglang **用** transformers 的：**只用 `PretrainedConfig`**（解析 `config.json` 的数据类）。
+模型 **权重** 是用 sglang 自己的 weight loader 直接从 `safetensors` 加载
+（`sglang/srt/model_loader/loader.py`）。
+
+**为啥完全重写**？三个原因：
+
+1. **张量并行 / 专家并行**：transformers 模型是单卡的。sglang 需要把权重在 TP 上分片、
+   把 token 在 EP 上 dispatch、跨 PP 收集。要给 transformers 的类加上这些，本来就要
+   重写绝大部分 layer。
+2. **自定义 kernel**：transformers 用 `torch.nn.Linear`（cuBLAS GEMM）和
+   `F.scaled_dot_product_attention`（PyTorch SDPA）。sglang 想用 `flashinfer`
+   / `fa3` / `triton` kernel，带 KV-cache 感知、paged attention、prefix sharing ——
+   这些 transformers 都不支持。
+3. **量化集成**：sglang 直接把 FP8/FP4/INT8 权重加载到量化感知的 layer 类
+   （`Fp8MoEMethod` 等）。HF 的 `bitsandbytes` 集成通用但不够快。
+
+**对我们工作流的影响**：
+
+- 新模型架构 = `sglang/srt/models/` 加一个 Python 文件。**没文件 = 不支持。**
+- 即使底层 op 是"标准 transformer"（Gemma-4 基本就是），也没有自动推导 ——
+  得有人把 config 字段和权重名映射到 sglang 的 layer 类。
+- 同一个模型 在 `huggingface_hub` 上，但 *运行时* 是 sglang 的，不是 transformers 的。
+  数值输出可能略有差异（不同 RoPE epsilon、不同 attention mask 约定等等）——
+  sglang 模型文件总在注释里写参考的 HF 实现 + 尽量对齐。
+
+`sglang/srt/models/*.py` 在 0.5.12 上的数量：
+
+```bash
+$ ls sglang/srt/models/*.py | wc -l
+~120 个文件  # ~75 个模型家族（部分有 *_mm.py 多模态变体）
+```
+
+这是 *很大量* 的手写代码。新家族按需添加（Gemma-4 等有人写 `gemma4.py` 才会出现）。
+
+### 22.3 Backend 选择逻辑 —— 详细 walkthrough
+
+源码：[`sglang/srt/server_args.py:1772-1850`](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/server_args.py)
+`_handle_attention_backend_compatibility()`（启动时跑一次，模型加载前）。
+
+#### Step 1 —— 检查用户有没有设 prefill/decode 单独的 backend
+
+```python
+if self.prefill_attention_backend is not None and (
+    self.prefill_attention_backend == self.decode_attention_backend
+):
+    # 用户两个都设成同一个 → 提升为全局 attention_backend
+    self.attention_backend = self.prefill_attention_backend
+```
+
+用户传 `--prefill-attention-backend fa3 --decode-attention-backend fa3` 等于
+`--attention-backend fa3`。如果不同，后面构造 **hybrid attention backend**
+（Step 4）。
+
+#### Step 2 —— 用户没设 `--attention-backend`，自动选
+
+**这是 fallback 链唯一发生的地方**（per §21）。按模型是不是用 MLA
+（Multi-head Latent Attention，DeepSeek-V2 风格）分两条并行链。
+
+##### Step 2a —— MHA 模型（Llama、Qwen、Gemma 等）
+
+决策树（`server_args.py:1797-1818`）：
+
+```
+                        ┌──────────────────────────────┐
+                        │ 用户没传                      │
+                        │ --attention-backend          │
+                        └──────────────┬───────────────┘
+                                       │
+                  ┌────────────────────┴────────────────────┐
+                  │ is_hopper_with_cuda_12_3()  AND          │
+                  │ is_no_spec_infer_or_topk_one(self)      │
+                  └────────────────────┬────────────────────┘
+                                       │
+                是（H100、H200）──────► attention_backend = "fa3"   ★
+                                       │
+                                       否
+                                       │
+                  ┌────────────────────┴────────────────────┐
+                  │ is_sm100_supported()  AND               │
+                  │ is_no_spec_infer_or_topk_one(self)  AND │
+                  │ （无 spec 或 eagle topk 已设）           │
+                  └────────────────────┬────────────────────┘
+                                       │
+                是（B200/GB200/B300）──► attention_backend = "trtllm_mha"
+                                       │
+                                       否
+                                       │
+                  ┌────────────────────┴────────────────────┐
+                  │ is_hip()（AMD GPU）                     │
+                  └────────────────────┬────────────────────┘
+                                       │
+                                  是 ──► attention_backend = "aiter"
+                                       │
+                                       否
+                                       │
+                  ┌────────────────────┴────────────────────┐
+                  │ is_flashinfer_available()（Python 包）  │
+                  └────────────────────┬────────────────────┘
+                                       │
+                  是 ──► attention_backend = "flashinfer"
+                  否 ──► attention_backend = "triton"  （总能跑的默认）
+```
+
+源码注释：
+
+> 1. MHA 架构模型（如 Llama、QWen）
+>    1.1 hopper 上开 **fa3**，除非用户开 spec decode 且 topk > 1，或 page_size > 1。
+>    1.2 SM100/SM103（Blackwell B200/GB200/B300）用 **trtllm_mha**，spec topk > 1 除外。
+>        注意：trtllm_mha 不支持 SM120，会 fall back 到 flashinfer。
+>    1.3 其他情况，**flashinfer 可用就用，否则 triton**。
+
+##### Step 2b —— MLA 模型（DeepSeek-V2、V3、R1）
+
+```
+                        ┌──────────────────────────────┐
+                        │ 用户没传                     │
+                        │ --attention-backend          │
+                        │ 且模型用 MLA                 │
+                        └──────────────┬───────────────┘
+                                       │
+                  ┌────────────────────┴────────────────────┐
+                  │ is_hopper_with_cuda_12_3()              │
+                  └────────────────────┬────────────────────┘
+                                       │
+                是（H100、H200）──────► attention_backend = "fa3"
+                                       │
+                                       否
+                                       │
+                  ┌────────────────────┴────────────────────┐
+                  │ is_sm100_supported()                    │
+                  └────────────────────┬────────────────────┘
+                                       │
+                是（Blackwell）────────► attention_backend = "flashinfer"
+                                       │
+                                       否
+                                       │
+                  ┌────────────────────┴────────────────────┐
+                  │ is_hip()（AMD）                         │
+                  └────────────────────┬────────────────────┘
+                                       │
+                是 ──► aiter（如果 head_num == 128 或 16）
+                是 ──► triton（其他）
+                                       │
+                                       否
+                                       │
+                                  ───► attention_backend = "triton"
+```
+
+#### Step 3 —— 某些 backend 的副作用
+
+选完 backend，系统可能进一步关掉 backend 不支持的特性
+（`server_args.py:1840-1860`）：
+
+```python
+if self.attention_backend == "torch_native":
+    logger.warning("Cuda graph is disabled because of using torch native attention backend")
+    self.disable_cuda_graph = True
+
+if self.attention_backend == "flex_attention":
+    logger.warning("Cuda graph is disabled because of using torch Flex Attention backend")
+    self.disable_cuda_graph = True
+    assert (self.speculative_algorithm is None), "..."
+```
+
+每个 backend 有自己的怪癖；sglang 悄悄禁用不兼容的特性 + log 警告。
+
+#### Step 4 —— Hybrid backend（per-stage）
+
+用户设 `--prefill-attention-backend X --decode-attention-backend Y` 且 X≠Y，
+sglang 构造 **HybridAttnBackend** 按 batch 分发
+（`model_runner.py:1755-1779`）：
+
+```python
+if self.decode_attention_backend_str != self.prefill_attention_backend_str:
+    attn_backend = HybridAttnBackend(
+        decode_backend=self._get_attention_backend_from_str(self.decode_attention_backend_str),
+        prefill_backend=self._get_attention_backend_from_str(self.prefill_attention_backend_str),
+    )
+    logger.warning("…experimental and unstable…")
+```
+
+（实验性 —— sglang 自己说得很大声。）
+
+#### Step 5 —— 真正加载 backend
+
+`model_runner.py:1792-1799`：
+
+```python
+def _get_attention_backend_from_str(self, backend_str, ...):
+    if backend_str not in ATTENTION_BACKENDS:
+        raise ValueError(f"Invalid attention backend: {backend_str}")
+    full_attention_backend = ATTENTION_BACKENDS[backend_str](self)
+    return attn_backend_wrapper(self, full_attention_backend)
+```
+
+Backend 的构造函数在这里跑。**抛异常 server 退出。** 这就是 §21 的 Layer C
+—— 显式 backend、无 fallback。
+
+#### Step 6 —— 按硬件具体走法
+
+| 硬件 | 模型 | 自动路径 → 最终 backend | 为啥 |
+|---|---|---|---|
+| **H100 / H200** | MHA（Qwen、Llama、Gemma） | `fa3` | hopper + CUDA 12.3 + 标准推理路径 |
+| H100 / H200 | MHA + `--speculative-eagle-topk 4` | `flashinfer` 或 `triton` | spec decode topk > 1 → 落到一般链 |
+| H100 / H200 | MHA + `--page-size 2` | `flashinfer` 或 `triton` | page > 1 → 落到一般链 |
+| **H100 / H200** | MLA（DeepSeek） | `fa3` | 同样 hopper 检测 |
+| **B200 / GB200 / B300** | MHA | `trtllm_mha` | SM100/103 检测到 |
+| **B200 / GB200 / B300** | MHA + spec topk > 1 | `flashinfer` 或 `triton` | trtllm 不支持 |
+| **B200 / GB200 / B300** | MLA | `flashinfer` | Blackwell 上的 MLA path |
+| RTX 5090（SM120） | 任意 | `flashinfer` 或 `triton` | SM120 不被 trtllm 支持；auto 跳过 |
+| **AMD MI300X / MI300A** | MHA | `aiter` | `is_hip()` 为真 |
+| AMD MI300X | MLA | `aiter`（128 或 16 个 head）或 `triton` | aiter 受限 |
+| **Intel Gaudi / Xeon**（CPU AMX） | 任意 | 只有显式指定 `intel_amx` 才会用，否则要手动配置 | Intel 路径不在 auto 链里 —— 要显式 `--attention-backend intel_amx` |
+| **A100**（SM80） | MHA | flashinfer 装了就用，否则 `triton` | A100 不是 hopper；trtllm 要 sm90+ |
+| A100 | MLA | `triton` | SM80 没有 MLA 快路径 |
+
+**"总能跑的默认"永远是 `triton`** —— 纯 Python + PyTorch + Triton kernel，
+不依赖任何专有 CUDA 库。比 fa3/flashinfer/trtllm 在支持的硬件上慢，但
+CUDA 能跑的地方它都能跑。
+
+#### Step 7 —— MoE / sampling / gemm backend 也类似
+
+"auto + per-hardware 链 + 显式-无-fallback" 这套模式在好几个 dispatcher 重复：
+
+- `--moe-runner-backend`（auto → bf16 上 triton；FP8 path 可能选 deep_gemm）
+- `--sampling-backend`（auto → CUDA 上 flashinfer，CPU 上 pytorch）
+- `--fp8-gemm-backend`（auto → deep_gemm 装了就用，否则 triton）
+- `--fp4-gemm-backend`（默认 `flashinfer_cutlass`）
+- `--moe-a2a-backend`（默认 `none`，可以 `deepep`/`mooncake` 等）
+
+各自的 dispatcher 在 `server_args.py` 或相关 layer 模块里，但都遵循 Layer B
+（auto）/ Layer C（显式硬 fail）/ 有时 Layer D（代码不读 flag 就悄悄 no-op）。
+
+### 22.4 一段话总结 —— 三个答案
+
+**为啥悄悄 no-op 而不是"cutlass 不可用"报错**：Backend dispatch 是
+**per-量化-方法** 的，不是集中式的。Cutlass MoE 路径只存在于
+`Fp8MoEMethod.__init__()`（正确地 `assert`）。bf16 path
+（`UnquantizedFusedMoEMethod`）根本没有 cutlass 分支 —— 也不读
+`--moe-runner-backend`，硬编码 Triton。所以给 bf16 模型传 `cutlass` 悄悄选了 Triton。
+架构原因是 cutlass MoE 只对 FP8/FP4 有意义（cutlass MoE kernel 就是为这个写的）；
+没人写 bf16 cutlass 路径因为 Triton 已经赢了。
+
+**是的，每个支持的模型都是手写实现的**：`sglang/srt/models/` 里 ~120 个 Python
+文件。每个定义 `nn.Module` 类，用 sglang 自己的原语（`RowParallelLinear`、
+`FusedMoE`、`RadixAttention`、`VocabParallelEmbedding`）构造 forward，不用
+transformers 的类。Sglang **只用** transformers 的 `PretrainedConfig` 数据类
+解析 `config.json`。权重直接从 `safetensors` 加载。新模型 = `sglang/srt/models/`
+加新 Python 文件。这就是 Gemma-4 失败的原因 —— 没 `gemma4.py`。
+
+**Backend 选择逻辑，3 行总结**：启动时
+（`server_args.py:_handle_attention_backend_compatibility`），用户**没**传
+`--attention-backend` 的话，sglang 按硬件感知链选：**H100/H200 → fa3；
+Blackwell → trtllm_mha；AMD → aiter；其他 → flashinfer 装了就用，否则
+triton**。用户**传了** flag，sglang 严格用那个 backend，**加载失败就 raise**
+（无 fallback）。MLA 模型（DeepSeek）走另一条更简单的链
+（hopper 上 fa3，Blackwell 上 flashinfer，其他 triton）。"总能跑"的默认是
+**triton** —— 纯 Python + PyTorch + Triton，无专有依赖。
