@@ -6431,3 +6431,267 @@ Knowing the import mechanism precisely tells us where an optimisation agent coul
 ### 30.5 One-paragraph summary for Debadeepta / Mason
 
 > **Sglang does NOT parse PyTorch source, does NOT pattern-match, does NOT auto-generate kernels.** Each supported model has a **hand-written Python class** in `sglang/srt/models/<arch>.py` (written by sglang maintainers) that re-implements the forward using sglang's optimised layer primitives (`RadixAttention`, `FusedMoE`, `RowParallelLinear`). At import time, sglang reads `config.json`'s `architectures` field, looks up the class in a static `ModelRegistry`, instantiates it, and loads weights via a **per-model hand-written translation dictionary** (`stacked_params_mapping` + `expert_params_mapping`) that maps HF safetensors names → sglang parameter names. Kernel choice happens **inside each layer's `forward()`**, driven by `--*-backend` flags + hardware + quantization config (§21-§29). The 5-stage failure model is: (1) `transformers.AutoConfig` doesn't know `model_type` → fail (Gemma-4 hits this); (2) arch missing from sglang ModelRegistry → fall back to `TransformersForCausalLM` wrapper IF transformers has it (§28); (3-4) layer init / weight shape mismatch → fail; (5) backend JIT / CUDA graph hang → fail or hang (our C5, C7 hit this). **There is no "pattern with no kernel" because patterns aren't what dispatch — flags + hardware + quant-config are.** An optimisation agent therefore inserts most cheaply at the flag/dispatch layer (Stage 5) or per-shape kernel-tuning layer (L5), with progressively more expertise needed to insert at layer source (Stage 3 layer-choice) or kernel source (L4 kernel rewrite).
+
+## 31. Deep dive on Q4 — what's in a HF model dir, how transformers "recognises" a model, and sglang's full fallback chain
+
+> 🟢 NEW. Follow-up to §30.3 Q4: how exactly does the arch-lookup fallback work?
+> What's actually inside a HF model directory? How does the transformers
+> library identify the model — does it parse the model files? How does it know
+> what class to instantiate?
+
+### 31.1 What's actually inside a HF model dir? (not PyTorch source)
+
+Real inspection of our `/data/hf/models/Qwen3-30B-A3B-Instruct-2507/`:
+
+```
+config.json                     ← JSON (not code) — model hyperparameters
+generation_config.json          ← JSON — sampling defaults
+tokenizer.json + tokenizer_config.json + merges.txt + vocab → tokenizer files
+model-00001-of-00016.safetensors  ← binary tensor data
+model-00002-of-00016.safetensors
+... (16 shards total)
+model.safetensors.index.json    ← index of which tensor lives in which shard
+```
+
+**There are NO `.py` files.** A typical HuggingFace model directory ships:
+
+| File type | Format | Content |
+|---|---|---|
+| `config.json` | JSON | model hyperparameters (`hidden_size`, `num_layers`, `model_type`, `architectures`, ...) — **NOT code** |
+| `*.safetensors` | binary (HF's own format) | **Raw PyTorch tensors serialised**, plus metadata for keys/dtypes/shapes. No Python code. |
+| `*.bin` (older format) | PyTorch pickle | `torch.save()` output, pickle binary |
+| `tokenizer.json` | JSON | tokenizer vocab + merge rules |
+| `chat_template.jinja` | Jinja2 template | chat format (not forward-related) |
+
+**Exception: trust-remote-code models** ship a `modeling_*.py` file alongside `config.json` with an `auto_map` field, allowing arbitrary Python code in the model dir. We do NOT use these — Qwen3-30B-A3B doesn't ship one.
+
+**So a HF model dir is config + weights + tokenizer. The forward code lives elsewhere** — either in transformers' own source tree or in sglang's `models/*.py`. The model files themselves are pure data.
+
+### 31.2 How transformers "recognises" your model — internal mapping tables
+
+It's NOT by parsing files in the model directory. It's by **dictionary lookup** in tables baked into the transformers library source.
+
+Two key tables (`transformers/models/auto/configuration_auto.py` + `modeling_auto.py`):
+
+```python
+# Approximate; actual table is a few hundred lines
+CONFIG_MAPPING_NAMES = OrderedDict([
+    ("qwen3_moe",       "Qwen3MoeConfig"),
+    ("qwen3",           "Qwen3Config"),
+    ("gemma3",          "Gemma3Config"),
+    ("gemma2",          "Gemma2Config"),
+    ("llama",           "LlamaConfig"),
+    ("mistral",         "MistralConfig"),
+    ...
+    # NOTE: "gemma4" is NOT in this table in transformers 4.57.1 ← root cause of Gemma-4 failure
+])
+
+MODEL_FOR_CAUSAL_LM_MAPPING_NAMES = OrderedDict([
+    ("qwen3_moe",       "Qwen3MoeForCausalLM"),
+    ("gemma3",          "Gemma3ForCausalLM"),
+    ("llama",           "LlamaForCausalLM"),
+    ...
+])
+```
+
+These tables map the `model_type` string from `config.json` to **Python class names that live in the transformers library's own source tree** (`transformers/models/qwen3_moe/modeling_qwen3_moe.py`, etc.).
+
+**Flow when you call `AutoConfig.from_pretrained(model_path)`**:
+
+```
+1. Read model_path/config.json
+2. Extract model_type field (e.g. "qwen3_moe")
+3. Look up CONFIG_MAPPING_NAMES["qwen3_moe"] → "Qwen3MoeConfig"
+4. Import transformers.models.qwen3_moe.configuration_qwen3_moe.Qwen3MoeConfig
+5. Instantiate Qwen3MoeConfig from the JSON dict
+6. Return config object
+
+If step 3 fails (model_type not in table):
+    raise ValueError("Transformers does not recognize this architecture")
+    ← Gemma-4 hits exactly here
+```
+
+Similarly `AutoModel.from_config(config)` uses `MODEL_FOR_CAUSAL_LM_MAPPING_NAMES` to find the class and instantiate it (weights uninitialised).
+
+**Then weights**: `model.load_state_dict(safetensors_data)` matches tensor names from the safetensors files to `nn.Parameter` names in the model. If shapes mismatch → ValueError. If names mismatch → unexpected/missing keys (warning by default, can be strict).
+
+**Key insight**: transformers has ~200 model classes pre-written in its own source tree. To "recognise" a model means "find a matching class in transformers source". No file parsing in your model dir; just dictionary lookup on `model_type` string.
+
+### 31.3 The sglang fallback chain in detail
+
+Source: [`sglang/srt/model_loader/utils.py:30-86`](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/model_loader/utils.py).
+
+```python
+def resolve_transformers_arch(model_config, architectures):
+    for i, arch in enumerate(architectures):
+        if arch == "TransformersForCausalLM":
+            continue
+
+        # Step 3a: Check if model dir provides custom model (trust_remote_code)
+        auto_map = getattr(model_config.hf_config, "auto_map", None) or dict()
+        auto_modules = {
+            name: get_class_from_dynamic_module(  # dynamically import .py from model_path
+                module, model_config.model_path, revision=model_config.revision
+            )
+            for name, module in sorted(auto_map.items())
+        }
+
+        # Step 3b: Check if transformers library has this arch built-in
+        model_module = getattr(transformers, arch, None)
+
+        if model_module is None:
+            # transformers doesn't have it
+            if "AutoModel" not in auto_map:
+                # No custom model either → no recourse
+                raise ValueError(
+                    f"Cannot find model module. '{arch}' is not a registered "
+                    "model in the Transformers library and 'AutoModel' is "
+                    "not present in the model config's 'auto_map'."
+                )
+            model_module = auto_modules["AutoModel"]  # use custom model
+
+        # Step 3c: Compatibility check — does this transformers class
+        # support the attn_implementation="sglang" hook?
+        if hasattr(model_module, "is_backend_compatible") and not model_module.is_backend_compatible():
+            raise ValueError(
+                f"{arch} has no SGlang implementation and the Transformers "
+                "implementation is not compatible with SGLang."
+            )
+
+        # Step 3d: All checks passed → swap arch name to use the wrapper
+        logger.warning("%s has no SGLang implementation, falling back to "
+                       "Transformers implementation.", arch)
+        architectures[i] = "TransformersForCausalLM"
+
+    return architectures
+```
+
+### 31.4 What `TransformersForCausalLM` wrapper actually does
+
+Source: [`sglang/srt/models/transformers.py:140`](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/models/transformers.py).
+
+The wrapper **grafts a transformers model onto sglang's infrastructure**:
+
+```python
+class TransformersForCausalLM(nn.Module):
+    def __init__(self, config, ...):
+        # 1. Let transformers instantiate its OWN model class,
+        #    but with attn_implementation="sglang" so all attention calls
+        #    route to a custom hook (registered below)
+        self.model = AutoModel.from_config(
+            config,
+            attn_implementation="sglang",
+            trust_remote_code=True,
+        )
+
+        # 2. Walk the model, replace transformers' nn.Linear with sglang's
+        #    ColumnParallelLinear / RowParallelLinear (using transformers'
+        #    base_model_tp_plan to know which dimension to shard)
+        self.tensor_parallel(tp_size)
+
+        # 3. Replace vocab embedding with sglang's VocabParallelEmbedding
+        self.replace_vocab_embed_class(self.model)
+
+        # 4. Create one sglang RadixAttention per layer
+        self.attention_instances = [
+            RadixAttention(num_heads, head_dim, ..., layer_id=i)
+            for i in range(num_layers)
+        ]
+```
+
+**The critical hook** (lines 62-83):
+
+```python
+def sglang_flash_attention_forward(module, query, key, value, ..., attention_instances, ...):
+    # Called by transformers' attention code through attn_implementation="sglang"
+    self_attn: RadixAttention = attention_instances[module.layer_idx]
+    # Route transformers' Q/K/V into sglang's RadixAttention (which uses fa3)
+    return self_attn.forward(query, key, value, forward_batch=forward_batch), None
+
+# Register in transformers' global attention dispatch table
+ALL_ATTENTION_FUNCTIONS["sglang"] = sglang_flash_attention_forward
+```
+
+**What this wrapper achieves**:
+
+| Component | Source | Performance |
+|---|---|---|
+| Forward graph (residual, norm, MLP order) | **transformers**' Python code | Same as transformers eager |
+| Linear projections (Q, K, V, gate, up, down) | sglang's TP-aware Linear | TP-sharded; uses cuBLAS |
+| Attention | sglang's `RadixAttention` (via hook) | **fa3 on H200** ← KV-cache-aware, fast |
+| Vocab embedding | sglang's `VocabParallelEmbedding` | TP-sharded |
+| RMSNorm / RoPE / activation | **transformers**' Python code | Slow (PyTorch native, not flashinfer) |
+| **MoE (if MoE model)** | **transformers**' Python loop over experts | **Very slow — no `fused_moe_kernel`** |
+
+**Net result**: a wrapped transformers model runs but loses the biggest optimisation (`fused_moe_kernel`). Expected throughput is multiple times worse than native sglang for MoE models. For dense models it's somewhat closer (attention is still fast via the hook), but still slower because RMSNorm/RoPE/activation use slow PyTorch native code.
+
+### 31.5 Full 5-stage failure chart with Gemma-4 as the worked example
+
+```
+sglang.launch_server --model-path <X>
+   │
+   ▼
+Step 1: transformers.AutoConfig.from_pretrained(X)
+        Reads config.json's model_type field
+   │
+   ├──❌ model_type not in transformers' CONFIG_MAPPING_NAMES
+   │     → ValueError, server exits
+   │     ★★★ GEMMA-4 HITS HERE ★★★
+   │     (transformers 4.57.1 doesn't know "gemma4")
+   │
+   ▼ ✅ pass
+Step 2: sglang ModelRegistry.resolve_model_cls(["Qwen3MoeForCausalLM"])
+   │
+   ├──❌ arch not in sglang's models/*.py registry
+   │     → enter resolve_transformers_arch()
+   │     │
+   │     ├──❌ arch not in transformers, and no auto_map in config.json
+   │     │     → ValueError, server exits
+   │     │
+   │     ├──❌ arch in transformers, but is_backend_compatible() == False
+   │     │     → ValueError ("not compatible with SGLang"), server exits
+   │     │
+   │     ▼ ✅ pass
+   │     arch renamed to "TransformersForCausalLM"
+   │     → uses sglang/srt/models/transformers.py wrapper
+   │     → MoE uses transformers' Python expert loop (no fused_moe_kernel)
+   │     → attention uses sglang's RadixAttention (still fast)
+   │     → ⚠️ slow but runs
+   │
+   ▼ ✅ sglang has qwen3_moe.py
+   Use sglang/srt/models/qwen3_moe.py (full optimised path)
+   │
+   ▼
+Step 3: Layer construction (model class .__init__)
+Step 4: Weight loading (safetensors → state_dict)
+Step 5: Backend init + CUDA graph capture + warmup
+```
+
+### 31.6 Why Gemma-4 specifically fails — root cause
+
+The chain stops at Step 1 because:
+
+```python
+>>> from transformers import AutoConfig
+>>> AutoConfig.from_pretrained('/data/hf/models/gemma-4-26B-A4B-it', trust_remote_code=True)
+ValueError: The checkpoint you are trying to load has model type `gemma4` but
+Transformers does not recognize this architecture.
+```
+
+`transformers 4.57.1` ships ~200 model classes. `gemma4` is too new — Google released the model before the transformers maintainers added support. The `CONFIG_MAPPING_NAMES` table simply doesn't have an entry for `"gemma4"` yet, so the very first config parse step raises.
+
+**The sglang fallback to `TransformersForCausalLM` (§28.1) is unreachable** — we never get past Step 1 to even start the sglang path.
+
+### 31.7 Three fix options for Gemma-4
+
+| Option | How | Time | Risk |
+|---|---|---|---|
+| 1. **Upgrade transformers** | `pip install -U transformers` or `pip install git+https://github.com/huggingface/transformers.git` (if main has gemma4 but no release yet) | 5 min | May break flashinfer / sglang ABI compat with other things |
+| 2. **Bundle a `modeling_gemma4.py` in the model dir** | Write a custom model file in `/data/hf/models/gemma-4-26B-A4B-it/`, add `auto_map: {"AutoConfig": "configuration_gemma4.Gemma4Config", "AutoModel": "modeling_gemma4.Gemma4ForCausalLM"}` to `config.json`, run sglang with `--trust-remote-code` | 1-3 days | Need to write a working transformers-compatible model class for Gemma-4 |
+| 3. **Write `sglang/srt/models/gemma4.py`** | Hand-write the sglang-native model class, register in `EntryClass`, get full fast path | 2-3 days | Most code work but best performance; upstream-able |
+
+**Recommended**: try option 1 first. If transformers main has `gemma4`, you get the slow `TransformersForCausalLM` path for free; if it works, then option 3 becomes the future optimisation.
+
+### 31.8 One-paragraph summary
+
+> A HF model directory contains **only** `config.json` (model hyperparameters, NOT code), `*.safetensors` (raw PyTorch tensors serialised, NOT code), tokenizer files, and optional chat templates. **There's no PyTorch source in the model dir** — the forward code lives in the **transformers library's own source tree** (`transformers/models/<model_type>/modeling_*.py`), where ~200 model classes are pre-written. transformers "recognises" a model by **dictionary lookup**: `config.json`'s `model_type` field is used to look up which class to instantiate from `CONFIG_MAPPING_NAMES` / `MODEL_FOR_CAUSAL_LM_MAPPING_NAMES`. **No file parsing happens in the model dir** unless it's a trust-remote-code model with bundled `modeling_*.py`. When sglang can't find a native implementation, it calls `resolve_transformers_arch` (`model_loader/utils.py:30`), which checks: (a) does transformers have this arch? (b) does the arch's `is_backend_compatible()` return True? If both pass, sglang swaps the arch name to `TransformersForCausalLM` and uses a **wrapper class** (`sglang/srt/models/transformers.py`) that lets transformers run its own forward but **replaces linear / attention / vocab-embed layers** with sglang's TP-aware versions, hooking attention through `attn_implementation="sglang"` to route to sglang's `RadixAttention` (fa3). For MoE models, this wrapper **does NOT use `fused_moe_kernel`** — the MoE expert loop runs in transformers' Python code, multiple times slower than the native sglang path. **Gemma-4 fails because transformers 4.57.1 doesn't know `model_type="gemma4"` yet** — the very first `AutoConfig.from_pretrained` call raises ValueError, so the sglang fallback chain is unreachable. Fix: upgrade transformers, bundle a custom `modeling_gemma4.py` in the model dir with `auto_map`, or write a native `sglang/srt/models/gemma4.py`.
