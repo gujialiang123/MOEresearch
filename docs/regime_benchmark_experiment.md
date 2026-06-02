@@ -5879,3 +5879,164 @@ The reason production LLM serving doesn't use Inductor on the hot path:
 - **Default `fused_moe_kernel` is fastest** for bf16 MoE on H200, by a wide margin.
 - **Real optimisation gains** require either FP8 quantization (unlocks the cutlass path inside `Fp8MoEMethod`) or hand-rewriting `fused_moe_kernel` (§25.4).
 - **Inductor is essentially unused** in the hot path — 23 `@torch.compile` decorators in sglang for trivial helpers only, contributing 0.00 % of GPU time. "Low-hanging fruit" optimisations are gated on first fixing the `--enable-torch-compile` failure (1-2 days, per §26.5).
+
+## 28. CORRECTION to §21 + §22: sglang DOES have transformers fallback (and why Gemma-4 still fails)
+
+> 🟡 IMPORTANT CORRECTION. §21.2 and §22.1 said "sglang has no transformers
+> fallback at all". **That was wrong.** sglang has a `--model-impl auto/transformers`
+> flag that DOES fall back to transformers when the native sglang implementation
+> is missing. This section corrects the record and gives the real reason Gemma-4
+> fails: not sglang, but transformers itself doesn't know `gemma4` yet.
+
+### 28.1 The real fallback mechanism — `--model-impl`
+
+Source: [`sglang/srt/configs/model_config.py:47-51`](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/configs/model_config.py):
+
+```python
+class ModelImpl(str, Enum):
+    AUTO = "auto"          # default — try sglang first, fall back to transformers
+    SGLANG = "sglang"       # force sglang's native implementation
+    TRANSFORMERS = "transformers"  # force transformers fallback
+    MINDSPORE = "mindspore"
+```
+
+The `--model-impl auto` (default) decision logic
+([`sglang/srt/model_loader/utils.py:103-117`](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/model_loader/utils.py)):
+
+```python
+supported_archs = ModelRegistry.get_supported_archs()
+is_native_supported = any(arch in supported_archs for arch in architectures)
+
+if model_config.model_impl == ModelImpl.MINDSPORE:
+    architectures = ["MindSporeForCausalLM"]
+elif not is_native_supported or model_config.model_impl == ModelImpl.TRANSFORMERS:
+    architectures = resolve_transformers_arch(model_config, architectures)
+return ModelRegistry.resolve_model_cls(architectures)
+```
+
+And `resolve_transformers_arch()` at
+[`utils.py:71-86`](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/model_loader/utils.py):
+
+```python
+if model_config.model_impl == ModelImpl.AUTO:
+    if hasattr(model_module, "is_backend_compatible") and not model_module.is_backend_compatible():
+        raise ValueError(
+            f"{arch} has no SGlang implementation and the Transformers "
+            "implementation is not compatible with SGLang."
+        )
+    logger.warning(
+        "%s has no SGLang implementation, falling back to Transformers "
+        "implementation. Some features may not be supported and "
+        "performance may not be optimal.", arch,
+    )
+    architectures[i] = "TransformersForCausalLM"
+```
+
+So **the fallback DOES exist**: sglang transparently swaps the architecture name to `TransformersForCausalLM`, which is a generic wrapper at [`sglang/srt/models/transformers.py:142`](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/models/transformers.py) that delegates `forward()` to a transformers model. Performance will be worse (no custom kernels / KV cache integration), but it should run.
+
+### 28.2 So why does Gemma-4 still fail?
+
+Because **the failure is upstream of sglang** — `transformers` itself doesn't know `gemma4` yet. Verified:
+
+```python
+>>> from transformers import AutoConfig
+>>> AutoConfig.from_pretrained('/data/hf/models/gemma-4-26B-A4B-it', trust_remote_code=True)
+ValueError: The checkpoint you are trying to load has model type `gemma4` but
+Transformers does not recognize this architecture. This could be because of an
+issue with the checkpoint, or because your version of Transformers is out of date.
+```
+
+We have `transformers 4.57.1`. The model_type `gemma4` is **not in transformers' `CONFIG_MAPPING`**. So `AutoConfig.from_pretrained()` raises immediately.
+
+The actual failure chain:
+
+```
+1. sglang.launch_server --model-path /data/hf/models/gemma-4-26B-A4B-it
+                          ↓
+2. sglang/srt/configs/model_config.py:__init__ calls AutoConfig.from_pretrained(...)
+                          ↓
+3. transformers 4.57.1 sees model_type="gemma4"
+                          ↓
+4. ❌ ValueError raised immediately — server exits
+                          ↓
+              【Never reaches sglang's ModelRegistry, never reaches
+                 the transformers fallback path either】
+```
+
+**I was wrong about what error message we hit**. The previous sections claimed it was sglang's `KeyError: 'gemma4'` from its own model registry. Re-checking, the actual error is `transformers` library's `ValueError` — sglang isn't even involved at that point.
+
+### 28.3 Updated decision tree
+
+Revised §21.6 / §22 flowchart accounting for `--model-impl`:
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│ sglang.launch_server --model-path X --model-impl auto                │
+└──────────────────────────────┬─────────────────────────────────────┘
+                               │
+                ┌──────────────┴──────────────┐
+                │ AutoConfig.from_pretrained() │
+                │ — does transformers recognize │
+                │   config.json's model_type?  │
+                └──────────────┬──────────────┘
+                  NO ──► raise ValueError, server exits  (← Gemma-4 HITS HERE)
+                  YES ──► continue
+                               │
+                ┌──────────────┴──────────────┐
+                │ sglang ModelRegistry —      │
+                │ is arch in models/*.py?     │
+                └──────────────┬──────────────┘
+                  YES ──► use sglang's native model class (fast path)
+                  NO  ──► continue (NEW: fallback exists)
+                               │
+                ┌──────────────┴──────────────┐
+                │ Does transformers have this │
+                │ arch (TFModelClass)?        │
+                └──────────────┬──────────────┘
+                  NO ──► raise ValueError (transformers' own error)
+                  YES ──► continue
+                               │
+                ┌──────────────┴──────────────┐
+                │ Does TFModelClass.          │
+                │ is_backend_compatible()?    │
+                └──────────────┬──────────────┘
+                  NO ──► raise ValueError ("not compatible with SGLang")
+                  YES ──► rename arch to "TransformersForCausalLM"
+                          and use sglang/srt/models/transformers.py wrapper
+                          (slow path: no custom kernels, no KV cache opts)
+```
+
+### 28.4 How to actually run Gemma-4
+
+By feasibility:
+
+| Option | How | Cost |
+|---|---|---|
+| **Upgrade transformers** | `pip install -U transformers` or `pip install git+https://github.com/huggingface/transformers.git` (if no release contains gemma4 yet) | 5 min; may break sglang/flashinfer compat |
+| Edit `config.json` model_type to `gemma3` | depends on how different Gemma-4 architecture is from Gemma-3 (likely will fail to load weights cleanly) | 1-2 days debugging |
+| Wait for sglang to add `gemma4.py` | depends on upstream | indefinite |
+| Write `sglang/srt/models/gemma4.py` yourself | copy `gemma3_causal.py` + adapt for MoE block | 2-3 days |
+
+If transformers gets updated and recognises `gemma4`, then the sglang transformers-fallback path (§28.1) should kick in automatically — and we'd see `TransformersForCausalLM` in our trace (slow but functional).
+
+### 28.5 Implications for our broader analysis
+
+The §15-§27 analysis still stands — those experiments are all on Qwen3 (sglang has `qwen3_moe.py`) and Gemma-3 (sglang has `gemma3_causal.py`), so we never exercised the fallback path. But:
+
+- **§21.2 and §22.1 are incorrect** about there being no transformers fallback. Edit the previous sections in your head: sglang DOES have one, it's via `--model-impl auto` (default) → `resolve_transformers_arch`.
+- **The "hard fail at architecture registry" claim** is correct for models that aren't in either sglang OR transformers. It's wrong for models in transformers but not in sglang — those fall back to `TransformersForCausalLM`.
+- **Gemma-4's specific failure is not a sglang bug**, it's that transformers 4.57.1 doesn't have it yet. Upgrading transformers might solve it.
+
+### 28.6 Apology for the error
+
+When I wrote §21.2 and §22.1, I read sglang's `models/registry.py` and saw the hard `raise ValueError(...)` for unknown architectures. I missed `model_loader/utils.py:62-86` which intercepts BEFORE the registry lookup and inserts the transformers-fallback path. That was a real research mistake on my part.
+
+The mental model going forward:
+
+> sglang has TWO fallback paths:
+> 1. **Backend selection** (`--attention-backend auto`, `--moe-runner-backend auto`): per-hardware priority chain. Falls back automatically. (correctly described in §21.3)
+> 2. **Model implementation** (`--model-impl auto`): falls back to transformers when sglang doesn't have a native impl. (this section corrects the earlier omission)
+>
+> Both are real fallback chains. The "no fallback, hard fail" claim was correct only for the explicit-backend case (`--attention-backend X` where X can't load, §21.4), and for cases where neither sglang nor transformers know the architecture.
+
+The §21 / §22 walls of text aren't worth re-writing in place; this §28 is the corrected version of the model-architecture story. Please read it together with §21.6's flowchart — replace that flowchart with the one in §28.3.
