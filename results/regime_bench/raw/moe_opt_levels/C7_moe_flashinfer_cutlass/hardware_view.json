@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "config": "configs/moe_variants/C7_moe_flashinfer_cutlass.yaml",
+  "workload": "regime_scout/candidates_regime_study/R8_prefix_sharing.yaml",
+  "wall_window_s": 480.3,
+  "gpu_id": 0,
+  "gpu_sampling": {
+    "sample_count": 658,
+    "memory_used_mib_peak": 122058.0,
+    "memory_used_mib_mean": 116615.4,
+    "utilization_gpu_pct_mean": 0.3,
+    "utilization_gpu_pct_p95": 0.0,
+    "utilization_mem_pct_mean": 0.0,
+    "power_w_mean": 116.9,
+    "power_w_peak": 123.91,
+    "temperature_c_peak": 37.0,
+    "sm_clock_mhz_mean": 1940.0
+  },
+  "server_info_excerpt": {},
+  "profile_totals": null,
+  "profile_phase_breakdown_pct": null,
+  "profile_moe_overhead": null,
+  "profile_cuda_graph": null,
+  "top_kernels": [],
+  "kernel_category_pct": {},
+  "profile_warnings": null,
+  "profile_ok": false,
+  "rc": 2
+}

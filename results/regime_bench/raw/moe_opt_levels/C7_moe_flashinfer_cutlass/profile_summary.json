@@ -1,0 +1,5 @@
+{
+  "schema_version": 0,
+  "ok": false,
+  "error": "server did not become healthy within timeout"
+}

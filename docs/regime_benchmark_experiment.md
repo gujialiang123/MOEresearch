@@ -5698,3 +5698,184 @@ torch._dynamo.exc.AssertionError
 > `SiluAndMul` 折叠）是手写 kernel 的正确路径。要探索 Inductor 驱动的优化要先
 > 花 1-2 天修 sglang 的 `rotary_embedding.py:272` 让 Dynamo 能 trace，然后
 > 重测 C1 并查 trace 里 `triton_*_fused_*` kernel。
+
+## 27. Real kernel-swap experiment: C7 flashinfer_cutlass + C8 triton_kernel on MoE R8
+
+> 🟢 NEW. Per §22-§26, only 2 of the 10 `--moe-runner-backend` values
+> actually swap the bf16 MoE kernel: `triton_kernel` and `flashinfer_cutlass`.
+> §15-§19 covered the silent-no-op cases. This section runs **the real ones**
+> to see if swapping the kernel actually wins performance.
+>
+> Also serves as worked example of "what happens when you really swap the
+> kernel" vs the silent-no-op cases (§19 C4).
+
+### 27.1 Setup
+
+Both cells run against R8 prefix sharing (MoE's throughput champion):
+
+- **C7** = baseline + `--moe-runner-backend flashinfer_cutlass`. Calls flashinfer's `flashinfer_cutlass_fused_moe` (NOT our Triton `fused_moe_kernel`). Requires weight re-permute at load time.
+- **C7b** = C7 + `--disable-cuda-graph` (because C7 hangs during graph capture).
+- **C8** = baseline + `--moe-runner-backend triton_kernel`. Calls `triton_kernels` library's `matmul_ogs` (still Triton, but a different library).
+
+### 27.2 Results
+
+| Cell | Status | Req/s | Out tok/s | TTFT mean | TPOT mean | E2E p99 | vs C0 |
+|---|---|---|---|---|---|---|---|
+| **C0 baseline** (Triton `fused_moe_kernel`) | ✅ PASS | 5.23 | **1 339** | 379 ms | 22.5 ms | 10 081 ms | 0 % |
+| **C7** flashinfer_cutlass | ❌ FAIL | — | — | — | — | — | hung during CUDA graph capture |
+| **C7b** flashinfer_cutlass + disable-cuda-graph | ❌ FAIL | — | — | — | — | — | server health stayed 503 (never warmed up) |
+| **C8** triton_kernel | ✅ PASS | 0.75 | **192** | 4 182 ms | 150.5 ms | 80 199 ms | **−86 %** ⚠️ |
+
+### 27.3 What we learned
+
+#### C8 is a textbook real-kernel-swap, and it's catastrophically slower
+
+The trace shows `fused_moe_kernel` is **completely gone**, replaced by `triton_kernels` library's `_p_matmul_ogs_NNN_bf16xbf16xbf16_<TILE>` kernels:
+
+**C0 baseline top 5 kernels** (599 ms total):
+| % | self (µs) | calls | name |
+|---|---|---|---|
+| 46.4 | 278 302 | 864 | **`fused_moe_kernel`** ← sglang's hand-written Triton |
+| 10.3 | 61 582 | 96 | `flash::FlashAttnFwdSm90<…>` |
+| 6.3 | 37 832 | 96 | `nvjet_tst_128x248_64x4_2x1_v_bz_coopA_TNT` (cuBLAS) |
+| 3.6 | 21 539 | 48 | `nvjet_tst_192x208_64x4_…_coopB_TNT` |
+| 3.1 | 18 330 | 336 | `flash::FlashAttnFwdSm90<…>` variant |
+
+**C8 triton_kernel top 5 kernels** (550 ms total — similar total!):
+| % | self (µs) | calls | name |
+|---|---|---|---|
+| 37.8 | 207 866 | 288 | **`_p_matmul_ogs_NNN_bf16xbf16xbf16_128x256x64x1`** ← triton_kernels library |
+| 11.3 | 62 310 | 96 | `flash::FlashAttnFwdSm90<…>` (unchanged) |
+| 7.0 | 38 777 | 96 | `nvjet_tst_128x248_64x4_…` (unchanged) |
+| 4.0 | 22 012 | 480 | **`_p_matmul_ogs_NNN_bf16xbf16xbf16_16x256x64x1`** (small-M variant) |
+| 4.0 | 21 980 | 48 | `nvjet_tst_192x208_64x4_…` (unchanged) |
+| 3.2 | 17 819 | 480 | **`_reduce_grouped`** ← triton_kernels' MoE-specific reduce |
+
+**This is the cleanest example we have** of "the kernel really did change". The MoE-related kernel name is entirely different, the call count is different (288 instead of 864 — triton_kernels does it in fewer launches per layer), and we even see a triton_kernels-specific helper (`_reduce_grouped`) that doesn't exist in sglang's path.
+
+But **GPU active time is roughly the same** (550 ms vs 599 ms) — yet **observed throughput is 7× lower**. The kernel swap itself isn't faster; the surrounding integration is *much* slower. Possible reasons:
+
+1. **No CUDA graph compatibility**: triton_kernels' grouped GEMM likely doesn't replay cleanly in CUDA graph capture, so each step re-launches everything from scratch (CPU-side launch overhead spikes)
+2. **Worse warmup characteristics**: the 4 s TTFT and 80 s e2e p99 suggest the kernel is JIT-compiling per-shape on every single request rather than caching
+3. **Different scheduling assumptions**: triton_kernels expects a different batch-token layout, sglang has to do extra prep work each call
+
+#### C7 (flashinfer_cutlass) didn't even start
+
+Two attempts both failed:
+- **C7** (with CUDA graph): server got past weight loading + KV cache allocation, then **hung on "Capture cuda graph bs=32"** — never produced a heartbeat for 480 s
+- **C7b** (with `--disable-cuda-graph`): server got past startup but health endpoint **stayed 503 for 200+ s** — the warmup never completed
+
+This is **the third failure mode from §21** (Layer C: hard fail when explicit backend can't load). Both C7 variants exhibit the issue that **flashinfer_cutlass MoE wasn't really designed for bf16** — the library's CUTLASS MoE kernel exists primarily for FP8 paths. On bf16, sglang dutifully tries to call it, the weight re-permute happens at load, but downstream initialisation hangs.
+
+### 27.4 Three concrete answers
+
+#### Q: Does sglang actually use auto-generated kernels (Inductor)?
+
+**Yes, but only in 23 small auxiliary functions, not the hot path.**
+
+Source — grep on `^@torch.compile` in sglang:
+
+```
+managers/overlap_utils.py:20            @torch.compile  _resolve_future_token_ids
+speculative/eagle_worker.py:1018        @torch.compile  (speculative decoding helper)
+speculative/spec_utils.py:402,452,466   @torch.compile  (3 spec helpers)
+forward_batch_info.py:1096              @torch.compile  (position-encoding helper)
+... 23 total
+```
+
+These are **trivial helper functions** (token-id resolution, position encoding, spec-decode arithmetic). None of them is in the attention or MoE forward path. **In C0 baseline, these contribute 0.00 % of GPU time** (19 µs total — just the rare `triton_poi_fused_clamp_*` from spec/preproc).
+
+To put Inductor on the hot path, you'd need `--enable-torch-compile` (our C1 failed) or `--enable-piecewise-cuda-graph --piecewise-cuda-graph-compiler inductor` (untested in our study).
+
+#### Q: What is Inductor exactly?
+
+**Torch Inductor is `torch.compile`'s default backend** — a Python-driven kernel-codegen pipeline that turns a PyTorch model into Triton kernels (or sometimes C++/CUDA) automatically. The flow:
+
+```
+Python model code (nn.Module)
+        ↓
+    Dynamo trace
+(captures Python control flow as FX graph)
+        ↓
+       FX graph
+        ↓
+       Inductor
+(decides fusion, picks templates, generates Triton source)
+        ↓
+   Generated Triton (.py files in /tmp/torchinductor_<user>/)
+        ↓
+     Triton compile
+        ↓
+        PTX
+```
+
+Key properties:
+
+- **Fully automatic**: just `model = torch.compile(model)`, Inductor takes over the whole forward
+- **Generated code is readable**: real `@triton.jit` Python files, though variable names are ugly (`tmp0`, `tmp1`, …)
+- **Kernel names are mandatory**: always `triton_<type>_fused_<op1>_<op2>_<...>`, where type is `poi` (pointwise), `tem` (template, e.g. GEMM), or `red` (reduction)
+- **Heuristic-driven**: has fusion templates + rules; doesn't try every combination
+- **Trade-off**: sometimes faster than hand-written, sometimes slower, sometimes fails to compile entirely. That's why production LLM serving libraries (sglang, vLLM, TensorRT-LLM) hand-write the hot kernels — they need to guarantee performance, not gamble on Inductor's heuristics.
+
+Concrete example. Take this PyTorch code:
+```python
+def forward(x):
+    a = torch.relu(x)        # K1
+    b = a * 2.0              # K2
+    c = b + 1.0              # K3
+    return c.sum(dim=-1)     # K4
+```
+
+Eager mode: **4 kernels + 3 HBM round-trips**.
+With `torch.compile`: Inductor generates **one** kernel like `triton_red_fused_relu_mul_add_sum_0`, doing everything in registers — **1 kernel, 0 intermediate HBM**.
+
+#### Q: What's "low-hanging fruit" exactly?
+
+The optimisations specific to the Inductor codegen path. **Only apply if Inductor is on the hot path** — which it isn't in our default sglang setup.
+
+Concrete categories (with rough expected payoffs):
+
+| Type | Mechanism | Expected speedup |
+|---|---|---|
+| Enable `TORCHINDUCTOR_MAX_AUTOTUNE=1` | Inductor tries more tile-size variants offline | 5-15 % |
+| Enable `TORCHINDUCTOR_MAX_AUTOTUNE_GEMM=1` + `COORDINATE_DESCENT_TUNING=1` | GEMM template autotuning | 10-30 % on GEMM-heavy ops |
+| Patch Inductor missed-fusion bugs | wrap custom ops in `torch.library.custom_op` so Inductor can see across them | 5-30 % per fix |
+| Replace bad-output Inductor kernel | review `/tmp/torchinductor_<user>/*.py`, hand-write a better Triton kernel, register as `torch.library` op | large win on hot kernels |
+
+**These are real wins in PyTorch training workloads** where Inductor dominates. They're "low-hanging" in the sense that you flip env vars / write small patches and immediately see speedup, **without rewriting kernels by hand**.
+
+For LLM serving (sglang, vLLM) the maintainers chose hand-written kernels for the hot path because Inductor is too unpredictable. Mason's question essentially asks: is the picture still "all hand-written" or did Inductor sneak in? **Our trace evidence says: hand-written for the hot path, Inductor only in trivial preproc functions, contributing 0.00 % of GPU time in default config.**
+
+### 27.5 Are ALL sglang model kernels hand-written?
+
+**On the hot path: yes.** The MoE FFN, attention, RMSNorm, RoPE, GEMM are all hand-written (sglang Triton, flashinfer CUDA, NVIDIA cuBLAS/CUTLASS, flash-attn).
+
+**Off the hot path: mixed.** 23 small helper functions use `@torch.compile` (Inductor) for things like token-ID resolution, speculative-decoding helpers, position encoding.
+
+**The full hierarchy in sglang**:
+
+| Layer | Author | Examples |
+|---|---|---|
+| L1: NVIDIA closed-source libraries | NVIDIA | cuBLAS (`nvjet_tst_*`), CUTLASS (`cutlass::*`), cuDNN |
+| L2: NVIDIA open libraries | NVIDIA | flash-attn (`flash::FlashAttnFwdSm90`) |
+| L3: Third-party LLM-specialised | NVIDIA / FlashInfer team | flashinfer (`flashinfer::FusedAddRMSNormKernel`, RoPE, sampling) |
+| L4: sglang-internal hand-written Triton | sglang maintainers | `fused_moe_kernel`, `moe_align_block_size_kernel`, `write_req_to_token_pool_triton` |
+| L5: PyTorch native | PyTorch | `at::native::elementwise_kernel<…>` for misc tensor ops |
+| L6: Inductor-generated (only 23 helpers) | torch.compile | `triton_poi_fused_clamp_copy_*` for trivial preproc |
+
+This layering is **the standard pattern for LLM serving**. vLLM, TensorRT-LLM are similar: share L1-L3 with everyone (NVIDIA libs + flashinfer), each library hand-writes its own L4 (MoE / scheduler / KV cache kernels), use L5 for misc, basically don't use L6 in the hot path.
+
+The reason production LLM serving doesn't use Inductor on the hot path:
+1. **Inductor's heuristics still aren't good enough** for MoE-style grouped GEMM
+2. **Inductor's compile time is high** (10-60 s) and incompatible with low-latency server boot
+3. **Inductor + custom CUDA ops + dynamic shapes + KV cache control flow** = lots of fallback paths that nuke performance
+4. **Hand-written gives predictable performance** — production wants no surprises
+
+### 27.6 Summary
+
+- **Real kernel swaps**: only 2 of 10 `--moe-runner-backend` values do this on bf16: `triton_kernel` (uses `triton_kernels` library) and `flashinfer_cutlass` (uses flashinfer library).
+- **C8 `triton_kernel`**: real kernel swap confirmed (`fused_moe_kernel` → `_p_matmul_ogs_*`), but **−86 % throughput** due to incompatible CUDA graph / warmup / scheduling integration.
+- **C7 `flashinfer_cutlass`**: failed to start in 2 different attempts (CUDA graph hung; or 503 health). bf16 path of flashinfer cutlass MoE is essentially untested in sglang 0.5.12.
+- **Default `fused_moe_kernel` is fastest** for bf16 MoE on H200, by a wide margin.
+- **Real optimisation gains** require either FP8 quantization (unlocks the cutlass path inside `Fp8MoEMethod`) or hand-rewriting `fused_moe_kernel` (§25.4).
+- **Inductor is essentially unused** in the hot path — 23 `@torch.compile` decorators in sglang for trivial helpers only, contributing 0.00 % of GPU time. "Low-hanging fruit" optimisations are gated on first fixing the `--enable-torch-compile` failure (1-2 days, per §26.5).
