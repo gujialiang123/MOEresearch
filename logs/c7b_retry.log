@@ -1,0 +1,5 @@
+[run_profile] launching server (CUDA_VISIBLE_DEVICES=0)
+[run_profile] waiting for /health on 127.0.0.1:30000 ...
+[hw-view] sampler pid=2684802 → /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/moe_opt_levels/C7b_moe_flashinfer_cutlass_no_graph/gpu_samples.csv
+[hw-view] run_profile.py rc=2 duration=300.3s
+[hw-view] wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/experiments/tmp/moe_opt_levels/C7b_moe_flashinfer_cutlass_no_graph/hardware_view.json

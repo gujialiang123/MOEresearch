@@ -613,3 +613,259 @@ python scripts/regime_study/aggregate_moe_opt_levels.py   # §6 knob study
 ```
 
 All outputs in `results/regime_bench/`; full doc in `docs/regime_benchmark_experiment.md`; repo at <https://github.com/gujialiang123/end2end-optimization>.
+
+---
+
+## 10. Mirage / LLM-guided kernel-fusion — discussion notes (2026-06-01)
+
+Side discussion exploring how the Mirage superoptimizer (CMU, OSDI'25) can serve as a **harness** for an LLM-guided kernel-fusion tool. Notes captured here so we can pick this up in a follow-up.
+
+### 10.1 What Mirage actually is
+
+- **Mirage** = a tensor-program **superoptimizer**: given a small DNN sub-graph (e.g. `RMSNorm(X) @ W`), it automatically searches the space of *equivalent but differently-implemented* GPU programs and returns the fastest one.
+- **MPK (Mirage Persistent Kernel)** = a runtime layer on top: it compiles an entire LLM inference (all layers + cross-GPU comms) into a **single persistent CUDA mega-kernel** (one `cudaLaunchKernel` per decoding step, claims 1.2–6.7× speedup vs Triton/FlashInfer).
+- Central IR is the **μGraph**: a two-level nested DAG
+  - **Kernel graph** — nodes are whole GPU kernels, edges are `DTensor` (device memory)
+  - **Threadblock graph** — nodes are threadblock-level ops, edges are `STensor` (shared memory), annotated with `grid_dim / block_dim / imap / forloop_range`
+
+### 10.2 The one-line architectural insight
+
+> **Mirage's search, verification, pruning and rewriting all live on μGraph.** Input = μGraph, output = μGraph. The Python DSL is just a frontend; CUDA / Triton / NKI are three parallel backends.
+
+```
+   Python DSL ──► μGraph ──► [DFS / DimStrategy / Fingerprint / Egg / Range / Symbolic] ──► best μGraph
+                                                                                                │
+                                                                              ┌─────────────────┼─────────────────┐
+                                                                              ▼                 ▼                 ▼
+                                                                         CUDA backend     Triton backend     NKI backend
+                                                                         (src/transpiler) (src/triton_…)     (src/nki_…)
+                                                                              │                 │                 │
+                                                                            nvcc          triton.compile     neuronx-cc
+                                                                              ▼                 ▼                 ▼
+                                                                          .cu/.so          PTX/cubin         Trainium .neff
+```
+
+A user sees `optimized_graph(inputs=[torch_tensor, ...])` and gets `torch.Tensor` back, but Mirage's actual artefact is a pure CUDA / Triton / NKI kernel — **torch is only the GPU-memory container** (any cupy / raw `cudaMalloc` pointer also works).
+
+### 10.3 Components that can act as harness for an LLM-guided tool
+
+| Component | Location | Input | Output | Role for an LLM-guided fusion tool |
+|---|---|---|---|---|
+| **μGraph builder** | `python/mirage/kernel.py`, `threadblock.py` | Python DSL calls | `KNGraph` / `TBGraph` C++ objects | Common I/O language for the LLM (proposal + state representation) |
+| **AbstractExpr** | `src/search/abstract_expr/` (egg-backed) | new sub-expression (AST) | `bool` (can it reach the target?) | Per-step pruner — cheap, called during DFS expansion |
+| **Range propagation** | `src/search/range_propagation/` | tensor shape + `imap/omap/fmap/grid_dim/forloop_range` | `bool` | Static check: do the per-block ranges tile `[0, dim)` cleanly? |
+| **SymbolicGraph + Z3** | `src/search/symbolic_graph/` | symbolic dims + constraints | concrete `DimVarAssignments` | Lets one μGraph cover multiple shapes (different batch, seq-len) |
+| **ProbabilisticVerifier (fingerprint)** ⭐ | `src/search/verification/probabilistic_verifier.cc` | `(ref_graph, candidate_graph)` | `OutputMatch` (valid + output permutation) | **Primary equivalence judge.** bf16 values are replaced by `uint16` and the whole graph is re-run modulo `13861 = 167 × 83`. Element-wise equality of the `uint16` outputs ⇒ candidate is mathematically equivalent to the reference. No tolerance to tune, GPU-side cost ≈ one forward pass. |
+| **FormalVerifier (egg)** | `src/search/verification/formal_verifier.{cc,rs}` | `(ref_graph, candidate_graph)` | `OutputMatch` | Secondary check. Each output is dumped as an S-expression and Rust's `egg` runs equality saturation over a hand-written rule set (matmul distributivity, partition/combine cancellation, rms_norm expansion, etc.) |
+| **Static gates** | `src/transpiler/resolve_*`, `kernel.py:440` | candidate μGraph + GPU caps | `bool` + error string | Reject before nvcc: smem over capacity, layout inconsistent, fusion chain illegal |
+| **Transpilers** | `src/transpiler/` (CUDA), `src/triton_transpiler/`, `src/nki_transpiler/` | μGraph + target_cc + (pipeline_stages, warp_groups) | source string + `{max_smem_size, buf_size, output_directives}` | Picks the target language. All three share the same μGraph upstream. |
+| **Measurer** | `python/mirage/kernel.py::superoptimize` | compiled `.so` + random inputs | `perf_ms: float` | Warmup 16 + CUDA-event timed 1000 iters. Used as the search's score function. |
+| **Profiler** | `python/mirage/mpk/profiler.py` | `profiler_buffer_tensor` (GPU) | Perfetto trace (`mirage.perfetto-trace`) | Per-task / per-SM timeline — natural feedback format for an LLM agent |
+| **Search hooks** | `src/search/{dim_strategy,search}.cc` | `SearchContext` + op-type | candidate list of `(grid_dim, block_dim, imap, fmap, frange)` | Where to inject an LLM policy (re-ranker or full proposer) |
+
+The two essentials for an LLM agent loop are **fingerprint verifier** (judges correctness in ms with no false positives in practice) and **measurer** (gives a hard `perf_ms` score). Everything else is icing.
+
+### 10.4 Worked example — how DFS expands one input graph
+
+**Input** (you write this in Mirage's Python DSL):
+```python
+g = mi.new_kernel_graph()
+X = g.new_input(dims=(16, 128),  dtype=mi.bfloat16)
+W = g.new_input(dims=(128, 32), dtype=mi.bfloat16)
+Y = g.matmul(X, W); g.mark_output(Y)
+```
+
+This is **μGraph state 0**:
+
+```
+[KNInputOp X (16,128)]   [KNInputOp W (128,32)]
+                       ╲ ╱
+                  (DFS starts here — must produce Y equivalent to matmul(X,W))
+```
+
+**DFS expansion (default `GeneratorConfig`)**:
+
+```
+root S0: {X, W in graph; LV_KERNEL}
+ │
+ ├── A: add KNMatmulOp(X,W) ──► S1A {X,W,Y}
+ │        │
+ │        ├── add KNOutputOp(Y) ──► S2A COMPLETE
+ │        │       │
+ │        │       ├── AbstractExpr OK
+ │        │       ├── Fingerprint ✓ equivalent
+ │        │       ├── Transpile + nvcc: cuBLAS gemm wrapper
+ │        │       └── Measurer: 0.018 ms       ← baseline
+ │        │
+ │        └── add KNExpOp(Y)  → S2A' Y'=exp(matmul)
+ │                AbstractExpr: cannot reach target ✗ PRUNED
+ │
+ ├── B: add KNCustomizedOp(X,W) ──► S1B
+ │        │                            (descend into LV_THREADBLOCK)
+ │        │
+ │        │   For each (grid_dim, block_dim, imap, fmap, frange):
+ │        │   default config: frange ∈ {4, 16, 64}; grid/block default sets
+ │        │
+ │        ├── B.1: grid=(16,1,1), block=(128,1,1), imap_X={x↔dim0},
+ │        │        imap_W={x↔ϕ}, fmap_X=k, fmap_W=k, frange=64
+ │        │     │
+ │        │     ├── add TBMatmulOp(X,W) ──► STensor M
+ │        │     │     AbstractExpr OK
+ │        │     │
+ │        │     ├── add TBForloopAccumNoRed(M) ──► M_acc
+ │        │     │     AbstractExpr OK
+ │        │     │     Range check ✓ (block i covers Y[i,:], no gap)
+ │        │     │
+ │        │     ├── add TBOutputOp(M_acc) ──► close TB graph
+ │        │     │     ├── return to LV_KERNEL
+ │        │     │     ├── add KNOutputOp(Y) ──► S2B COMPLETE
+ │        │     │     │     Fingerprint ✓ equivalent
+ │        │     │     │     Transpile (custom CUDA kernel using CuTe)
+ │        │     │     │     smem 12 KB < 96 KB ✓
+ │        │     │     │     nvcc OK → .so
+ │        │     │     │     Measurer: 0.014 ms   ← faster than A!
+ │        │     │     │
+ │        │     │     └── (keep DFS-ing for alternative TB ops, more candidates)
+ │        │     │
+ │        │     └── add TBExpOp(M)  ──► AbstractExpr ✗ PRUNED
+ │        │
+ │        ├── B.2: grid=(32,1,1) … similar subtree, different perf
+ │        ├── B.3: grid=(1,16,1) … etc
+ │        └── … combinatorial fan-out, bounded by GeneratorConfig:
+ │              max_num_kernel_graph_op=5,
+ │              max_num_threadblock_graph_op=9,
+ │              max_num_threadblock_graphs=1,
+ │              frange_to_explore={4,16,64},
+ │              + Order partial-order de-duplication
+ │
+ └── C: add KNExpOp(X) ──► S1C  (irrelevant; AbstractExpr ✗ PRUNED immediately)
+```
+
+After the search, candidates that survived **AbstractExpr → Range → Fingerprint → (egg) → Transpile → smem gate → nvcc** are scored by the **Measurer**; the minimum-`perf_ms` candidate is returned and cached in `graph_dataset.json` for re-use.
+
+### 10.5 Fingerprint — concrete walk-through
+
+For the same example, fingerprint validation looks like:
+
+```
+X.fp = random uint16[16·128]            # GPU-side, allocated next to X.data
+W.fp = random uint16[128·32]
+mod   = 13861   (= 167·83)
+
+# Run reference graph in the modular ring
+for i in [0,16): for j in [0,32):
+    acc = 0
+    for k in [0,128):
+        acc = (acc + X.fp[i,k] * W.fp[k,j]) % mod
+    Y_ref_fp[i,j] = acc                    # uint16[16·32]
+copy Y_ref_fp to CPU; store on the verifier
+
+# Run candidate (B.1) graph in the same ring
+... → Y_cand_fp[i,j]
+
+# Compare elementwise
+assert Y_cand_fp == Y_ref_fp               # full 512 elements
+```
+
+If the two graphs are mathematically equivalent the arrays are **bit-identical** (no FP error, it is integer arithmetic). If they are not equivalent, the probability of accidentally agreeing on every element is ≈ `(1/13861)^512` — practically zero. RMSNorm/softmax-style ops are supported by precomputed `div_p_lookup_table` / `sqrt_p_lookup_table` for the inverse-sqrt operation inside the same ring.
+
+### 10.6 LLM angle — feasibility and recommended approach
+
+**Why this is a credible direction**:
+1. Mirage's search is a **combinatorial DFS over a ~10⁸ state space**; even with abstract-expr pruning a GQA can take hours-to-days, motivating `graph_dataset` caching. DFS has no notion of "which branch is more promising" beyond a binary AbstractExpr check.
+2. Modern code-LLMs have read CUDA / Triton / Cutlass / FlashAttention; they have **strong priors over fusion patterns** that DFS does not have.
+3. Mirage provides **hard, cheap, automatic feedback**: fingerprint (ms-level equivalence judgement, no tolerance to tune) + measurer (perf_ms with CUDA Event) + structured error strings from every static gate. This is exactly what an LLM agent loop needs to converge.
+4. Same pattern is already proven by AlphaTensor / FunSearch / AlphaEvolve in other discrete-search domains.
+
+**Three deployment tiers** (in order of risk):
+
+| Tier | Where LLM plugs in | Mirage code touched | Upside |
+|---|---|---|---|
+| **A. Re-ranker** | `DimStrategy.get_*_cand()` returns N candidates → LLM scores & truncates to top-k | None (decorate the existing call) | ~50× search speed-up while keeping all of Mirage's correctness guarantees |
+| **B. Policy network (MCTS-style)** | `generate_next_operator` calls LLM for branch priors, MCTS expands | Light refactor of search.cc | Same architecture as AlphaGo |
+| **C. End-to-end proposer** | LLM emits whole μGraph DSL; Mirage only judges & measures | None (pure SDK usage) | Can propose fusions outside DFS's discrete action space (e.g. online-softmax style rewrites) |
+
+**Recommended starting point**: Tier C against the fingerprint + measurer SDK — minimal Mirage modifications and the agent loop becomes a thin script.
+
+### 10.7 μGraph vs Triton — same kernel, side-by-side
+
+To make the asymmetry concrete: here is the same `Y = X @ W` (split-K matmul) expressed in μGraph and in Triton.
+
+**μGraph (everything is an explicit field):**
+```python
+KNCustomizedOp {
+    inputs: [X (16,128) bf16, W (128,32) bf16]
+    outputs: [Y (16,32) bf16]
+    grid_dim = (16, 1, 1)         # 16 thread blocks
+    block_dim = (128, 1, 1)       # 128 threads each
+    forloop_range = 2             # K split into 2 chunks of 64
+    tb_ops:
+        TBInputOp  X  imap={x↔M}, fmap={k↔K}  → sX [16,64] in SMEM
+        TBInputOp  W  imap={x↔ϕ}, fmap={k↔K}  → sW [64,32] in SMEM
+        TBMatmulOp sX, sW → sM [16,32] in registers
+        TBForloopAccumNoRedOp sM → sAcc [16,32]
+        TBOutputOp sAcc → Y
+}
+```
+
+**Equivalent Triton (everything except `tl.dot` is implicit):**
+```python
+@triton.jit
+def matmul_kernel(X_ptr, W_ptr, Y_ptr, M, N, K,
+                  sxm, sxk, swk, swn, sym, syn,
+                  BM: tl.constexpr, BN: tl.constexpr, BK: tl.constexpr):
+    pid = tl.program_id(0)
+    offs_m = pid * BM + tl.arange(0, BM)
+    offs_n = tl.arange(0, BN)
+    acc = tl.zeros((BM, BN), tl.float32)
+    for k0 in range(0, K, BK):
+        offs_k = k0 + tl.arange(0, BK)
+        x = tl.load(X_ptr + offs_m[:,None]*sxm + offs_k[None,:]*sxk)
+        w = tl.load(W_ptr + offs_k[:,None]*swk + offs_n[None,:]*swn)
+        acc += tl.dot(x, w)
+    tl.store(Y_ptr + offs_m[:,None]*sym + offs_n[None,:]*syn, acc.to(tl.bfloat16))
+
+# at the call site:
+matmul_kernel[(M // BM,)](X, W, Y, M, N, K, X.stride(0), X.stride(1), ...,
+                          BM=16, BN=32, BK=64)
+```
+
+**Where every μGraph field lives in the Triton version:**
+
+| μGraph field | Triton equivalent | Where it lives |
+|---|---|---|
+| `op_type = matmul` | `for k: acc += tl.dot(x,w)` | **Implicit** — pattern match |
+| `dim=(16,128)` of X | runtime arg `M=16, K=128` | **Implicit** — caller |
+| `dtype=bf16` | dtype of caller's `X` | **Implicit** — caller |
+| `grid_dim=(16,1,1)` | `matmul_kernel[(M//BM,)]` | **Implicit** — caller, outside jit |
+| `block_dim=(128,1,1)` | not exposed, Triton picks | **Missing** in source |
+| `forloop_range=2` | `for k0 in range(0, K, BK)` → `K//BK` | **Implicit** — symbolic |
+| `imap={x↔M}` for X | `offs_m = pid * BM + ...` | **Implicit** — dataflow trace |
+| `imap={x↔ϕ}` for W | `offs_n` does **not** depend on `pid` | **Implicit** — by absence |
+| `fmap={k↔K}` | `offs_k = k0 + ...`, `k0` is the loop var | **Implicit** — induction-var analysis |
+| `sX in SMEM`, `sAcc in regs` | not in source, Triton compiler decides | **Missing** — outside the source language |
+| fusion chain (e.g. `rmsnorm + matmul`) | "more code in the same `@jit` function" | **Implicit** — multi-op pattern |
+
+**Read this table as: every "Implicit / Missing" cell is something an LLM must recover when going Triton → μGraph.** Going the other way (μGraph → Triton) is just template-filling because the μGraph already has every field listed above.
+
+This is exactly why mirage's transpilers (`src/triton_transpiler/transpile.cc` is only ~2 files) can ship the forward direction, while the reverse direction is the LLM's job in the proposed tool.
+
+### 10.8 Why μGraph being the universal IR matters for us
+
+- An LLM only needs to learn **one IR** (μGraph DSL), not CUDA + Triton + NKI syntax.
+- The fingerprint verdict is computed **once** on the μGraph and stays valid for every target backend.
+- Same proposal can be evaluated on CUDA *and* Triton *and* NKI by swapping the transpiler — the agent loop is unchanged.
+- Adding a new target (HIP, MLIR-linalg, future TPU IR) means writing one new `xxx_transpiler/`; the LLM, the verifier and the measurer all keep working.
+
+This separation is the main reason Mirage is a stronger harness for LLM-guided fusion than `torch.compile`: torchinductor goes straight from FX → Triton with no neutral-IR + equivalence-verifier layer in between, so an LLM cannot interpose mid-pipeline.
+
+### 10.9 Open questions / follow-ups
+
+| # | Question | How to answer |
+|---|---|---|
+| 1 | Can the LLM consume an existing Triton / CUDA kernel as input by translating it back to μGraph DSL? | Prototype a `triton.jit → μGraph` translator (LLM-driven, validated by fingerprint round-trip) |
+| 2 | How big is the win from Tier-A re-ranker on a real fusion (e.g. GQA)? | Reuse `demo/demo_group_query_attention.py`; baseline search wall-time vs LLM-reranked search |
+| 3 | Does fingerprint scale to attention-with-mask / softmax / dropout-like ops? | Already supported via lookup tables; verify on `demo/qwen3/demo.py` reference graph |
+| 4 | Can we feed Perfetto traces from MPK back to the LLM as text? | Write a small trace summariser ("task X is on critical path 31 % of the time") |
+| 5 | Cross-backend portability — does the same μGraph win on CUDA and Triton? | Run both backends' measurers on the top-10 candidates from one search |
+

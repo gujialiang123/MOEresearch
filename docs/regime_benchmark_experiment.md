@@ -6695,3 +6695,153 @@ Transformers does not recognize this architecture.
 ### 31.8 One-paragraph summary
 
 > A HF model directory contains **only** `config.json` (model hyperparameters, NOT code), `*.safetensors` (raw PyTorch tensors serialised, NOT code), tokenizer files, and optional chat templates. **There's no PyTorch source in the model dir** — the forward code lives in the **transformers library's own source tree** (`transformers/models/<model_type>/modeling_*.py`), where ~200 model classes are pre-written. transformers "recognises" a model by **dictionary lookup**: `config.json`'s `model_type` field is used to look up which class to instantiate from `CONFIG_MAPPING_NAMES` / `MODEL_FOR_CAUSAL_LM_MAPPING_NAMES`. **No file parsing happens in the model dir** unless it's a trust-remote-code model with bundled `modeling_*.py`. When sglang can't find a native implementation, it calls `resolve_transformers_arch` (`model_loader/utils.py:30`), which checks: (a) does transformers have this arch? (b) does the arch's `is_backend_compatible()` return True? If both pass, sglang swaps the arch name to `TransformersForCausalLM` and uses a **wrapper class** (`sglang/srt/models/transformers.py`) that lets transformers run its own forward but **replaces linear / attention / vocab-embed layers** with sglang's TP-aware versions, hooking attention through `attn_implementation="sglang"` to route to sglang's `RadixAttention` (fa3). For MoE models, this wrapper **does NOT use `fused_moe_kernel`** — the MoE expert loop runs in transformers' Python code, multiple times slower than the native sglang path. **Gemma-4 fails because transformers 4.57.1 doesn't know `model_type="gemma4"` yet** — the very first `AutoConfig.from_pretrained` call raises ValueError, so the sglang fallback chain is unreachable. Fix: upgrade transformers, bundle a custom `modeling_gemma4.py` in the model dir with `auto_map`, or write a native `sglang/srt/models/gemma4.py`.
+
+## 32. "If I make my own model, do I have to adapt to both transformers AND sglang?" — yes, with one escape hatch
+
+> 🟢 NEW. Follow-up to §31: yes, both transformers and sglang look up models
+> from their own internal tables. Does this mean a new model must be ported
+> to both? Pure PyTorch isn't enough? This section is the precise answer.
+
+### 32.1 The decision tree for a brand-new model architecture
+
+```
+You trained a new model architecture "NewLLM"
+                  │
+                  ▼
+       ┌──────────────────────────────┐
+       │ Want to serve / share it?    │
+       └──────────────────────────────┘
+                  │
+   ┌──────────┬───┴──────────┬──────────────┬──────────────┐
+   ▼          ▼              ▼              ▼              ▼
+Path A     Path B          Path C         Path D         Path E
+pure       trust-remote-   PR to          PR to          PR to
+PyTorch    code            transformers   sglang         vLLM/TRT-LLM
+```
+
+| Path | What you do | Performance | Cost |
+|---|---|---|---|
+| **A. Pure PyTorch** | `model = NewLLM(); model.cuda(); model(input_ids)` | Single-batch, single-sequence forward only. **No** KV cache, paged attention, CUDA graph, batching, TP/PP/EP, optimised kernels. | 0 adaptation work, but **10-100× slower than sglang**, OOM at >1024 tokens. **Cannot serve at scale.** |
+| **B. trust-remote-code** | Bundle `modeling_<name>.py` + `configuration_<name>.py` in your model dir, add `auto_map` to `config.json`. User starts with `--trust-remote-code`. | transformers eager speed; through sglang's wrapper gets fa3 attention but **MoE / norm / RoPE remain slow PyTorch** | 1-3 days writing the .py files. No upstream PR. |
+| **C. PR to transformers** | Upstream the model class to `transformers/models/<name>/`. After release, `AutoModel` knows it. | sglang `TransformersForCausalLM` fallback auto-engages (fast attention, slow MoE) | Weeks (review + release cycle) |
+| **D. PR to sglang** | Upstream `sglang/srt/models/newllm.py` + weight mapping table | **Full sglang optimised path** (fa3 + `fused_moe_kernel` + paged KV cache + all kernels) | Weeks; easiest if Path C already merged |
+| **E. PR to vLLM / TensorRT-LLM** | Each engine has its own model class registry | Each gets full optimised path | Weeks per engine |
+
+### 32.2 Path B (trust-remote-code) — the escape hatch from upstream PRs
+
+The `auto_map` mechanism in `config.json`:
+
+```json
+{
+    "model_type": "newllm",
+    "architectures": ["NewLLMForCausalLM"],
+    "auto_map": {
+        "AutoConfig": "configuration_newllm.NewLLMConfig",
+        "AutoModelForCausalLM": "modeling_newllm.NewLLMForCausalLM"
+    }
+}
+```
+
+Directory structure:
+
+```
+your_model_dir/
+├── config.json                 ← has auto_map field
+├── configuration_newllm.py     ← your Python config class
+├── modeling_newllm.py          ← your Python nn.Module class
+├── tokenizer.json
+└── model-00001-of-XX.safetensors
+```
+
+User runs:
+
+```bash
+sglang.launch_server --model-path your_model_dir/ --trust-remote-code
+```
+
+`transformers.dynamic_module_utils.get_class_from_dynamic_module()` docstring is explicit:
+
+> "Calling this function will execute the code in the module file found locally or downloaded from the Hub. It should therefore only be called on trusted repos."
+
+So both transformers and sglang will:
+
+1. **Not look up internal tables**
+2. **Dynamically import your `modeling_newllm.py`** at startup
+3. **Instantiate your `NewLLMForCausalLM` class** like normal Python
+
+This works WITHOUT changing transformers or sglang source. But it doesn't give you sglang's fast path either:
+
+- transformers eager mode: uses PyTorch's `scaled_dot_product_attention` (SDPA), not fa3
+- sglang `TransformersForCausalLM` wrapper does **partially** accelerate (replaces attention + Linear + vocab embedding) but **MoE expert loop stays in transformers' Python** — no `fused_moe_kernel`
+
+For MoE models, Path B has a steep performance ceiling. For dense models, Path B + sglang wrapper is usable.
+
+### 32.3 Why pure PyTorch isn't enough for serving
+
+A common misconception: "I wrote my model in pure PyTorch with `nn.Module`, so it should just run." **Technically true, practically useless for LLM serving** because:
+
+| What you have | What you DON'T have |
+|---|---|
+| `model(input_ids)` returns logits | Multi-request batching, KV cache reuse |
+| Single forward pass works | Paged attention (memory-efficient long-context) |
+| | CUDA graph capture (lower CPU overhead) |
+| | Optimised attention kernel (fa3 vs SDPA: 2-3×) |
+| | Optimised MoE kernel (`fused_moe_kernel` vs Python loop: 10×+) |
+| | Tensor / pipeline / expert parallelism for multi-GPU |
+| | Distributed weight loading |
+| | Continuous batching (don't wait for slowest request) |
+| | Prefix-cache (radix tree for shared prefixes) |
+| | FP8 / INT4 / AWQ / GPTQ quantization integration |
+| | Speculative decoding |
+| | Per-request stream / sampling controls |
+
+The whole point of sglang / vLLM / TensorRT-LLM **isn't "running the forward"** — that part is easy. The point is **all the serving infrastructure around the forward**. Hence sglang has hundreds of thousands of lines of code to provide all of those above features. The forward pass itself is maybe 1-2% of the codebase.
+
+So "pure PyTorch can run it" is true the same way "a Toyota engine can move a car" is true — yes it can, but you don't have suspension, steering, brakes, transmission, fuel tank.
+
+### 32.4 Why transformers and sglang are completely independent forward implementations
+
+```
+your model architecture
+            │
+            │  forward code lives in TWO independent libraries
+            │
+   ┌────────┴─────────┐
+   ▼                  ▼
+transformers       sglang
+qwen3_moe.py       qwen3_moe.py
+(in transformers)  (in sglang/srt/models/)
+   │                  │
+   ▼                  ▼
+nn.Linear         RowParallelLinear / ColumnParallelLinear (TP-aware)
+F.scaled_dot      RadixAttention (paged KV cache, fa3)
+   _product
+   _attention
+Python loop       FusedMoE → fused_moe_kernel (Triton, all-experts in one kernel)
+   over experts
+PyTorch RMSNorm   flashinfer::FusedAddRMSNormKernel
+PyTorch RoPE      flashinfer::BatchQKApplyRotaryPosIdsCosSinCacheEnhancedKernel
+```
+
+The two implementations should be **numerically equivalent** (final logits match to ~1e-3), but the **Python code is completely independent**. Bug fixes in transformers' version don't propagate to sglang's, and vice versa. Both libraries' maintainers are responsible for keeping their version synced with the model's reference implementation.
+
+This is why sglang has ~120 model files in `sglang/srt/models/*.py` — every supported model architecture has its own Python file, re-implementing the forward pass using sglang's optimised primitives.
+
+### 32.5 What this means for an "agentic model porting" project
+
+If we want an agent that ports HF models to sglang automatically, here are the achievable tiers:
+
+| Tier | What the agent does | Difficulty |
+|---|---|---|
+| **Tier 0** | For models in BOTH transformers' table AND sglang's registry: nothing needed | Trivial |
+| **Tier 1** | For models in transformers but NOT sglang: detect it, suggest sglang fallback path (current state) | Easy |
+| **Tier 2** | For models NOT in either: detect, suggest user upgrade transformers / use trust-remote-code, fail loudly if neither possible | Easy |
+| **Tier 3** | Generate a `modeling_<name>.py` for trust-remote-code mode, given config.json + weight shapes | **Medium** — requires LLM that knows how to write nn.Module classes; verifiable via numerical equivalence check |
+| **Tier 4** | Generate a `sglang/srt/models/<name>.py` for full sglang fast path | **Hard** — requires reading existing sglang model files as templates, knowing the sglang layer primitives, writing `stacked_params_mapping` correctly |
+| **Tier 5** | Generate a hand-tuned Triton kernel for unique ops in a new architecture | **Very hard** — Triton expertise required; needs numerical + perf validation |
+
+Currently Mason / Debadeepta's mental model probably expects Tier 3 or 4 from an agent. **Tier 3 is plausibly achievable now** with a code-generating LLM (Claude / GPT-5) given good prompts + verification harness. **Tier 4 needs more domain knowledge but is also tractable** as a template-filling task with our existing sglang model files as references.
+
+### 32.6 One-paragraph summary
+
+> Yes, both transformers and sglang have their own model registries with hand-written Python classes for each architecture. **Pure PyTorch is not enough for LLM serving** — you'd be missing KV cache, paged attention, CUDA graph, optimised kernels, batching, parallelism, all the serving infrastructure that makes sglang/vLLM/TRT-LLM exist. To add a new model architecture, you have 5 paths: (A) pure PyTorch — works but 10-100× slower, no serving; (B) **trust-remote-code** — bundle `modeling_*.py` + `configuration_*.py` + `auto_map` in your model dir, both transformers and sglang dynamically import it (no upstream PR needed); (C) PR to transformers — full eager support; (D) PR to sglang — full fast path with `fused_moe_kernel` / fa3 / paged KV; (E) PR to vLLM/TRT-LLM separately. **Each serving engine maintains its own implementation independently** — transformers' `Qwen3MoeForCausalLM` and sglang's `Qwen3MoeForCausalLM` are two completely different Python classes that should be numerically equivalent but share no code. Sglang has ~120 model files in `sglang/srt/models/` for this reason. Path B (trust-remote-code) is the cheapest escape hatch for non-PR cases but gives you the slow `TransformersForCausalLM` wrapper performance — for MoE models specifically, this loses the `fused_moe_kernel` and runs MoE experts as a Python loop. For real serving performance on a new architecture, somebody has to write the sglang model file (path D). An agent could plausibly automate path B/D as code generation tasks.
