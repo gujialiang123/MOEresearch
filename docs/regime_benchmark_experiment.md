@@ -7127,3 +7127,177 @@ assert _ > 0.85
 ### 34.8 One-paragraph summary
 
 > Yes, trust-remote-code = ship your own PyTorch `nn.Module` (subclassing `PreTrainedModel` with standard forward signature) + `auto_map` in config.json — transformers/sglang dynamically import it at startup. Yes, hand-writing a sglang model file means rewriting the same forward using sglang's primitives (`RadixAttention`, `FusedMoE`, `ColumnParallelLinear`, etc.) — completely independent code from transformers, plus you need a weight-mapping table because the fused weight layout differs. And **yes**, numerical drift is real — kernel differences, dtype mixing, batching effects, and TP reduction order compound over 30+ layers to give ~1-5% per-logit error. **The industry standard is to accept this**: sglang's CI tolerates 5% on prefill logits, 6% on decode logits, requires ROUGE-L on generated text to match, and requires downstream task accuracy (MMLU / GSM8K) within 1% of the HF reference. Bit-exactness is not the goal (it's not even achievable across GPU generations). The actually-meaningful invariants are (1) top-1 token agreement >99% on greedy decoding and (2) downstream benchmark accuracy preserved within 1%. The proof is in `sglang/test/registered/models/test_generation_models.py:48-56`. For your own port, write the sglang model, then run the same 4-test validation suite (top-1 agreement, top-5 overlap, relative L∞, ROUGE-L on generation) before merging.
+
+## 35. Where sglang kernels live — full map + fused_moe_kernel example
+
+> 🟢 NEW. Concrete file-paths for every kernel source sglang uses, with the
+> exact location of yesterday's `fused_moe_kernel`.
+
+### 35.1 sglang kernels are split across 4 sources
+
+| Layer | Path | Count | Characteristic |
+|---|---|---|---|
+| **1. Triton kernels** (Python `@triton.jit`) | `sglang/python/sglang/srt/**/*.py` | **75 files** contain `@triton.jit` | JIT compiled to PTX at runtime; fast to iterate, readable |
+| **2. sgl-kernel** (hand-written CUDA/C++) | `sglang/sgl-kernel/csrc/**/*.cu` | **110 .cu/.cuh files** | AOT compiled at install; peak performance |
+| **3. flashinfer** (external library) | `pip install flashinfer-python` | — | Apache project; sglang calls it for attention + sampling |
+| **4. flash-attn / cutlass / triton_kernels lib** | external pip wheels | — | Imported and called directly (e.g., the `triton_kernels` C8 swap test used) |
+
+### 35.2 Triton kernel directory map
+
+```
+/home/t-jialianggu/work/sglang/python/sglang/srt/
+├── layers/
+│   ├── moe/
+│   │   ├── fused_moe_triton/
+│   │   │   ├── fused_moe_triton_kernels.py    ← 🎯 fused_moe_kernel HERE (L324)
+│   │   │   ├── fused_moe.py                   ← Python wrapper (778 lines)
+│   │   │   └── configs/                       ← Pre-tuned hyperparameter tables
+│   │   │       └── triton_3_4_0/
+│   │   │           ├── E=128,N=192,device_name=NVIDIA_H200,dtype=fp8_w8a8.json
+│   │   │           ├── E=512,N=128,device_name=NVIDIA_H200.json
+│   │   │           └── ... (hundreds of JSON files)
+│   │   ├── ep_moe/kernels.py     ← 17 @triton.jit (expert parallelism)
+│   │   └── router.py             ← MoE router top-k (2 @triton.jit)
+│   ├── attention/
+│   │   ├── mamba/causal_conv1d_triton.py
+│   │   └── mamba/ops/ssd_*.py    ← Mamba SSM kernels
+│   ├── quantization/
+│   │   ├── fp8_kernel.py
+│   │   ├── int8_kernel.py
+│   │   └── awq_triton.py
+│   ├── rotary_embedding.py       ← RoPE Triton
+│   ├── activation.py
+│   └── layernorm.py
+├── lora/triton_ops/              ← 7 LoRA Triton kernels
+├── mem_cache/                    ← KV cache page management
+├── speculative/                  ← speculative decoding kernels
+├── batch_invariant_ops/
+└── constrained/triton_ops/
+```
+
+### 35.3 sgl-kernel directory map (hand-written CUDA)
+
+```
+/home/t-jialianggu/work/sglang/sgl-kernel/csrc/
+├── allreduce/                    ← TP all-reduce
+├── attention/                    ← custom attention CUDA kernels
+├── moe/
+│   ├── moe_align_kernel.cu       ← align tokens to expert blocks
+│   ├── moe_topk_softmax_kernels.cu
+│   ├── moe_topk_sigmoid_kernels.cu
+│   ├── fp8_blockwise_moe_kernel.cu
+│   ├── nvfp4_blockwise_moe.cu
+│   ├── cutlass_moe/              ← CUTLASS-template MoE GEMM
+│   ├── moe_fused_gate.cu
+│   ├── moe_sum_reduce.cu
+│   ├── kimi_k2_moe_fused_gate.cu ← model-specific kernel
+│   └── prepare_moe_input.cu
+├── gemm/                         ← GEMM variants
+├── quantization/                 ← FP8/INT8/INT4
+├── kvcacheio/                    ← KV cache I/O
+├── mamba/
+├── grammar/                      ← xgrammar acceleration
+├── flashmla_extension.cc
+└── flash_extension.cc
+```
+
+Build: `sgl-kernel/CMakeLists.txt` + `Makefile`, output wheel on `pip install`.
+
+### 35.4 The exact location of yesterday's fused_moe_kernel
+
+**File:**
+`/home/t-jialianggu/work/sglang/python/sglang/srt/layers/moe/fused_moe_triton/fused_moe_triton_kernels.py`
+
+**Line:** L323-1148 (the file is 1148 lines, contains multiple `@triton.jit` kernels)
+
+**The actual definition (L323-380):**
+
+```python
+@triton.jit  # ← compiled to PTX/SASS by Triton at runtime
+def fused_moe_kernel(
+    # Pointers to matrices
+    a_ptr, a_desc, b_ptr, b_desc, bias_ptr, c_ptr,
+    a_scale_ptr, b_scale_ptr, topk_weights_ptr,
+    sorted_token_ids_ptr,    # ← tokens sorted by expert assignment
+    expert_ids_ptr,
+    num_tokens_post_padded_ptr,
+    # Matrix dimensions
+    N, K, EM, num_valid_tokens,
+    # Strides
+    stride_am, stride_ak, stride_be, stride_bk, stride_bn, ...,
+    # Block sizes (compile-time constants, used by autotune)
+    BLOCK_SIZE_M: tl.constexpr,
+    BLOCK_SIZE_N: tl.constexpr,
+    BLOCK_SIZE_K: tl.constexpr,
+    GROUP_SIZE_M: tl.constexpr,
+    MUL_ROUTED_WEIGHT: tl.constexpr,
+    top_k: tl.constexpr,
+    compute_type: tl.constexpr,
+    use_fp8_w8a8: tl.constexpr,      # ← quantization paths
+    use_int8_w8a8: tl.constexpr,
+    use_int8_w8a16: tl.constexpr,
+    per_channel_quant: tl.constexpr,
+    even_Ks: tl.constexpr,
+    c_sorted: tl.constexpr,
+    filter_expert: tl.constexpr,
+    swap_ab: tl.constexpr,            # ← M/N swap optimisation
+):
+    # ... actual fused GEMM + routing logic
+```
+
+### 35.5 Call chain from model → kernel
+
+```
+sglang/srt/models/qwen3_moe.py
+  └── self.experts = FusedMoE(...)              # Python module
+        └── sglang/srt/layers/moe/fused_moe_triton/layer.py
+              FusedMoE.forward()
+              └── sglang/srt/layers/moe/fused_moe_triton/fused_moe.py
+                    fused_experts(...)
+                    └── fused_moe_triton_kernels.py
+                          fused_moe_kernel       ← Triton JIT
+                          └── nvcc → PTX → SASS
+                                └── what you see in nsys trace as `fused_moe_kernel`
+```
+
+### 35.6 The pre-tuned config mechanism (low-hanging fruit for an agent)
+
+```
+fused_moe_triton/configs/triton_3_4_0/
+├── E=128,N=192,device_name=NVIDIA_H200,dtype=fp8_w8a8.json
+├── E=512,N=128,device_name=NVIDIA_H200.json
+└── ... hundreds of JSONs per (E, N, device, dtype) combination
+```
+
+Each JSON contents:
+
+```json
+{
+    "M=1":   {"BLOCK_SIZE_M": 16, "BLOCK_SIZE_N": 64, "BLOCK_SIZE_K": 128,
+              "GROUP_SIZE_M": 1, "num_warps": 4, "num_stages": 4},
+    "M=8":   {"BLOCK_SIZE_M": 32, "BLOCK_SIZE_N": 128, "BLOCK_SIZE_K": 64, ...},
+    "M=64":  {"BLOCK_SIZE_M": 64, "BLOCK_SIZE_N": 128, "BLOCK_SIZE_K": 32, ...},
+    "M=512": ...
+}
+```
+
+These are **hand-tuned at sglang merge time** — somebody ran benchmarks on H200 with that (E, N, dtype) and committed the best block sizes. At runtime sglang looks up the JSON by `(num_experts, intermediate_dim, gpu_name, dtype)` and passes the values straight to `fused_moe_kernel`.
+
+**This is exactly where an agent provides leverage:**
+
+- Hand-tuned coverage is incomplete (only popular configs)
+- New (model, GPU, batch-shape) combinations fall back to defaults → multiple-× slower
+- An agent can autotune missing configs and PR new JSONs to upstream sglang
+- **No kernel writing required** — purely hyperparameter search with a clean evaluation harness
+
+### 35.7 The 3 files to actually read for self-study
+
+| Priority | File | Why |
+|---|---|---|
+| 🥇 | `sglang/python/sglang/srt/layers/moe/fused_moe_triton/fused_moe_triton_kernels.py` L324+ | See what a real production Triton kernel looks like (1148 lines: GEMM + routing fusion + quantization paths) |
+| 🥈 | `sglang/python/sglang/srt/layers/moe/fused_moe_triton/configs/triton_3_4_0/E=512,N=128,device_name=NVIDIA_H200.json` | See what hand-tuned autotune results look like — this is the "expert knowledge" we could automate |
+| 🥉 | `sglang/sgl-kernel/csrc/moe/moe_fused_gate.cu` | See what a hand-written CUDA kernel looks like — contrast with the Triton style |
+
+### 35.8 One-paragraph summary
+
+> sglang kernels live in **4 different sources**: (1) **Triton kernels** as `@triton.jit` Python functions in `sglang/python/sglang/srt/**/*.py` (75 files); (2) **hand-written CUDA** in `sglang/sgl-kernel/csrc/**/*.cu` (110 files, packaged as a separate pip wheel); (3) **flashinfer** (external pip dependency, used for attention + sampling); (4) **flash-attn / cutlass / triton_kernels lib** (external pip wheels, called directly). Yesterday's `fused_moe_kernel` is a Triton kernel at `sglang/python/sglang/srt/layers/moe/fused_moe_triton/fused_moe_triton_kernels.py:324` (1148-line file). It's called via `models/qwen3_moe.py → FusedMoE → fused_experts → fused_moe_kernel`. The kernel takes compile-time `BLOCK_SIZE_M/N/K` constants whose optimal values are looked up at runtime from per-(num_experts × intermediate_dim × device × dtype) JSON tables in `fused_moe_triton/configs/triton_3_X_X/` — these are **hand-tuned** and incomplete. **The clearest agent leverage point** here is autotuning missing config JSONs for new (model, GPU, batch) combinations — no kernel rewriting needed, purely a hyperparameter search with a clean numerical-equivalence verification harness (per §34).
