@@ -6040,3 +6040,160 @@ The mental model going forward:
 > Both are real fallback chains. The "no fallback, hard fail" claim was correct only for the explicit-backend case (`--attention-backend X` where X can't load, §21.4), and for cases where neither sglang nor transformers know the architecture.
 
 The §21 / §22 walls of text aren't worth re-writing in place; this §28 is the corrected version of the model-architecture story. Please read it together with §21.6's flowchart — replace that flowchart with the one in §28.3.
+
+## 29. What "default" backend actually means in sglang (Debadeepta question)
+
+> 🟢 NEW. Debadeepta's question after the meeting: "default" is mentioned
+> a lot in our analyses, but it's never been pinned down. Is it Triton?
+> Is it the fused MoE kernel? Is it model-dependent? Different models
+> default to different backends? This section makes "default" precise
+> with source + trace evidence.
+
+### 29.1 "Default" is not one value — it's a vector of ~10 independent dispatcher defaults
+
+There is no single "the default backend" in sglang. There are **at least 10 separate backend flags**, each with its own default, each resolved independently at startup. Source: `sglang/srt/server_args.py:445-535`:
+
+| Flag | Default value (in `server_args.py`) | When resolved | Resolved on our H200 + Qwen3-30B-A3B bf16 |
+|---|---|---|---|
+| `attention_backend` | `None` → hardware-aware chain | `_handle_attention_backend_compatibility` (§21.3) | **`fa3`** (hopper auto-chain) |
+| `prefill_attention_backend` | `None` (uses `attention_backend`) | same | inherits `fa3` |
+| `decode_attention_backend` | `None` (uses `attention_backend`) | same | inherits `fa3` |
+| `sampling_backend` | `None` → `flashinfer` if available, else `pytorch` | `_handle_sampling_backend:1766-1770` | **`flashinfer`** |
+| `grammar_backend` | `xgrammar` | literal | `xgrammar` |
+| `moe_runner_backend` | `auto` | per-quant resolution inside each `*MoEMethod` class (§24) | **`auto` → Triton `fused_moe_kernel`** |
+| `moe_a2a_backend` | `none` | literal | `none` |
+| `fp8_gemm_runner_backend` | `auto` | inside `Fp8GemmRunnerBackend` | `auto` (no-op, no FP8 weights) |
+| `fp4_gemm_runner_backend` | `flashinfer_cutlass` | literal | `flashinfer_cutlass` (no-op, no FP4 weights) |
+| `mamba_backend` | `triton` | literal | `triton` (no-op, no Mamba layers) |
+| `lora_backend` | `csgmv` | literal | `csgmv` (no-op, no LoRA) |
+| `nsa_prefill_backend` | `None` → hardware/dtype detect | `_handle_nsa_*` | None (no NSA) |
+| `mm_attention_backend` | `None` | model-loader decides | None (text-only model) |
+
+So when our trace shows "default" behavior, what's actually running is a **specific combination of resolved defaults** — `fa3 + flashinfer + xgrammar + Triton-fused_moe_kernel + …`. Calling any one of them "the default" is loose talk.
+
+### 29.2 Resolution evidence — directly from our C0 baseline `server_info.json`
+
+```json
+{
+  "attention_backend": "fa3",                   ← resolved from None
+  "prefill_attention_backend": null,
+  "decode_attention_backend": null,
+  "sampling_backend": "flashinfer",             ← resolved from None
+  "grammar_backend": "xgrammar",
+  "moe_runner_backend": "auto",                 ← stays "auto", but
+                                                  internally resolved to Triton
+                                                  (see §24 + §25)
+  "moe_a2a_backend": "none",
+  "fp8_gemm_runner_backend": "auto",
+  "fp4_gemm_runner_backend": "flashinfer_cutlass",
+  "mamba_backend": "triton",
+  "lora_backend": "csgmv",
+  "speculative_moe_runner_backend": "auto",
+  "speculative_moe_a2a_backend": null,
+  ...
+}
+```
+
+**Critical observation**: `moe_runner_backend` says `'auto'` in `server_info.json`, but the actual kernel running is `fused_moe_kernel`. `/server_info` shows the **user input**, not the resolved value (§23.2). To know what really runs, you have to look at the trace's kernel names.
+
+### 29.3 Source breakdown — what's actually running per-component in our C0 trace
+
+| GPU component | Default-resolved backend | Actual kernel name in trace | Library origin |
+|---|---|---|---|
+| MoE FFN | `moe_runner_backend=auto` → Triton | **`fused_moe_kernel`** (46.4 % GPU) | sglang hand-written Triton |
+| Attention | `attention_backend=auto` → fa3 (Hopper) | `void cutlass::device_kernel<flash::FlashAttnFwdSm90<…>>` (13.4 %) | flash-attn library (NVIDIA, CUTLASS-based) |
+| GEMM (Q/K/V/O proj) | implicit cuBLAS via `nn.Linear` | `nvjet_tst_*` (~13 %) | cuBLAS / cuBLASLt (NVIDIA) |
+| RMSNorm | implicit flashinfer choice | `flashinfer::FusedAddRMSNormKernel` (~2.4 %) | flashinfer (hand-written CUDA C++) |
+| RoPE | implicit flashinfer choice | `flashinfer::BatchQKApplyRotaryPosIdsCosSinCacheEnhancedKernel` (~1.8 %) | flashinfer |
+| Activation (SiLU) | implicit flashinfer choice | `flashinfer::activation::act_and_mul_kernel<silu>` (~2.8 %) | flashinfer |
+| Sampling | `sampling_backend=flashinfer` | (rolls into general `at::native` + `flashinfer::*sample`) | flashinfer |
+| Schedule helpers | `moe_align_block_size`, `moe_sum_reduce`, `write_req_to_token_pool` | (~3 % GPU) | sglang hand-written Triton |
+| Misc | various PyTorch | `void at::native::elementwise_kernel<…>` (~3 %) | PyTorch native |
+| Inductor (auto-gen) | — | 0.00 % (only 19 µs total) | Not in default forward path |
+
+### 29.4 Answers to Debadeepta's 4 sub-questions
+
+#### Q: Is default Triton?
+
+**Partially.** Three different defaults dominate different parts of the forward pass:
+
+- **MoE compute (49 % GPU): Triton**, via sglang's `fused_moe_kernel` + helpers
+- **Attention (13 %): NOT Triton** — `fa3` is CUTLASS-based CUDA from flash-attn
+- **GEMM proj (13 %): NOT Triton** — cuBLAS/cuBLASLt
+- **Norm + RoPE + activation (7.2 %): NOT Triton** — flashinfer hand-written CUDA C++
+
+Calling any one of these "the default" misses the others. The binary "is default Triton?" question is itself the wrong frame.
+
+#### Q: Is default a fused MoE kernel?
+
+**Yes, for the MoE FFN specifically**: `moe_runner_backend=auto` on bf16 H200 resolves to sglang's hand-written `fused_moe_kernel` (a Triton kernel). But "default" for attention / sampling / GEMM is something else entirely (see Q1).
+
+If the question is "for MoE compute specifically, what runs at default?": **Triton `fused_moe_kernel`**. If it's "what runs by default in the whole engine?": **a mix of fa3 + flashinfer + cuBLAS + Triton fused MoE**.
+
+#### Q: Is default model-dependent?
+
+**Yes, at least 3 dimensions of dependency**:
+
+| Dependency dimension | Affects | Example |
+|---|---|---|
+| **MHA vs MLA architecture** | Attention auto-chain | Both fall to `fa3` on H200 (per §21.3 Step 2a vs 2b), but the MLA chain is different. On Blackwell, MHA → `trtllm_mha`, MLA → `flashinfer`. |
+| **Quantization config** (`config.json["quantization_config"]`) | Which `*MoEMethod` class loads (§24) → how `moe_runner_backend=auto` is interpreted | bf16: `UnquantizedFusedMoEMethod` → Triton. FP8: `Fp8MoEMethod` → DeepGEMM (if available) or Triton. AWQ: `AWQMarlinMoEMethod` → Marlin W4A16 GEMM. |
+| **Multi-modal vs text-only** | `mm_attention_backend` engages | text-only: `None`; LLaVA/Pixtral: model-loader picks `sdpa` / `fa3` / `triton_attn` |
+
+#### Q: Different models import → different default backends?
+
+**Yes. Concrete enumeration on H200**:
+
+| Model | Default attention | Default MoE runner | Resolved MoE kernel |
+|---|---|---|---|
+| Qwen3-0.6B dense bf16 (our C0 dense) | `fa3` | N/A (no MoE) | — |
+| Gemma-3-1B dense bf16 (our gemma) | `fa3` | N/A | — |
+| Qwen3-30B-A3B MoE bf16 (our C0 MoE) | `fa3` | `auto` → Triton | **`fused_moe_kernel`** |
+| Qwen3-30B-A3B MoE FP8 (hypothetical, requires `--quantization fp8`) | `fa3` | `auto` → DeepGEMM if available | **`fp8_blockwise_scaled_grouped_mm`** (DeepGEMM) or Triton FP8 path |
+| DeepSeek-V3 MLA + native FP8 | `fa3` (MLA chain on H200) | `auto` → DeepGEMM (model ships FP8 weights) | `fp8_blockwise_scaled_grouped_mm` |
+| Llama-3 dense bf16 on H200 | `fa3` | N/A | — |
+| Llama-3 dense bf16 on A100 (SM80) | `flashinfer` (or `triton` if flashinfer missing) | N/A | — |
+| **Same Qwen3-30B-A3B on AMD MI300X** | `aiter` | `auto` → AIter | AIter's `fused_moe` (C++/HIP, NOT Triton) |
+| **Same Qwen3-30B-A3B on Blackwell B200** | `trtllm_mha` (MHA on Blackwell) | `auto` → ? (no explicit Blackwell-specific MoE chain — likely cutlass once it's supported there) | unclear, would need test |
+
+### 29.5 How to verify "default" for any model — the only reliable method
+
+`/server_info` lies (§23.2). The only reliable way:
+
+1. Run a short benchmark with `--profile`:
+   ```bash
+   python -m sglang.bench_serving --backend sglang \
+       --host 127.0.0.1 --port 30000 \
+       --model <MODEL> \
+       --dataset-name random \
+       --random-input-len 128 --random-output-len 128 \
+       --num-prompts 16 \
+       --profile --profile-num-steps 5 \
+       --profile-output-dir ./trace
+   ```
+   (must set `SGLANG_TORCH_PROFILER_DIR` on server side, see `.github/skills/pytorch-profiling`)
+
+2. Open the trace, look at kernel names:
+   - `fused_moe_kernel` → sglang's hand-written Triton MoE
+   - `cutlass_fused_experts_fp8` → cutlass FP8 MoE (only if FP8 model)
+   - `_p_matmul_ogs_*` → triton_kernels library (only if `--moe-runner-backend triton_kernel`)
+   - `flashinfer_cutlass_fused_moe` → flashinfer cutlass MoE
+   - `FlashAttnFwdSm90` → fa3 attention
+   - `BatchPrefillWithRaggedKV` → flashinfer attention (NOT fa3)
+   - `flashinfer::FusedAddRMSNormKernel` → flashinfer norm
+   - `triton_poi_fused_*` / `triton_tem_fused_*` / `triton_red_fused_*` → Inductor (rare in default config)
+
+3. Use our `detect_silent_noop.py` to automate this comparison for any flag you set:
+   ```bash
+   python scripts/regime_study/detect_silent_noop.py \
+       --server-info <RUN_DIR>/server_info.json \
+       --trace <RUN_DIR>/raw_trace/*/p_*.trace.json.gz
+   ```
+
+### 29.6 One-paragraph summary for Debadeepta / Mason
+
+> **"Default" in sglang is not a single value — it's a vector of ~10
+> independent dispatcher defaults, resolved at startup based on
+> (hardware, model architecture, quantization config)**. For our C0
+> baseline (H200 + Qwen3-30B-A3B bf16), the resolved default is
+> `attention=fa3 + sampling=flashinfer + moe_runner=auto→Triton(fused_moe_kernel) + grammar=xgrammar + …`. **The same default `moe_runner=auto` resolves to Triton on bf16, DeepGEMM on FP8, AIter on AMD, and cutlass once you're on Blackwell-+-FP8**. So yes, default IS model-dependent (via quantization) AND hardware-dependent (via architecture-specific auto-chains). **The only reliable way to verify what default a particular model resolves to is to run a trace and read the kernel names** — `/server_info` returns the user input verbatim, not the resolved value (§23.2). We have a tool for this: `scripts/regime_study/detect_silent_noop.py`.
