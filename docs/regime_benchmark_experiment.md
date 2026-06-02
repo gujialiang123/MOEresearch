@@ -6845,3 +6845,72 @@ Currently Mason / Debadeepta's mental model probably expects Tier 3 or 4 from an
 ### 32.6 One-paragraph summary
 
 > Yes, both transformers and sglang have their own model registries with hand-written Python classes for each architecture. **Pure PyTorch is not enough for LLM serving** — you'd be missing KV cache, paged attention, CUDA graph, optimised kernels, batching, parallelism, all the serving infrastructure that makes sglang/vLLM/TRT-LLM exist. To add a new model architecture, you have 5 paths: (A) pure PyTorch — works but 10-100× slower, no serving; (B) **trust-remote-code** — bundle `modeling_*.py` + `configuration_*.py` + `auto_map` in your model dir, both transformers and sglang dynamically import it (no upstream PR needed); (C) PR to transformers — full eager support; (D) PR to sglang — full fast path with `fused_moe_kernel` / fa3 / paged KV; (E) PR to vLLM/TRT-LLM separately. **Each serving engine maintains its own implementation independently** — transformers' `Qwen3MoeForCausalLM` and sglang's `Qwen3MoeForCausalLM` are two completely different Python classes that should be numerically equivalent but share no code. Sglang has ~120 model files in `sglang/srt/models/` for this reason. Path B (trust-remote-code) is the cheapest escape hatch for non-PR cases but gives you the slow `TransformersForCausalLM` wrapper performance — for MoE models specifically, this loses the `fused_moe_kernel` and runs MoE experts as a Python loop. For real serving performance on a new architecture, somebody has to write the sglang model file (path D). An agent could plausibly automate path B/D as code generation tasks.
+
+## 33. Absolute paths to the model registries (for hands-on inspection)
+
+> 🟢 NEW. Quick reference for opening the actual files that constitute
+> transformers' and sglang's model registries on this machine.
+
+### 33.1 Environment
+
+- Conda env: `sglang-dev`
+- Python: 3.11
+- transformers: **4.57.1** (regular pip install)
+- sglang: **0.5.12.post1** (editable install — source in `/home/t-jialianggu/work/sglang/`)
+
+### 33.2 transformers (4.57.1) — internal model registry
+
+| What | Absolute path | Lines |
+|---|---|---|
+| **Master model-type → Config-class dict** `CONFIG_MAPPING_NAMES` | `/home/t-jialianggu/.conda/envs/sglang-dev/lib/python3.11/site-packages/transformers/models/auto/configuration_auto.py` | L36 onward (OrderedDict literal); file is 1404 lines |
+| **CausalLM dict** `MODEL_FOR_CAUSAL_LM_MAPPING_NAMES` (used by `AutoModelForCausalLM`) | `/home/t-jialianggu/.conda/envs/sglang-dev/lib/python3.11/site-packages/transformers/models/auto/modeling_auto.py` | L625 onward; file is 2382 lines |
+| **Per-architecture implementation directories** (384 of them) | `/home/t-jialianggu/.conda/envs/sglang-dev/lib/python3.11/site-packages/transformers/models/` | e.g. `gemma3/modeling_gemma3.py` |
+| **Dynamic module loader** `get_class_from_dynamic_module` (the `trust-remote-code` path) | `/home/t-jialianggu/.conda/envs/sglang-dev/lib/python3.11/site-packages/transformers/dynamic_module_utils.py` | 843 lines |
+
+### 33.3 sglang (0.5.12.post1, editable) — internal model registry
+
+| What | Absolute path |
+|---|---|
+| **Master registry = directory of .py files**, one per supported architecture (**165 files**) | `/home/t-jialianggu/work/sglang/python/sglang/srt/models/` |
+| **Architecture lookup + transformers fallback dispatcher** `resolve_transformers_arch` + `get_model_architecture` | `/home/t-jialianggu/work/sglang/python/sglang/srt/model_loader/utils.py` |
+| **ModelImpl enum + AutoConfig call site** (Gemma-4 fails here) | `/home/t-jialianggu/work/sglang/python/sglang/srt/configs/model_config.py` (L47-51 for enum, L127 for AutoConfig) |
+| **`TransformersForCausalLM` fallback wrapper** | `/home/t-jialianggu/work/sglang/python/sglang/srt/models/transformers.py` (289 lines) |
+| **`sglang_flash_attention_forward` hook** (registered into transformers' `ALL_ATTENTION_FUNCTIONS["sglang"]`) | Same file, L62 onward |
+
+### 33.4 Empirical confirmation: `gemma4` is NOT in the registry
+
+```bash
+$ grep "gemma" /home/t-jialianggu/.conda/envs/sglang-dev/lib/python3.11/site-packages/transformers/models/auto/configuration_auto.py
+("gemma",        "GemmaConfig"),
+("gemma2",       "Gemma2Config"),
+("gemma3",       "Gemma3Config"),
+("gemma3_text",  "Gemma3TextConfig"),
+("gemma3n",      "Gemma3nConfig"),
+("gemma3n_audio","Gemma3nAudioConfig"),
+("gemma3n_text", "Gemma3nTextConfig"),
+("gemma3n_vision","Gemma3nVisionConfig"),
+("paligemma",    "PaliGemmaConfig"),
+("recurrent_gemma","RecurrentGemmaConfig"),
+# NO gemma4
+```
+
+This is why `AutoConfig.from_pretrained()` raises ValueError on Gemma-4 before sglang's fallback could ever run.
+
+### 33.5 sglang `srt/models/` directory listing (first 20 of 165)
+
+```
+afmoe.py            apertus.py          arcee.py          baichuan.py
+bailing_moe.py      bailing_moe_linear.py  bailing_moe_nextn.py  bert.py
+chatglm.py          clip.py             commandr.py       dbrx.py
+deepseek.py         deepseek_common/    deepseek_janus_pro.py  deepseek_nextn.py
+deepseek_ocr.py     deepseek_v2.py      deepseek_vl2.py   dots_ocr.py
+```
+
+Every file = one hand-written `class XxxForCausalLM(nn.Module)` plus its weight-loading mapping table (`stacked_params_mapping` + `expert_params_mapping` for MoE).
+
+### 33.6 Recommended reading order for self-study
+
+1. `transformers/models/auto/configuration_auto.py` L36+ — see what a model-type dict actually looks like
+2. `sglang/srt/model_loader/utils.py` (full file) — see sglang's lookup + fallback chain
+3. `sglang/srt/models/qwen3_moe.py` — read a complete sglang model file (hand-written, includes `stacked_params_mapping`)
+4. `sglang/srt/models/transformers.py` — read the fallback wrapper's Linear/attention hooks
