@@ -2610,3 +2610,496 @@ C6 **总 GPU 时间更多但吞吐更高**，因为：
 | 性能？ | R8 上 **吞吐 +19%**，**E2E p99 −20%**，**TPOT −17%**。代价：显存峰 +60 MiB，每 step GPU active +469 ms（多数被并发吸收，不是浪费）。|
 | Backend 选择？ | 不变 —— 依然 fa3 + flashinfer + lpm。Piecewise CUDA graph **跟 backend 选择正交**；它只改 backend 已选 kernel 的 *launch 方式*。|
 | 推荐吗？ | **R8 上是的**。提到默认前要先在 R1-R7 上测 —— 小 batch 上可能因为 per-bucket graph capture 成本反而回归。|
+
+## 21. Sglang fallback mechanics — when does it actually fall back, and when does it just fail?
+
+> 🟢 NEW. Answers the question raised after §19: if sglang has Triton/Transformers
+> as fallbacks, why did our Gemma-4 + C1 + C5 fail outright? This section
+> walks through the **four distinct dispatch layers** in sglang, shows where
+> each one does (or doesn't) fall back, and what really happens when you
+> pass a backend flag the system can't satisfy.
+
+### 21.1 The four layers — none of them are the same
+
+| Layer | What it dispatches | Source | Fallback behaviour when target not available |
+|---|---|---|---|
+| **A. Model architecture** | `model_type` from `config.json` → a Python `nn.Module` class | `sglang/srt/models/registry.py:_ModelRegistry` | **HARD FAIL** — `KeyError: '<model_type>'`. No transformers fallback, no auto-substitute. |
+| **B. Backend selection (auto)** | `attention_backend=None` (default) → picks `fa3`/`flashinfer`/`triton` based on hardware | `sglang/srt/server_args.py:_handle_attention_backend_compatibility` | **Smart auto-select** — picks the fastest path that works. This is the only layer that really "falls back". |
+| **C. Backend selection (explicit)** | `--attention-backend flashinfer` → must use flashinfer | `sglang/srt/model_executor/model_runner.py:_get_attention_backend_from_str` | **HARD FAIL** if the backend can't load — `raise ValueError(f"Invalid attention backend: {backend_str}")` or downstream JIT error. **NO fallback to anything else.** |
+| **D. Backend ignored by code path** | `--moe-runner-backend cutlass` on a bf16 (unquantized) model | `sglang/srt/layers/quantization/unquant.py:321-330` | **SILENT NO-OP** — the bf16 MoE path hardcodes `MoeRunnerBackend.TRITON` and never reads the flag. |
+
+These four layers explain every "weird" behaviour we saw in §19 and elsewhere.
+
+### 21.2 Layer A — model registry has NO fallback
+
+Source ([`sglang/srt/models/registry.py:39-56`](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/models/registry.py)):
+
+```python
+class _ModelRegistry:
+    models: Dict[str, Union[Type[nn.Module], str]] = field(default_factory=dict)
+
+    def register(self, package_name: str, overwrite: bool = False, ...):
+        new_models = import_model_classes(package_name, strict=strict)
+        for arch, cls in new_models.items():
+            if arch in self.models:
+                raise ValueError(...)
+            self.models[arch] = cls
+
+    def _raise_for_unsupported(self, architectures: List[str]):
+        if any(arch in all_supported_archs for arch in architectures):
+            raise ValueError(...)
+        raise ValueError(
+            f"Model architectures {architectures} are not supported for now. "
+            f"Supported architectures: {all_supported_archs}"
+        )
+```
+
+**Architecture lookup uses a hard dict lookup**. There is no `try
+transformers; except: use triton path` — sglang doesn't even know what
+your model is until someone (in the sglang source tree) writes a Python
+class implementing it. Architecture-to-class map is built at import time
+from `sglang/srt/models/*.py`.
+
+**This is why our Gemma-4 attempt failed** with `KeyError: 'gemma4'` —
+no `gemma4.py` in `sglang/srt/models/`. sglang's gemma family is
+`gemma.py`, `gemma2.py`, `gemma2_reward.py`, `gemma3_causal.py`,
+`gemma3_mm.py`, `gemma3n_*.py`. None of them are `gemma4`. Loading
+fails before any kernel even gets a chance to run.
+
+**Compare to HuggingFace transformers**: HF *does* have a generic
+`AutoModelForCausalLM` that can load almost anything via the `architectures`
+field with a Python forward path. Sglang chose NOT to do this because the
+whole point of sglang is the optimised forward path — using transformers
+generically would defeat the purpose. So sglang trades flexibility for
+performance and **fails fast** when you give it a model it doesn't know.
+
+### 21.3 Layer B — backend AUTO-select (the only "real" fallback)
+
+Source ([`sglang/srt/server_args.py:1782-1818`](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/server_args.py)):
+
+```python
+# Pick the default attention backend if not specified
+if self.attention_backend is None:
+    if not use_mla_backend:
+        # MHA architecture
+        if is_hopper_with_cuda_12_3() and is_no_spec_infer_or_topk_one(self):
+            self.attention_backend = "fa3"             # ← what we got on H200
+        elif is_sm100_supported() and ...:
+            self.attention_backend = "trtllm_mha"      # ← Blackwell
+        elif is_hip():
+            self.attention_backend = "aiter"            # ← AMD MI*
+        else:
+            self.attention_backend = (
+                "flashinfer" if is_flashinfer_available() else "triton"  # ← real fallback chain
+            )
+    else:
+        # MLA architecture
+        if is_hopper_with_cuda_12_3():
+            self.attention_backend = "fa3"
+        elif is_blackwell():
+            self.attention_backend = "flashinfer"
+        else:
+            self.attention_backend = "triton"
+```
+
+**This is the only place "fallback" really happens**: auto mode walks a
+hardware-aware priority chain. On our H200 it lands on `fa3`. If
+flashinfer's missing, it falls to `triton`. If we were on Blackwell it
+would try `trtllm_mha` first.
+
+Similar (but per-quantization) for MoE in
+`sglang/srt/layers/quantization/fp8.py:1349`:
+
+```python
+# FP8 MoE: try DeepGEMM, fall back to Triton
+if is_deep_gemm_supported() and ...:
+    moe_runner_backend = MoeRunnerBackend.DEEP_GEMM
+else:
+    moe_runner_backend = MoeRunnerBackend.TRITON
+```
+
+Again — **fallback only happens in the auto-detect path**. The moment you
+pin a specific backend, the auto-detector is bypassed.
+
+### 21.4 Layer C — explicit backend = NO fallback, hard fail
+
+Source ([`sglang/srt/model_executor/model_runner.py:1792-1798`](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/model_executor/model_runner.py)):
+
+```python
+def _get_attention_backend_from_str(self, backend_str: str, ...):
+    if backend_str not in ATTENTION_BACKENDS:
+        raise ValueError(f"Invalid attention backend: {backend_str}")
+    self.init_new_workspace = init_new_workspace
+    full_attention_backend = ATTENTION_BACKENDS[backend_str](self)
+    return attn_backend_wrapper(self, full_attention_backend)
+```
+
+That `ATTENTION_BACKENDS[backend_str](self)` call is the **backend's
+constructor**. If the backend's `__init__` or weights-init raises (because
+of a missing kernel JIT, an unsupported shape, …), **the exception
+propagates and the server dies**. No `try: cutlass except: triton` chain.
+
+**This is why our C5 (`--attention-backend flashinfer`) failed**: the
+explicit `flashinfer` backend triggered a JIT build of
+`batch_prefill_with_kv_cache_*` and ninja blew up — sglang dutifully
+raised the exception and the server exited. If we had left
+`attention-backend` unset (=auto), Layer B would have picked `fa3`
+instead and avoided the JIT path entirely.
+
+**Why this design choice**: silently substituting backends would hide
+performance regressions and make A/B testing impossible (which is exactly
+what §19 is trying to do). Hard-fail-on-explicit is the right call for an
+optimization research codebase.
+
+### 21.5 Layer D — explicit backend SILENTLY IGNORED
+
+This is the most subtle one — and the reason C4 looked like a no-op.
+
+Source ([`sglang/srt/layers/quantization/unquant.py:321-330`](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/layers/quantization/unquant.py)):
+
+```python
+class UnquantizedFusedMoEMethod(FusedMoEMethodBase, MultiPlatformOp):
+    """MoE method without quantization."""
+
+    def create_moe_runner(self, layer, moe_runner_config):
+        self.moe_runner_config = moe_runner_config
+        backend = (
+            MoeRunnerBackend.TRITON_KERNELS
+            if self.use_triton_kernels
+            else MoeRunnerBackend.TRITON
+        )
+        self.runner = MoeRunner(backend, moe_runner_config)
+        # ↑↑↑ self.server_args.moe_runner_backend is NEVER read here ↑↑↑
+```
+
+The bf16 path **hard-codes** `MoeRunnerBackend.TRITON`. The server arg
+`--moe-runner-backend cutlass` you set in C4 was parsed, stored on
+`server_args`, but **never consulted by this code path**.
+
+Where IS it consulted? Only in the quantized paths
+([`sglang/srt/layers/quantization/fp8.py:1349`](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/layers/quantization/fp8.py)):
+
+```python
+# Inside FP8 MoE method
+if (server_args.moe_runner_backend == "deep_gemm"
+        or (server_args.moe_runner_backend == "auto" and is_deep_gemm_supported())):
+    moe_runner_backend = MoeRunnerBackend.DEEP_GEMM
+else:
+    moe_runner_backend = MoeRunnerBackend.TRITON
+```
+
+So `--moe-runner-backend` is effectively **only honoured for FP8/FP4 MoE**.
+On bf16 it's a silent no-op. **There's no warning, no log line, nothing.**
+
+**This is the genuine sharp edge** in sglang's design — and what we
+caught in §19 by comparing kernel-by-kernel traces. Without the trace
+diff, C4 would look like "tried cutlass, got identical perf, conclude
+cutlass = triton on this workload" — which is wrong; the truth is the
+flag was never used.
+
+### 21.6 The decision tree, as a flowchart
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│ sglang.launch_server --attention-backend X --moe-runner-backend Y │
+└──────────────────────────────┬─────────────────────────────────┘
+                               │
+                ┌──────────────┴──────────────┐
+                │ Layer A — model registry     │
+                │ model_type in registry?      │
+                └──────────────┬──────────────┘
+                       NO ───► raise KeyError, server exits
+                       YES ───► continue
+                               │
+                ┌──────────────┴──────────────┐
+                │ Layer B — attention auto?   │
+                │ X is None / "auto"?         │
+                └──────────────┬──────────────┘
+                       YES ──► hardware-aware chain:
+                               H200+CUDA12.3 ──► fa3
+                               Blackwell    ──► trtllm_mha
+                               AMD          ──► aiter
+                               else         ──► flashinfer if available, else triton
+                       NO ─────► continue with X
+                               │
+                ┌──────────────┴──────────────┐
+                │ Layer C — explicit X loads? │
+                │ ATTENTION_BACKENDS[X](self) │
+                └──────────────┬──────────────┘
+                       FAIL ──► raise, server exits  (← this is what C5 hit)
+                       OK   ──► use X
+                               │
+                ┌──────────────┴──────────────┐
+                │ Layer D — quant path reads Y?│
+                │ for MoE: depends on dtype    │
+                └──────────────┬──────────────┘
+                       bf16  ──► IGNORED, hard-coded to TRITON   (← this is what C4 hit)
+                       FP8   ──► honoured, dispatches to Y
+```
+
+### 21.7 Summary — answers to the mentor's three questions
+
+**Q: If sglang has fallback to transformers / triton, why did our models still fail to run?**
+
+A: The architecture registry (Layer A) has **no transformers fallback at all**. It's a hard dict lookup; unknown `model_type` raises immediately. The "fallback to triton/transformers" intuition comes from libraries like vLLM or HF generate, which sglang doesn't share. Sglang trades flexibility for a fully-optimised forward path.
+
+**Q: How does fallback actually work (when it does)?**
+
+A: **Only in two places**:
+
+1. **Auto attention-backend selection** (Layer B) walks a hardware-priority chain at startup: `fa3` on H200 → `trtllm_mha` on Blackwell → `aiter` on AMD → `flashinfer if available else triton`.
+2. **Auto quantized-MoE-runner selection** picks DeepGEMM if available, else Triton.
+
+Both fall back to the most-conservative-but-always-works choice. **They run once at startup, not per request.**
+
+**Q: When we pin a backend explicitly, does it still fall back if unsupported?**
+
+A: **No. Three distinct fail modes depending on the layer:**
+
+- **Hard fail with raised error** if the backend's constructor itself fails (Layer C). This is what happened to `--attention-backend flashinfer` (C5) when flashinfer's JIT couldn't build.
+- **Hard fail with raised error** if the backend name isn't in the registry (Layer C, `ValueError: Invalid attention backend`).
+- **Silent no-op** if the code path doesn't even read the flag (Layer D). This is what happened to `--moe-runner-backend cutlass` (C4) on bf16 — the flag was parsed but the unquantized MoE method ignores it and hardcodes Triton.
+
+The silent-no-op is the most dangerous one — it's the reason we had to do kernel-by-kernel trace comparison to confirm C4 was really no-op-ing, not just "cutlass happens to perform identically".
+
+---
+
+## 21. Sglang fallback 机制 —— 啥时候真 fallback，啥时候直接挂掉？
+
+> 🟢 新增。回答 §19 之后的疑问：sglang 不是有 Triton/Transformers 兜底吗？
+> 为啥 Gemma-4 / C1 / C5 还是直接失败？这一节走 sglang 里 **4 个完全不同的
+> dispatch 层**，看每层是不是会 fallback，以及指定一个 sglang 跑不动的
+> backend 到底真正会发生什么。
+
+### 21.1 4 个层 —— 谁都不一样
+
+| 层 | dispatch 什么 | 源码 | 目标不可用时 |
+|---|---|---|---|
+| **A. 模型架构** | `config.json` 里的 `model_type` → Python `nn.Module` 类 | `sglang/srt/models/registry.py:_ModelRegistry` | **硬 FAIL** —— `KeyError: '<model_type>'`。无 transformers fallback、无自动替代。 |
+| **B. Backend 自动选** | `attention_backend=None`（默认）→ 按硬件选 `fa3`/`flashinfer`/`triton` | `sglang/srt/server_args.py:_handle_attention_backend_compatibility` | **智能自动选** —— 按可用性选最快路径。**这是唯一真正会"fallback"的层。** |
+| **C. Backend 显式指定** | `--attention-backend flashinfer` → 必须用 flashinfer | `sglang/srt/model_executor/model_runner.py:_get_attention_backend_from_str` | **硬 FAIL**：要么 `raise ValueError(f"Invalid attention backend")`，要么下游 JIT 错误。**完全不会回退到任何别的 backend。** |
+| **D. Backend 被代码路径忽略** | bf16 模型上的 `--moe-runner-backend cutlass` | `sglang/srt/layers/quantization/unquant.py:321-330` | **悄悄 no-op** —— bf16 MoE path 把 `MoeRunnerBackend.TRITON` 写死了，从来没读这个 flag。 |
+
+这 4 层解释了我们 §19 和别处看到的所有"奇怪"行为。
+
+### 21.2 Layer A —— 模型 registry 没有 fallback
+
+源码（[`sglang/srt/models/registry.py:39-56`](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/models/registry.py)）：
+
+```python
+class _ModelRegistry:
+    models: Dict[str, ...] = field(default_factory=dict)
+
+    def register(self, package_name: str, ...):
+        new_models = import_model_classes(package_name, strict=strict)
+        for arch, cls in new_models.items():
+            if arch in self.models:
+                raise ValueError(...)
+            self.models[arch] = cls
+
+    def _raise_for_unsupported(self, architectures: List[str]):
+        if any(arch in all_supported_archs for arch in architectures):
+            raise ValueError(...)
+        raise ValueError(
+            f"Model architectures {architectures} are not supported for now. "
+            f"Supported architectures: {all_supported_archs}"
+        )
+```
+
+**架构查找是硬 dict 查找**。没有 `try transformers; except: use triton`
+—— sglang 在某人（在 sglang 源码树）写 Python 类实现它之前根本不知道你的
+模型是什么。架构-类的 map 是 import 时从 `sglang/srt/models/*.py` 建出来的。
+
+**这就是 Gemma-4 失败的原因** —— `sglang/srt/models/` 里没有 `gemma4.py`。
+sglang 的 gemma 家族是 `gemma.py`、`gemma2.py`、`gemma2_reward.py`、
+`gemma3_causal.py`、`gemma3_mm.py`、`gemma3n_*.py`，没有 `gemma4`。还没碰到
+任何 kernel 就直接挂了。
+
+**和 HuggingFace transformers 对比**：HF *有* 通用 `AutoModelForCausalLM`，
+能通过 `architectures` 字段加载几乎所有东西。Sglang 选择 **不** 这么做，因为
+sglang 的整个意义就是优化过的 forward path —— 通用 transformers 用法就违背了
+初衷。所以 sglang 用灵活性换性能，遇到不认识的模型 **快速失败**。
+
+### 21.3 Layer B —— backend 自动选（唯一"真"fallback）
+
+源码（[`sglang/srt/server_args.py:1782-1818`](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/server_args.py)）：
+
+```python
+# 如果没指定，选默认 attention backend
+if self.attention_backend is None:
+    if not use_mla_backend:
+        # MHA 架构
+        if is_hopper_with_cuda_12_3() and is_no_spec_infer_or_topk_one(self):
+            self.attention_backend = "fa3"             # ← H200 上选这个
+        elif is_sm100_supported() and ...:
+            self.attention_backend = "trtllm_mha"      # ← Blackwell
+        elif is_hip():
+            self.attention_backend = "aiter"            # ← AMD MI*
+        else:
+            self.attention_backend = (
+                "flashinfer" if is_flashinfer_available() else "triton"  # ← 真正的 fallback 链
+            )
+    else:
+        # MLA 架构
+        if is_hopper_with_cuda_12_3():
+            self.attention_backend = "fa3"
+        elif is_blackwell():
+            self.attention_backend = "flashinfer"
+        else:
+            self.attention_backend = "triton"
+```
+
+**这是 fallback 真正发生的唯一地方**：auto 模式走硬件感知的优先级链。我们的
+H200 上落到 `fa3`。如果 flashinfer 缺，会降到 `triton`。如果在 Blackwell 上
+会先试 `trtllm_mha`。
+
+MoE 也类似（per-quantization），见
+`sglang/srt/layers/quantization/fp8.py:1349`：
+
+```python
+# FP8 MoE：先试 DeepGEMM，不行回 Triton
+if is_deep_gemm_supported() and ...:
+    moe_runner_backend = MoeRunnerBackend.DEEP_GEMM
+else:
+    moe_runner_backend = MoeRunnerBackend.TRITON
+```
+
+再说一次 —— **fallback 只发生在自动检测路径**。一旦你钉死一个 backend，
+auto detector 就被绕过了。
+
+### 21.4 Layer C —— 显式 backend = 没有 fallback，硬 fail
+
+源码（[`sglang/srt/model_executor/model_runner.py:1792-1798`](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/model_executor/model_runner.py)）：
+
+```python
+def _get_attention_backend_from_str(self, backend_str: str, ...):
+    if backend_str not in ATTENTION_BACKENDS:
+        raise ValueError(f"Invalid attention backend: {backend_str}")
+    self.init_new_workspace = init_new_workspace
+    full_attention_backend = ATTENTION_BACKENDS[backend_str](self)
+    return attn_backend_wrapper(self, full_attention_backend)
+```
+
+`ATTENTION_BACKENDS[backend_str](self)` 是 **backend 的构造函数**。如果
+backend 的 `__init__` 或者权重初始化抛异常（kernel JIT 失败、不支持的 shape
+等），**异常向上传播，server 挂掉**。没有 `try: cutlass except: triton` 链。
+
+**这就是 C5（`--attention-backend flashinfer`）失败的原因**：显式 `flashinfer`
+触发了 `batch_prefill_with_kv_cache_*` 的 JIT 编译、ninja 炸了 —— sglang 老老实实
+抛出来、server 退出。如果不指定 `attention-backend`（= auto），Layer B 会选
+`fa3` 完全绕开 JIT 路径。
+
+**为什么这么设计**：悄悄替换 backend 会隐藏性能回归，让 A/B 测试不可能（这就是
+§19 在做的事）。**显式 = 硬 fail** 对优化研究 codebase 是对的选择。
+
+### 21.5 Layer D —— 显式 backend **悄悄被忽略**
+
+最微妙的一层 —— 也是 C4 看起来是 no-op 的原因。
+
+源码（[`sglang/srt/layers/quantization/unquant.py:321-330`](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/layers/quantization/unquant.py)）：
+
+```python
+class UnquantizedFusedMoEMethod(FusedMoEMethodBase, MultiPlatformOp):
+    """无量化的 MoE method。"""
+
+    def create_moe_runner(self, layer, moe_runner_config):
+        self.moe_runner_config = moe_runner_config
+        backend = (
+            MoeRunnerBackend.TRITON_KERNELS
+            if self.use_triton_kernels
+            else MoeRunnerBackend.TRITON
+        )
+        self.runner = MoeRunner(backend, moe_runner_config)
+        # ↑↑↑ self.server_args.moe_runner_backend 这里从来没读 ↑↑↑
+```
+
+bf16 path **写死** `MoeRunnerBackend.TRITON`。你在 C4 里设的
+`--moe-runner-backend cutlass` 被 parse 了、存到 `server_args` 上，但
+**这条代码路径从来没读它**。
+
+那它在哪儿被读？只有量化路径
+（[`sglang/srt/layers/quantization/fp8.py:1349`](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/layers/quantization/fp8.py)）：
+
+```python
+# FP8 MoE method 里面
+if (server_args.moe_runner_backend == "deep_gemm"
+        or (server_args.moe_runner_backend == "auto" and is_deep_gemm_supported())):
+    moe_runner_backend = MoeRunnerBackend.DEEP_GEMM
+else:
+    moe_runner_backend = MoeRunnerBackend.TRITON
+```
+
+所以 `--moe-runner-backend` 实际上 **只对 FP8/FP4 MoE 生效**。bf16 上它是
+悄悄 no-op。**没警告、没 log、什么都没。**
+
+**这就是 sglang 设计里真正的"锐边"** —— 也是 §19 我们用 kernel-by-kernel
+trace 对比抓到的。没有那次 trace diff，C4 看起来就是"试了 cutlass、性能一样、
+结论：cutlass = triton 在这个 workload 上" —— 错的。真相是 flag 根本没被用。
+
+### 21.6 决策树流程图
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│ sglang.launch_server --attention-backend X --moe-runner-backend Y    │
+└──────────────────────────────┬─────────────────────────────────────┘
+                               │
+                ┌──────────────┴──────────────┐
+                │ Layer A —— 模型 registry    │
+                │ model_type 在 registry 里？ │
+                └──────────────┬──────────────┘
+                       否 ───► raise KeyError，server 退出
+                       是 ───► 继续
+                               │
+                ┌──────────────┴──────────────┐
+                │ Layer B —— attention 自动？ │
+                │ X 是 None / "auto"？        │
+                └──────────────┬──────────────┘
+                       是 ───► 硬件感知链：
+                               H200+CUDA12.3 ──► fa3
+                               Blackwell    ──► trtllm_mha
+                               AMD          ──► aiter
+                               else         ──► flashinfer if available, else triton
+                       否 ───► 继续用 X
+                               │
+                ┌──────────────┴──────────────┐
+                │ Layer C —— 显式 X 能加载？  │
+                │ ATTENTION_BACKENDS[X](self) │
+                └──────────────┬──────────────┘
+                       失败 ──► raise，server 退出  （← C5 撞这里）
+                       成功 ──► 用 X
+                               │
+                ┌──────────────┴──────────────┐
+                │ Layer D —— 量化路径读 Y？   │
+                │ MoE：取决于 dtype           │
+                └──────────────┬──────────────┘
+                       bf16  ──► 忽略，硬编码到 TRITON  （← C4 撞这里）
+                       FP8   ──► 生效，dispatch 到 Y
+```
+
+### 21.7 一句话回答 mentor 的 3 个问题
+
+**Q：sglang 不是有 fallback 到 transformers / triton 吗？为啥我们的模型还是跑不起来？**
+
+A：架构 registry（Layer A）**完全没有 transformers fallback**。它是硬 dict 查找；未知 `model_type` 直接 raise。"fallback 到 triton/transformers" 的直觉来自 vLLM 或 HF generate 这些库，sglang 不走这条路。Sglang 用灵活性换全优化的 forward path。
+
+**Q：fallback 实际原理是啥？（当它真的会 fallback 时）**
+
+A：**只有 2 个地方**：
+
+1. **Attention backend 自动选**（Layer B）在启动时走硬件优先级链：H200 → `fa3`；Blackwell → `trtllm_mha`；AMD → `aiter`；其他 → `flashinfer if available else triton`。
+2. **量化 MoE runner 自动选**：FP8 时 DeepGEMM 可用就选 DeepGEMM，否则 Triton。
+
+两者都 fallback 到最保守但总能跑的选项。**这都是启动时跑一次，不是 per-request。**
+
+**Q：我们显式指定一个 backend 后，就算不支持也不会 fallback 吗？**
+
+A：**不会，且有 3 种失败模式（取决于哪一层）：**
+
+- **硬 fail 报错**：backend 的构造函数自己挂了（Layer C）。这就是
+  `--attention-backend flashinfer`（C5）的遭遇 —— flashinfer 的 JIT 编译不出来。
+- **硬 fail 报错**：backend 名字不在 registry 里（Layer C，`ValueError: Invalid attention backend`）。
+- **悄悄 no-op**：代码路径根本不读这个 flag（Layer D）。这就是
+  `--moe-runner-backend cutlass`（C4）在 bf16 上的遭遇 —— flag 被 parse 但 unquantized MoE 方法忽略它、硬编码到 Triton。
+
+悄悄 no-op 是最危险的 —— 这就是为啥我们必须做 kernel-by-kernel trace 对比，才能
+确认 C4 真的 no-op 了、而不是"cutlass 恰好性能一样"。
