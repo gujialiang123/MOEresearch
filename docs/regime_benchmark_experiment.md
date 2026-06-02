@@ -6197,3 +6197,237 @@ If the question is "for MoE compute specifically, what runs at default?": **Trit
 > (hardware, model architecture, quantization config)**. For our C0
 > baseline (H200 + Qwen3-30B-A3B bf16), the resolved default is
 > `attention=fa3 + sampling=flashinfer + moe_runner=auto→Triton(fused_moe_kernel) + grammar=xgrammar + …`. **The same default `moe_runner=auto` resolves to Triton on bf16, DeepGEMM on FP8, AIter on AMD, and cutlass once you're on Blackwell-+-FP8**. So yes, default IS model-dependent (via quantization) AND hardware-dependent (via architecture-specific auto-chains). **The only reliable way to verify what default a particular model resolves to is to run a trace and read the kernel names** — `/server_info` returns the user input verbatim, not the resolved value (§23.2). We have a tool for this: `scripts/regime_study/detect_silent_noop.py`.
+
+## 30. How sglang actually imports a HF model — the full flow (Debadeepta open question)
+
+> 🟢 NEW. The other open question from the meeting: how does sglang turn
+> a HuggingFace model directory into a running engine? Does it parse the
+> PyTorch source code? Does it pattern-match and map to kernels?
+> What happens if a pattern has no kernel?
+>
+> This section traces the complete path from `--model-path` to GPU kernel
+> launch, with source citations and references to our experiments.
+
+### 30.1 The big-picture summary (one paragraph)
+
+**Sglang does NOT parse PyTorch source. It does NOT pattern-match.** Instead, every supported model architecture has a **hand-written Python class in `sglang/srt/models/*.py`**, written by sglang maintainers, that re-implements the model's forward pass using sglang's own optimised layer primitives (`RadixAttention`, `FusedMoE`, `RowParallelLinear`, etc.). At import time, sglang reads `config.json`'s `architectures` field, looks up the architecture string in a static `ModelRegistry`, and instantiates the corresponding hand-written class. Weight loading uses a per-model **hand-written translation dictionary** (`stacked_params_mapping`, `expert_params_mapping`) to map HF safetensors names to sglang parameter names. Kernel choice happens later, inside each layer class, driven by the `--*-backend` flags + hardware auto-detection + quantization config (the dispatchers from §21-§29). **Nothing is auto-generated from arbitrary PyTorch code.**
+
+This is in contrast to:
+
+- **`torch.compile` + Inductor**: actually traces the forward pass with Dynamo, identifies fusion patterns, generates Triton kernels at runtime. Works on arbitrary code.
+- **TensorRT-LLM**: parses an exported ONNX/FX graph, identifies fusion templates, compiles to a `.plan` file. Works on arbitrary graphs (with caveats).
+- **sglang**: requires that a human has already hand-written `sglang/srt/models/<arch>.py` for your architecture. No automation.
+
+### 30.2 The 5-stage import pipeline, with source citations
+
+```
+sglang.launch_server --model-path X --model-impl auto
+        │
+        ▼
+┌───────────────────────────────────────────────────────────────────┐
+│ Stage 1 — Config parsing                                             │
+│   Source: sglang/srt/configs/model_config.py:127                     │
+│   Calls: transformers.AutoConfig.from_pretrained(model_path, ...)   │
+│   Reads: <model_path>/config.json                                   │
+│   Extracts: architectures, hidden_size, num_layers, num_experts,    │
+│             torch_dtype, quantization_config, ...                   │
+│   Fails: ValueError if transformers doesn't know model_type        │
+│           ← Gemma-4 hits here (§28.2)                               │
+└──────────────────────────────────┬────────────────────────────────┘
+                                   │
+                                   ▼
+┌───────────────────────────────────────────────────────────────────┐
+│ Stage 2 — Architecture → class resolution                            │
+│   Source: sglang/srt/model_loader/utils.py:89-117                    │
+│           sglang/srt/models/registry.py:78-89                        │
+│   Logic:                                                             │
+│     archs = config.architectures                  # ['Qwen3MoeForCausalLM'] │
+│     if not in sglang ModelRegistry:                                  │
+│         architectures = resolve_transformers_arch(...)               │
+│         ← if transformers has it, becomes "TransformersForCausalLM" │
+│           (§28.1 corrected fallback path)                            │
+│     return ModelRegistry.resolve_model_cls(archs)                    │
+│   Output: the Python class object, e.g. Qwen3MoeForCausalLM         │
+│   Fails: raise ValueError if neither sglang nor transformers has it │
+└──────────────────────────────────┬────────────────────────────────┘
+                                   │
+                                   ▼
+┌───────────────────────────────────────────────────────────────────┐
+│ Stage 3 — Layer construction                                         │
+│   Source: sglang/srt/models/qwen3_moe.py (1500 lines hand-written)  │
+│   Action: ModelClass.__init__(config) instantiates every layer:     │
+│     - QKVParallelLinear, RowParallelLinear (with TP sharding)       │
+│     - RadixAttention (sglang's KV-cache-aware attention)            │
+│     - FusedMoE (calls fused_moe_kernel internally)                  │
+│     - VocabParallelEmbedding (sharded vocab embedding)              │
+│   Layer choice is HARD-CODED in the model class. Backend flag       │
+│   selection happens INSIDE the layers (see Stage 5).                │
+└──────────────────────────────────┬────────────────────────────────┘
+                                   │
+                                   ▼
+┌───────────────────────────────────────────────────────────────────┐
+│ Stage 4 — Weight loading                                             │
+│   Source: sglang/srt/model_loader/loader.py:653                     │
+│           model class's load_weights() method (per-model)            │
+│   Logic:                                                             │
+│     1. Open all *.safetensors files (mmap'd)                        │
+│     2. Iterate (name, tensor) pairs                                 │
+│     3. Translate HF name → sglang name using hand-written tables:   │
+│        stacked_params_mapping = [                                   │
+│            ("qkv_proj", "q_proj", "q"),                             │
+│            ("qkv_proj", "k_proj", "k"),                             │
+│            ("qkv_proj", "v_proj", "v"),                             │
+│            ("gate_up_proj", "gate_proj", 0),                        │
+│            ("gate_up_proj", "up_proj", 1),                          │
+│        ]                                                             │
+│        expert_params_mapping = FusedMoE.make_expert_params_mapping(...)│
+│     4. Call weight_loader(param, loaded_weight, shard_id) which     │
+│        does the in-place shard copy.                                │
+│   Fails: shape mismatch → raise; missing weights → init random      │
+│          (with logger.warning); extra weights → discard (warning)   │
+└──────────────────────────────────┬────────────────────────────────┘
+                                   │
+                                   ▼
+┌───────────────────────────────────────────────────────────────────┐
+│ Stage 5 — Runtime setup (KV cache + CUDA graph + warmup)             │
+│   Source: sglang/srt/model_executor/model_runner.py:init_*          │
+│   Actions:                                                           │
+│     - Compute KV cache size based on mem_fraction_static            │
+│     - Resolve attention_backend / moe_runner_backend / etc.         │
+│       (§21.3 hardware-aware chains, §24 quant-aware dispatch)       │
+│     - CUDA graph capture for each (batch_size, seq_len) bucket      │
+│     - Run a few warmup forward passes                               │
+│   Fails: backend constructor errors, JIT compile errors, OOM, hang  │
+│           ← C5 (flashinfer JIT), C7 (CUDA graph hang) hit here     │
+└──────────────────────────────────┬────────────────────────────────┘
+                                   │
+                                   ▼
+                          Server ready for requests
+```
+
+### 30.3 Direct answers to the 6 sub-questions
+
+#### Q1: Does sglang receive PyTorch code?
+
+**No.** It receives 4 things from `<model_path>`:
+
+| File | Purpose |
+|---|---|
+| `config.json` | HF config dictionary (architectures, hidden_size, etc.) |
+| `*.safetensors` (or `*.bin`) | Raw weight tensors |
+| `tokenizer.json` / `tokenizer.model` | Tokenizer |
+| Optional: `chat_template.jinja` | Chat formatting |
+
+**It never reads** HF's `modeling_qwen3_moe.py`, never reads HF's `nn.Module` class definitions. HF's forward implementation is **completely unused** because sglang maintainers already wrote an equivalent forward in `sglang/srt/models/qwen3_moe.py` that uses sglang's optimised layers.
+
+#### Q2: Does it parse model source?
+
+**Strictly no.** 0% parsing. No AST traversal, no FX graph, no Dynamo trace. The mapping from "this is a Qwen3 MoE model" to "use these sglang classes and kernels" is **purely a static dictionary lookup** by architecture string.
+
+Source — [`sglang/srt/models/registry.py:78-89`](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/models/registry.py):
+
+```python
+def resolve_model_cls(self, architectures):
+    architectures = self._normalize_archs(architectures)
+    for arch in architectures:
+        model_cls = self._try_load_model_cls(arch)
+        if model_cls is not None:
+            return (model_cls, arch)
+    return self._raise_for_unsupported(architectures)
+```
+
+`self._try_load_model_cls(arch)` is just a `dict.get(arch, None)`.
+
+#### Q3: Does it recognise patterns and map to existing kernels?
+
+**No.** This is the fundamental difference between sglang and compiler-style systems:
+
+| System | How it maps model → kernel |
+|---|---|
+| `torch.compile` + Inductor | Real Dynamo trace of forward → recognise op patterns (matmul, norm, activation chain) → auto-generate Triton |
+| TensorRT-LLM | Parse exported ONNX/FX graph → match fusion templates → compile to `.plan` |
+| **sglang** | **No pattern recognition.** Each model's forward is a **hand-written Python file** in `sglang/srt/models/` that **explicitly calls** sglang's pre-built layers. **Humans decide which kernel each layer uses** — not machine inference. |
+
+Example: `sglang/srt/models/qwen3_moe.py`:
+
+```python
+class Qwen3MoeAttention(nn.Module):
+    def __init__(self, ...):
+        self.qkv_proj = QKVParallelLinear(...)        # ← human said: use this layer
+        self.o_proj = RowParallelLinear(...)          # ← human said: use this layer
+        self.attn = RadixAttention(...)               # ← human said: this layer internally calls fa3
+
+class Qwen3MoeSparseMoeBlock(nn.Module):
+    def __init__(self, ...):
+        self.experts = FusedMoE(...)                  # ← human said: this calls fused_moe_kernel
+```
+
+Within each layer, the backend flag (`--attention-backend=auto`, `--moe-runner-backend=auto`) decides which actual kernel runs (see §21-§29). But the choice of LAYER (and therefore the choice of which kernel family to use) is hard-coded by the human who wrote the model file.
+
+#### Q4: If a pattern has no kernel, does import fail or fall back?
+
+**There is no such thing as "a pattern with no kernel" in sglang's model.** Patterns are not what dispatches. Failure happens in one of 5 places (see the flowchart above):
+
+| Stage | Failure mode | Recovery |
+|---|---|---|
+| 1. Config parse | transformers ValueError (model_type unknown) | **NONE** — server exits. Gemma-4 hits here (§28.2) |
+| 2. Architecture lookup | sglang has no `<arch>.py` | **Fall back** to TransformersForCausalLM wrapper (§28.1) IF transformers itself has it; otherwise hard fail |
+| 3. Layer construction | layer's `__init__` raises | **NONE** — server exits |
+| 4. Weight loading | shape mismatch on a tensor | **NONE** — server exits; missing weights → warning + random init |
+| 5. Runtime setup | backend JIT, CUDA graph capture, OOM, hang | **NONE** — server exits or hangs. C5 + C7 hit here (§19, §27) |
+
+**No "fallback to a slower kernel"** at runtime — kernel choice is decided once at startup based on the dispatchers (§29.1), not per-pattern.
+
+#### Q5: How does sglang bench download, load, and run benchmarks?
+
+**Download**: sglang itself doesn't download. The user provides `--model-path`. If it's an HF hub ID (not a local path), sglang uses `huggingface_hub.snapshot_download` (or `modelscope` if `SGLANG_USE_MODELSCOPE` is set) to cache it locally — but you usually pre-download to `HF_HUB_CACHE` (we pinned to `/data/hf/gujialiang123/hf_cache`).
+
+**Load**: stages 1-4 above. Time depends on file size and disk speed — for our 30B MoE bf16, ~13 seconds for `Loading safetensors checkpoint shards: 100% Completed | 16/16`.
+
+**Benchmark**: `sglang.bench_serving` is a **separate client process** that sends HTTP requests to `<host>:<port>/generate`. It doesn't load the model, doesn't touch GPU directly. It just:
+
+1. Opens a socket to the server
+2. Sends N concurrent `POST /generate` requests with sampled prompts
+3. Times each request: TTFT (time-to-first-token from response stream), TPOT (per-output-token time), e2e latency
+4. Aggregates into the metrics we see in `bench.jsonl`
+
+Our `scripts/run_benchmark.py` is a thin wrapper that builds `bench_serving` argv from `workload.yaml`. Documented in §5 of this report.
+
+#### Q6: For different backends, what's the path from arbitrary code to kernel list?
+
+**Backend doesn't affect the "code → kernel" path much, because there is no "code" path** — the forward graph is hand-written. Backend only affects **which kernel each pre-existing layer chooses**. Full 5-level breakdown:
+
+| Level | Set by | Example |
+|---|---|---|
+| **L1: Forward graph shape** | hand-written Python in `models/*.py` (backend doesn't change this) | `qwen3_moe.py:Qwen3MoeAttention.forward` always calls `RadixAttention.forward` |
+| **L2: Layer class implementation** | hand-written Python in `layers/*.py` (backend doesn't change this either) | `RadixAttention.forward` always calls `self.attn_backend.forward(...)`, where `self.attn_backend` is set at init |
+| **L3: Backend dispatch** | `--*-backend` flag + hardware auto-chain (§21.3) + quantization config (§24) | `attention_backend=auto` on H200 → fa3 backend object; `moe_runner_backend=auto` on bf16 → `MoeRunnerBackend.TRITON` |
+| **L4: Kernel selection** | backend object's internal logic | fa3 dispatches to flash-attn's `FlashAttnFwdSm90<…>`; Triton MoE dispatches to sglang's `fused_moe_kernel` |
+| **L5: Kernel launch parameters** | per-shape JSON tuning tables (§18.4) + Triton constexpr specialisation + cuBLASLt tile selection | `fused_moe_kernel` at M=32 uses `BLOCK_SIZE_M=16, num_warps=4`; at M=1024 uses `BLOCK_SIZE_M=128, num_warps=8` |
+
+So **"different backends → different kernels"** isn't because the forward graph changed — it's because L3 dispatch picked a different backend object, which selected a different kernel at L4, with different parameters at L5. **L1 + L2 are immutable hand-written sglang code**; the backend flag can never change what graph the model runs.
+
+### 30.4 What this means for our agent strategy
+
+Knowing the import mechanism precisely tells us where an optimisation agent could insert itself:
+
+| Insertion point | What the agent could do | Feasibility |
+|---|---|---|
+| **Pre-Stage 1** | Edit `config.json` (e.g. switch quantization, change `model_type`) | Easy, but limited |
+| **Stage 2** | Write a new `sglang/srt/models/<arch>.py` for an unsupported model | Hard — requires expertise; this is what's needed for Gemma-4 |
+| **Stage 3 (layer choice)** | Change which sglang layer the model class uses (e.g. swap `RadixAttention` for a custom one) | Hard — needs editing model file |
+| **Stage 5 (backend dispatch)** | Set `--*-backend` flags to steer kernel selection | **Easy** — this is what we did in §19/§27 |
+| **Inside L5 (kernel tuning)** | Re-tune JSON for our specific shape (Triton autotuner) | Medium — 1 day investment, 5-10% gain (§25.4) |
+| **Inside L4 (kernel source)** | Hand-write a new Triton kernel; register in `FusedMoE.apply()` | Hard — Triton expertise required; biggest potential wins |
+| **Inside L1 (graph rewrite)** | Fix sglang's `rotary_embedding.py` to be Dynamo-compatible so `torch.compile` works → Inductor takes over and auto-fuses (§26) | Medium — 1-2 days; 5-15% expected gain on non-hot-path |
+
+**Agent action items, by ROI**:
+
+1. **Stage 5 (flag steering)** — what we already do; cheap, can scan the 30+ flag space
+2. **L5 (per-shape JSON re-tune)** — cheap, 5-10% wins; an agent could run Triton autotuner per workload
+3. **L4 (kernel rewrite)** — the highest-payoff but needs Triton expertise; agent could propose patches and run benchmark CI
+4. **Stage 2 (new model class)** — biggest enabler; an agent that could read HF source and emit a working `sglang/srt/models/<arch>.py` would unlock all unsupported models
+
+### 30.5 One-paragraph summary for Debadeepta / Mason
+
+> **Sglang does NOT parse PyTorch source, does NOT pattern-match, does NOT auto-generate kernels.** Each supported model has a **hand-written Python class** in `sglang/srt/models/<arch>.py` (written by sglang maintainers) that re-implements the forward using sglang's optimised layer primitives (`RadixAttention`, `FusedMoE`, `RowParallelLinear`). At import time, sglang reads `config.json`'s `architectures` field, looks up the class in a static `ModelRegistry`, instantiates it, and loads weights via a **per-model hand-written translation dictionary** (`stacked_params_mapping` + `expert_params_mapping`) that maps HF safetensors names → sglang parameter names. Kernel choice happens **inside each layer's `forward()`**, driven by `--*-backend` flags + hardware + quantization config (§21-§29). The 5-stage failure model is: (1) `transformers.AutoConfig` doesn't know `model_type` → fail (Gemma-4 hits this); (2) arch missing from sglang ModelRegistry → fall back to `TransformersForCausalLM` wrapper IF transformers has it (§28); (3-4) layer init / weight shape mismatch → fail; (5) backend JIT / CUDA graph hang → fail or hang (our C5, C7 hit this). **There is no "pattern with no kernel" because patterns aren't what dispatch — flags + hardware + quant-config are.** An optimisation agent therefore inserts most cheaply at the flag/dispatch layer (Stage 5) or per-shape kernel-tuning layer (L5), with progressively more expertise needed to insert at layer source (Stage 3 layer-choice) or kernel source (L4 kernel rewrite).
