@@ -4451,3 +4451,438 @@ flag 的 build 失败。
 | 实际怎么检测？ | `scripts/regime_study/detect_silent_noop.py` —— 按 backend 预期的 kernel 名打指纹；指纹没匹配 flag IGNORED；可选 reference trace diff 看 kernel mix 相似度。 |
 | 在 C4 上的检测准确度？ | ✅ 抓到了 `moe_runner_backend='cutlass'` 被 IGNORED，并通过 5/5 kernel ±5% 内确证。 |
 | 悄悄 no-op 多普遍？ | bf16 上 `--moe-runner-backend` 10 个值里 **6 个** 是悄悄 no-op（cutlass、deep_gemm、flashinfer_trtllm、flashinfer_mxfp4、flashinfer_cutedsl、marlin）。只有 `auto`、`triton`、`triton_kernel`、`flashinfer_cutlass` 被真用。 |
+
+## 24. "Quantization path" vs "narrow check" — what they actually mean
+
+> 🟢 NEW. Follow-up question after §23: "Only quantized paths take the flag
+> seriously" — what does that actually mean? Is it the model's dtype, or
+> something else? And what's a "narrow check"?
+>
+> Short answer: it's BOTH the model's stored weight format AND a separate
+> dispatch table inside sglang. This section traces the full path from
+> `config.json` → quant_method class → which lines read which flag.
+
+### 24.1 The chain — from `config.json` to "which MoE method runs"
+
+Step-by-step for our Qwen3-30B-A3B MoE:
+
+**Step 1**: At startup, sglang reads `config.json` from the model directory.
+This is HuggingFace's standard config. For Qwen3-30B-A3B
+(`/data/hf/models/Qwen3-30B-A3B-Instruct-2507/config.json`):
+
+```json
+{
+  "architectures": ["Qwen3MoeForCausalLM"],
+  "torch_dtype": "bfloat16",
+  "quantization_config": null,   ← no quant config = unquantized
+  ...
+}
+```
+
+**Step 2**: `sglang/srt/configs/model_config.py:648` reads this field:
+
+```python
+def _parse_quant_hf_config(self):
+    quant_cfg = getattr(self.hf_config, "quantization_config", None)
+    if quant_cfg is None:
+        # also check "compression_config" (compressed-tensors models use this key)
+        quant_cfg = getattr(self.hf_config, "compression_config", None)
+    if quant_cfg is None:
+        # also try to download a standalone hf_quant_config.json
+        ...
+    return quant_cfg
+```
+
+For our model this returns **`None`** because the field isn't in `config.json`
+and there's no `hf_quant_config.json` file.
+
+**Step 3**: `sglang/srt/layers/moe/fused_moe_triton/layer.py:285-290` then
+decides the quant_method:
+
+```python
+if quant_config is not None:
+    self.quant_method = quant_config.get_quant_method(self, prefix)
+if self.quant_method is None:
+    self.quant_method = UnquantizedFusedMoEMethod(
+        self.use_triton_kernels, self.use_flashinfer_trtllm_moe
+    )
+```
+
+For our bf16 model `quant_config is None` → goes straight to
+`UnquantizedFusedMoEMethod`. This is the **"bf16 / unquantized path"**.
+
+For an FP8 model (e.g.
+`https://huggingface.co/nvidia/Llama-3.1-8B-Instruct-FP8`) `config.json`
+includes:
+
+```json
+"quantization_config": {"quant_method": "fp8", ...}
+```
+
+Then `quant_config.get_quant_method(...)` returns an `Fp8MoEMethod`
+instance — the **"FP8 path"**. **Same flag, completely different code
+reading it.**
+
+The full set of quant-paths sglang has, one Python class per file in
+`sglang/srt/layers/quantization/`:
+
+```
+unquant.py            → UnquantizedFusedMoEMethod    (bf16/fp16, no quant)
+fp8.py                → Fp8MoEMethod                  ("quant_method": "fp8")
+fp4_utils.py          → FP4Method
+fpgemm_fp8.py         → FpGemmFp8MoEMethod            (per-group FP8)
+blockwise_int8.py     → BlockwiseInt8MoEMethod
+gptq.py               → GPTQMarlinMoEMethod           ("quant_method": "gptq")
+awq.py                → AWQMarlinMoEMethod            ("quant_method": "awq")
+bitsandbytes.py       → BitsAndBytesMoEMethod
+gguf.py               → GGUFMoEMethod
+mxfp4.py              → Mxfp4MoEMethod
+modelopt_quant.py     → ModelOptFp8MoEMethod, ModelOptFp4MoEMethod
+compressed_tensors/   → CompressedTensorsW8A8MoEMethod, ...W4A4..., ...etc
+```
+
+**Which class loads depends on `config.json`'s `quant_method` field**, not
+on your CLI flag. Your CLI flag `--moe-runner-backend cutlass` is *a
+parameter to whichever class loads*, not the class selector.
+
+### 24.2 "Quantization path" = which of those classes serves your model
+
+Concretely:
+
+| Your model on disk | `config.json["quantization_config"]` | Quant class instantiated | Path nickname |
+|---|---|---|---|
+| Qwen3-30B-A3B bf16 (ours) | `null` | `UnquantizedFusedMoEMethod` | **"bf16 / unquantized path"** |
+| Qwen3-30B-A3B FP8 (hypothetical) | `{"quant_method": "fp8", ...}` | `Fp8MoEMethod` | "FP8 path" |
+| DeepSeek-V3 W4AFP8 | `{"quant_method": "w4afp8", ...}` | (compressed_tensors variant) | "W4AFP8 path" |
+| Llama-3-AWQ | `{"quant_method": "awq", ...}` | `AWQMarlinMoEMethod` | "AWQ path" |
+
+So "**quantization path**" just means: **which `*MoEMethod` class object
+sglang actually constructed for your model**. Different classes have
+different code, including completely different rules for reading
+`--moe-runner-backend`.
+
+### 24.3 Does `--quantization fp8` change which class runs?
+
+**Yes, but only for FP8** — sglang has explicit logic to *convert* a bf16
+weight set to FP8 on the fly if user passes `--quantization fp8`. Pseudo-code:
+
+```python
+# server_args.py parses --quantization
+# model_executor builds:
+quant_config = (
+    Fp8Config(...)                  # explicit override → Fp8MoEMethod
+    if server_args.quantization == "fp8"
+    else parse_from_hf_config()      # uses the model's config.json field
+)
+```
+
+If user passes `--quantization fp8` on a bf16-on-disk model, sglang reads
+bf16 weights and **quantizes-on-load** to FP8 (lossy). Now you're on the
+FP8 path, and `--moe-runner-backend cutlass` actually does something
+(see §24.4).
+
+This is why the recommendation in §19.7 was "try FP8 quantization to
+unlock cutlass MoE path" — passing `--quantization fp8` switches the
+quant_method from `UnquantizedFusedMoEMethod` to `Fp8MoEMethod`, which is
+the class that *does* dispatch on `--moe-runner-backend`.
+
+### 24.4 "Narrow check" — exactly what the bf16 path does with the flag
+
+Recall from §23.1, the bf16 path is `UnquantizedFusedMoEMethod`. Let's
+trace **every single read** of `get_moe_runner_backend()` inside this class
+(grep'd from sglang source):
+
+```
+unquant.py:162  self.use_flashinfer_cutlass = get_moe_runner_backend().is_flashinfer_cutlass()
+unquant.py:229  _should_use_aiter_moe = _use_aiter and get_moe_runner_backend().is_auto()
+unquant.py:391  _should_use_aiter_moe = _use_aiter and get_moe_runner_backend().is_auto()
+unquant.py:325  backend = (TRITON_KERNELS if self.use_triton_kernels else TRITON)
+                # ↑ does NOT read the server flag; uses a separate instance
+                #   attribute self.use_triton_kernels passed in via __init__
+```
+
+**These three reads + one ignore are "the narrow check"**:
+
+1. **Line 162** — at construction time, set `self.use_flashinfer_cutlass`
+   if-and-only-if the user passed `flashinfer_cutlass`. This bool is then
+   used at line 333-335 to change the weight loading order (`load_up_proj_weight_first`).
+   The actual MoE compute kernel is still `fused_moe_kernel`. So
+   `flashinfer_cutlass` value affects layout, not which kernel runs.
+2. **Line 229 + 391** — only used to gate the AMD AIter weight shuffle.
+   If user passed *anything* other than `auto`, AIter is disabled.
+3. **Line 325** — picks between `TRITON_KERNELS` and `TRITON` based on a
+   `use_triton_kernels` flag that came in via `__init__`. That flag is
+   itself set from `--moe-runner-backend triton_kernel` upstream.
+
+So out of the 10 possible values of `--moe-runner-backend`, the bf16
+path **only does something different** for:
+
+- `auto` (AIter shuffle on AMD)
+- `triton` (default, same as auto on non-AMD)
+- `triton_kernel` (TritonKernels variant via `use_triton_kernels=True`)
+- `flashinfer_cutlass` (just weight-loading order change, kernel still
+  Triton)
+
+The other 6 values (`cutlass`, `deep_gemm`, `flashinfer_trtllm`,
+`flashinfer_mxfp4`, `flashinfer_cutedsl`, `marlin`) **are read but never
+match any of the above conditionals**, so they fall through to the default
+Triton path. That's the **"narrow"** part — the bf16 path only has a small
+window of values it acts on.
+
+By contrast, the FP8 path
+([`fp8.py:678-686`](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/layers/quantization/fp8.py)
+and
+[`fp8.py:1349`](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/layers/quantization/fp8.py))
+has **explicit branches for `cutlass`, `deep_gemm`, and falls back to
+Triton in the else** — and crucially raises `AssertionError` if the
+chosen path can't run on this hardware. That's a **"wide" check** — it
+considers every value, with an assertion as the catch-all.
+
+### 24.5 Concrete one-line summary
+
+> "**Quantization path**" = which of the ~12 `*MoEMethod` classes sglang
+> instantiated for your model, decided at startup from `config.json`'s
+> `quantization_config` field (or `--quantization` override). Each class
+> is independent code with its own backend-flag handling.
+>
+> "**Narrow check**" = the bf16 `UnquantizedFusedMoEMethod` class only
+> branches on **4 of 10** `--moe-runner-backend` values (`auto`, `triton`,
+> `triton_kernel`, `flashinfer_cutlass`); the other 6 are silently
+> ignored and the code falls through to Triton. This is in contrast to
+> FP8's class which branches on more values with explicit asserts.
+
+### 24.6 Why this design (best guess)
+
+Reading the code, the rationale appears to be:
+
+1. **Quantized MoE kernels are quant-format-specific**. A "cutlass FP8 MoE"
+   kernel can't be reused for bf16 because the tensor-core MMA instructions
+   are different (FP8 uses HMMA.16832.E4M3, bf16 uses HMMA.16816.BF16).
+   So there literally is no "cutlass bf16 MoE" kernel to dispatch to.
+2. **Triton bf16 MoE is already optimal for bf16 on Hopper**.
+   `fused_moe_kernel` already uses Sm90 mma.bf16 instructions and beats
+   naïve PyTorch ops by ~10×. Maintainers didn't write a bf16 cutlass MoE
+   because Triton is already at the GEMM peak for bf16 shapes.
+3. **No early validation = simpler argparse**. If the bf16 path raised
+   "cutlass not supported for bf16" at startup, users would need separate
+   flags per quantization level, or a giant compatibility matrix in
+   server_args.py. The maintainers chose to make `--moe-runner-backend`
+   a "hint that's honoured if the chosen quant class knows what to do" —
+   which is silent on bf16 because there's nothing to do.
+
+**But the silent-no-op is the cost**. The patch I proposed in §22.1 would
+add a `logger.warning(...)` when the bf16 path sees a quantized-only
+backend value — at least announcing the no-op.
+
+### 24.7 Practical implications
+
+- **You can't accelerate bf16 MoE by changing `--moe-runner-backend`**.
+  The only real lever for bf16 MoE on H200 is `--quantization fp8`
+  (which changes the quant_path and unlocks cutlass/DeepGEMM).
+- **`--moe-runner-backend` is a hint, not a command**. The class
+  receiving it gets to decide whether/how to honour it.
+- **Always pair backend flags with quant flags when testing**. Otherwise
+  you're probably benchmarking the default Triton path against itself.
+
+---
+
+## 24. "量化路径" vs "窄检查" —— 具体啥意思
+
+> 🟢 新增。§23 后的 follow-up 问题："只有量化路径才把 flag 当真" 具体是啥意思？
+> 是模型的 dtype 决定的还是别的？窄检查又是啥？
+>
+> 简短答案：**两者都有** —— 既看模型的存储权重格式，也看 sglang 内部的一张分发表。
+> 这节追踪从 `config.json` → quant_method 类 → 哪行读哪个 flag 的完整链。
+
+### 24.1 完整链 —— 从 `config.json` 到"哪个 MoE method 跑"
+
+我们 Qwen3-30B-A3B MoE 的逐步过程：
+
+**Step 1**：启动时 sglang 读模型目录的 `config.json`，这是 HF 标准 config。我们的：
+
+```json
+{
+  "architectures": ["Qwen3MoeForCausalLM"],
+  "torch_dtype": "bfloat16",
+  "quantization_config": null,   ← 没量化 config = 未量化
+  ...
+}
+```
+
+**Step 2**：`sglang/srt/configs/model_config.py:648` 读这个字段：
+
+```python
+def _parse_quant_hf_config(self):
+    quant_cfg = getattr(self.hf_config, "quantization_config", None)
+    if quant_cfg is None:
+        # 也查 "compression_config"（compressed-tensors 模型用这个 key）
+        quant_cfg = getattr(self.hf_config, "compression_config", None)
+    if quant_cfg is None:
+        # 也尝试下载独立的 hf_quant_config.json
+        ...
+    return quant_cfg
+```
+
+我们模型这里返回 **`None`** —— `config.json` 没这字段，没 `hf_quant_config.json`。
+
+**Step 3**：`sglang/srt/layers/moe/fused_moe_triton/layer.py:285-290` 决定 quant_method：
+
+```python
+if quant_config is not None:
+    self.quant_method = quant_config.get_quant_method(self, prefix)
+if self.quant_method is None:
+    self.quant_method = UnquantizedFusedMoEMethod(
+        self.use_triton_kernels, self.use_flashinfer_trtllm_moe
+    )
+```
+
+我们 bf16 模型 `quant_config is None` → 直接走 `UnquantizedFusedMoEMethod`。
+这就是 **"bf16 / 未量化路径"**。
+
+FP8 模型（比如
+`https://huggingface.co/nvidia/Llama-3.1-8B-Instruct-FP8`）的 `config.json` 有：
+
+```json
+"quantization_config": {"quant_method": "fp8", ...}
+```
+
+那 `quant_config.get_quant_method(...)` 返回 `Fp8MoEMethod` 实例 —— **"FP8 路径"**。
+**同一个 flag，完全不同的代码读它。**
+
+sglang 的全部 quant 路径，`sglang/srt/layers/quantization/` 下每个文件一个 Python 类：
+
+```
+unquant.py            → UnquantizedFusedMoEMethod    (bf16/fp16，不量化)
+fp8.py                → Fp8MoEMethod                 ("quant_method": "fp8")
+fp4_utils.py          → FP4Method
+fpgemm_fp8.py         → FpGemmFp8MoEMethod           (per-group FP8)
+blockwise_int8.py     → BlockwiseInt8MoEMethod
+gptq.py               → GPTQMarlinMoEMethod          ("quant_method": "gptq")
+awq.py                → AWQMarlinMoEMethod           ("quant_method": "awq")
+bitsandbytes.py       → BitsAndBytesMoEMethod
+gguf.py               → GGUFMoEMethod
+mxfp4.py              → Mxfp4MoEMethod
+modelopt_quant.py     → ModelOptFp8MoEMethod, ModelOptFp4MoEMethod
+compressed_tensors/   → CompressedTensorsW8A8MoEMethod, ...W4A4..., 等等
+```
+
+**加载哪个类取决于 `config.json` 的 `quant_method` 字段**，不取决于你的 CLI flag。
+你的 CLI flag `--moe-runner-backend cutlass` 是 *给那个被加载的类的参数*，不是
+**类选择器**。
+
+### 24.2 "量化路径" = 那些类里哪一个伺候你的模型
+
+具体说：
+
+| 你硬盘上的模型 | `config.json["quantization_config"]` | 实例化的 quant 类 | 路径昵称 |
+|---|---|---|---|
+| Qwen3-30B-A3B bf16（我们的）| `null` | `UnquantizedFusedMoEMethod` | **"bf16 / 未量化路径"** |
+| Qwen3-30B-A3B FP8（假设）| `{"quant_method": "fp8", ...}` | `Fp8MoEMethod` | "FP8 路径" |
+| DeepSeek-V3 W4AFP8 | `{"quant_method": "w4afp8", ...}` | (compressed_tensors 变体) | "W4AFP8 路径" |
+| Llama-3-AWQ | `{"quant_method": "awq", ...}` | `AWQMarlinMoEMethod` | "AWQ 路径" |
+
+所以 "**量化路径**" 就是：**sglang 给你模型实际构造的 `*MoEMethod` 类对象是哪个**。
+不同类是完全独立的代码，包括完全不同的 `--moe-runner-backend` 读取规则。
+
+### 24.3 `--quantization fp8` 会换走哪个类吗？
+
+**会，但只限 FP8** —— sglang 有显式逻辑，用户传 `--quantization fp8` 时把
+bf16 权重 *实时转* 成 FP8。伪码：
+
+```python
+# server_args.py 解析 --quantization
+# model_executor 构造：
+quant_config = (
+    Fp8Config(...)                  # 显式 override → Fp8MoEMethod
+    if server_args.quantization == "fp8"
+    else parse_from_hf_config()      # 用模型 config.json 字段
+)
+```
+
+用户在硬盘是 bf16 的模型上传 `--quantization fp8`，sglang 读 bf16 权重并
+**加载时量化** 到 FP8（有损）。这时你在 FP8 路径上了，`--moe-runner-backend cutlass`
+真的起作用（见 §24.4）。
+
+这就是 §19.7 里推荐"试 FP8 量化解锁 cutlass MoE 路径"的原因 —— 传
+`--quantization fp8` 把 quant_method 从 `UnquantizedFusedMoEMethod` 换成
+`Fp8MoEMethod`，**那个类才会真的 dispatch `--moe-runner-backend`**。
+
+### 24.4 "窄检查" —— bf16 路径对 flag 到底干了啥
+
+回顾 §23.1，bf16 路径是 `UnquantizedFusedMoEMethod`。我们追这个类里
+**每一处** 读 `get_moe_runner_backend()`（grep 自 sglang 源码）：
+
+```
+unquant.py:162  self.use_flashinfer_cutlass = get_moe_runner_backend().is_flashinfer_cutlass()
+unquant.py:229  _should_use_aiter_moe = _use_aiter and get_moe_runner_backend().is_auto()
+unquant.py:391  _should_use_aiter_moe = _use_aiter and get_moe_runner_backend().is_auto()
+unquant.py:325  backend = (TRITON_KERNELS if self.use_triton_kernels else TRITON)
+                # ↑ 不读 server flag；用的是另一个 instance 属性 self.use_triton_kernels
+                #   通过 __init__ 传进来
+```
+
+**这 3 个读 + 1 个忽略就是"窄检查"**：
+
+1. **第 162 行** —— 构造时，**仅当** 用户传 `flashinfer_cutlass` 时
+   `self.use_flashinfer_cutlass = True`。这个 bool 在第 333-335 行被用，
+   改变权重加载顺序（`load_up_proj_weight_first`）。实际 MoE 计算 kernel 还是
+   `fused_moe_kernel`。所以 `flashinfer_cutlass` 值只影响 layout，不影响跑哪个 kernel。
+2. **第 229 + 391 行** —— 只用来 gate AMD AIter 权重 shuffle。用户传 `auto`
+   以外的任何值，AIter 都被禁掉。
+3. **第 325 行** —— 在 `TRITON_KERNELS` 和 `TRITON` 之间选，按 `__init__` 传入的
+   `use_triton_kernels` flag。那个 flag 自己在上游由 `--moe-runner-backend triton_kernel`
+   设。
+
+所以 `--moe-runner-backend` 10 个可能值里，bf16 路径 **只对这几个做不同的事**：
+
+- `auto`（AMD 上 AIter shuffle）
+- `triton`（默认，非 AMD 上跟 auto 一样）
+- `triton_kernel`（通过 `use_triton_kernels=True` 走 TritonKernels 变体）
+- `flashinfer_cutlass`（只改权重加载顺序，kernel 还是 Triton）
+
+其他 6 个值（`cutlass`、`deep_gemm`、`flashinfer_trtllm`、`flashinfer_mxfp4`、
+`flashinfer_cutedsl`、`marlin`）**被读了但跟上面任何条件都不匹配**，所以默默落到默认
+Triton 路径。这就是 **"窄"** 的意思 —— bf16 路径只对一小撮值起作用。
+
+对比一下，FP8 路径（[`fp8.py:678-686`](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/layers/quantization/fp8.py)
+和 [`fp8.py:1349`](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/layers/quantization/fp8.py)）
+**对 `cutlass`、`deep_gemm` 都有显式分支，else 回 Triton** —— 关键是当选的路径在
+这个硬件上跑不了时会抛 `AssertionError`。这是 **"宽"检查** —— 它考虑每个值，
+默认行为是 assertion 兜底。
+
+### 24.5 具体一句话总结
+
+> "**量化路径**" = sglang 给你模型实例化的 ~12 个 `*MoEMethod` 类中的哪一个，
+> 启动时根据 `config.json` 的 `quantization_config` 字段决定（或
+> `--quantization` 显式 override）。每个类是独立代码，自带独立的 backend-flag 处理。
+>
+> "**窄检查**" = bf16 `UnquantizedFusedMoEMethod` 类只在 `--moe-runner-backend`
+> 的 10 个值中的 **4 个** 上做分支（`auto`、`triton`、`triton_kernel`、
+> `flashinfer_cutlass`）；其他 6 个被默默忽略，代码默认落到 Triton。FP8 类反之，
+> 在更多值上有分支 + 显式 assert。
+
+### 24.6 为啥这么设计（best guess）
+
+读源码看，理由大致是：
+
+1. **量化 MoE kernel 是 quant-format-specific 的**。"cutlass FP8 MoE" kernel
+   不能复用给 bf16，因为 tensor-core MMA 指令不同（FP8 用 HMMA.16832.E4M3，
+   bf16 用 HMMA.16816.BF16）。所以**真的没有"cutlass bf16 MoE" kernel** 能 dispatch。
+2. **Triton bf16 MoE 在 Hopper 上已经最优**。`fused_moe_kernel` 已经用了 Sm90
+   mma.bf16 指令，吊打朴素 PyTorch op ~10×。维护者没写 bf16 cutlass MoE 因为
+   Triton 在 bf16 shape 上已经到了 GEMM 极限。
+3. **早期验证 = 简化 argparse**。如果 bf16 路径在启动时报"bf16 不支持 cutlass"，
+   用户就要为每个量化级别单独的 flag，或者 server_args.py 里维护一个巨大兼容性矩阵。
+   维护者选择让 `--moe-runner-backend` 成为"被选中的 quant 类如果知道怎么处理就处理的
+   hint" —— bf16 上是 silent 的因为没什么可做。
+
+**但 silent no-op 是代价**。§22.1 提的补丁就是在 bf16 路径看到量化-only backend
+值时加 `logger.warning(...)` —— 至少声明 no-op。
+
+### 24.7 实用启发
+
+- **你不能靠改 `--moe-runner-backend` 加速 bf16 MoE**。H200 上 bf16 MoE 的
+  真正杠杆是 `--quantization fp8`（换 quant_path、解锁 cutlass/DeepGEMM）。
+- **`--moe-runner-backend` 是建议，不是命令**。接收它的类决定是否/怎么遵从。
+- **测 backend flag 时永远配套 quant flag**。否则你可能在拿默认 Triton 路径
+  跟自己 benchmark。
