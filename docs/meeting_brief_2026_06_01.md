@@ -1,4 +1,6 @@
 # SGLang regime-aware performance study — meeting brief
+> 🇬🇧 English first · 🇨🇳 [跳转中文摘要](#中文摘要)
+
 
 **Author**: Jialiang Gu · **Date**: 2026-06-01 · **Hardware**: 8× NVIDIA H200 (143 GB), single-GPU per run · **SGLang**: 0.5.12.post1 · **Framework**: 2-round experiment (workload sweep + hardware/kernel profile) on **3 models × 8 regimes**.
 
@@ -868,4 +870,61 @@ This separation is the main reason Mirage is a stronger harness for LLM-guided f
 | 3 | Does fingerprint scale to attention-with-mask / softmax / dropout-like ops? | Already supported via lookup tables; verify on `demo/qwen3/demo.py` reference graph |
 | 4 | Can we feed Perfetto traces from MPK back to the LLM as text? | Write a small trace summariser ("task X is on critical path 31 % of the time") |
 | 5 | Cross-backend portability — does the same μGraph win on CUDA and Triton? | Run both backends' measurers on the top-10 candidates from one search |
+
+
+---
+
+<a id="中文摘要"></a>
+
+# 中文摘要
+
+> **完整中文版**详见 [`regime_benchmark_experiment.md`](./regime_benchmark_experiment.md) 的中文部分(主文档已 EN+CN 双语,7000+ 行)。
+> 这里只给老板会议所需的 **takeaway 摘要**,完整数据见主文档对应章节。
+
+## 0. 一句话总结
+
+> "在同一个模型 (Qwen3-30B-A3B MoE) 和同一台 H200 上,只换 workload regime,端到端吞吐就能差 **5-10×**;只换 1 个 MoE backend flag,吞吐能差 **2×** 但 logits 会有变化。这说明 'one-config-for-all' 是把性能预算留在桌上,**regime-aware + agent-driven autotune** 是显著的优化机会。"
+
+## 1. 实验设计
+
+- **Round 1**: 3 个模型 × 8 个 regime 跑 sglang.bench_serving (常规吞吐 / latency)
+- **Round 2**: 同样 24 个 cell 加上 hardware view (nvidia-smi + torch.profiler + `/get_server_info`)
+- 总共 32 次实际运行 (1 次 R8 OOM 重跑,其余通过)
+
+完整方法在主文档 §2-§4。
+
+## 2. 头条数据
+
+| 发现 | 数字 | 在主文档哪里 |
+|---|---|---|
+| MoE 模型对 regime 最敏感 | Req/s 在 R1-R8 之间差 **~10×** (从 0.5 到 5.2) | 主文档 §5-§7 |
+| `fused_moe_kernel` 占 GPU 50% 时间 | 这是 MoE 的核心 hotspot | 主文档 §11, §35, kernel_inventory_R7 §2 |
+| C8 (triton_kernel backend) 真切换了 kernel | `fused_moe_kernel` → `_p_matmul_ogs_*` 但性能掉 86% | 主文档 §27 |
+| C7 (flashinfer_cutlass backend) 跑不起来 | CUDA graph capture 卡死 | 主文档 §27 |
+| C6 (piecewise CUDA graph) 微调 +2% | 不是大杀器 | 主文档 §6.7 |
+| Default backend 是 10 个 dispatcher 的向量 | 不是单一 backend,(model, hardware, dtype) 三元组决定 | 主文档 §29 |
+
+## 3. 老板关心的 7 个 Mentor 问题各自的答案位置
+
+| Mentor 问题 | 答案在主文档哪一节 |
+|---|---|
+| Triton kernel 是手写还是 Inductor 生成的? | §27 + §32 + `kernel_inventory_R7 §6` |
+| default backend 到底是什么? | §29 (完整 10-dispatcher 表) |
+| sglang 怎么 import HF 模型? | §30 (完整 5 阶段流程) |
+| 模型文件里到底是啥? transformers/sglang fallback 怎么做的? | §31 + §32 |
+| 写一个新模型要同时适配两个库吗? | §32 (5 路径决策树) |
+| 数值精度差怎么管? | §34 (sglang CI 用 5e-2 容差 + ROUGE-L) |
+| Sampling vs attention backend 区别? | (新章节) |
+
+## 4. 三个最重要的新发现 (kernel_inventory_R7)
+
+1. **sglang 启动时已经主动报警**: "缺 `(E=128, N=768, H200, dtype=bf16)` 的 triton_3.5.1 MoE config,fallback 到 3.2.0,性能可能 sub-optimal" —— **这就是 agent 最干净的 ROI 入口**,跑 autotune 把缺失 config 补上即可。
+   
+2. **torch.inductor 真的在 sglang 里跑** —— 在 `overlap_utils._resolve_future_token_ids` 的调用链上看到了 inductor runtime,确认 sglang **混合**使用 hand-written kernel + inductor-generated kernel。彻底回答 Mason Remy 的会议提问。
+
+3. **所有 custom CUDA kernel 都走 `torch.ops.sgl_kernel.*` 派发** —— 意味着 agent 可以在 **Python 层任意拦截/替换/校验**,不需要碰 C++。开发成本降一个数量级。
+
+## 5. 下一步
+
+详见主文档 §36 (kernel inventory 自动化工具的 3 阶段实现计划) 和 `kernel_inventory_R7_qwen3_moe.md` (Phase 1+2 已实测落地)。
 
