@@ -1,0 +1,584 @@
+{
+  "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>::result_type*)": {
+    "kernel": "void (anonymous namespace)::elementwise_kernel_with_index<int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>(int, at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}, function_traits<at::native::arange_cuda_out(c10::Scalar const&, c10::Scalar const&, c10::Scalar const&, at::Tensor&)::{lambda()#1}::operator()() const::{lambda()#4}::operator()() const::{lambda(long)#1}>::result_type*)",
+    "external_id": 115,
+    "cpu_op": {
+      "name": "aten::arange",
+      "ts": 5430122681233.85,
+      "dur": 63.796
+    },
+    "python_frames": [
+      {
+        "name": "<built-in method arange of type object at 0x7681eabe7a60>",
+        "ts": 5430122681197.826,
+        "dur": 102.368,
+        "args": {}
+      },
+      {
+        "name": "/home/t-jialianggu/work/sglang/python/sglang/srt/managers/overlap_utils.py(111): alloc_future_indices",
+        "ts": 5430122681186.46,
+        "dur": 124.491,
+        "args": {}
+      },
+      {
+        "name": "/home/t-jialianggu/work/sglang/python/sglang/srt/managers/scheduler.py(2278): run_batch",
+        "ts": 5430122680990.833,
+        "dur": 856744.842,
+        "args": {}
+      },
+      {
+        "name": "/home/t-jialianggu/work/sglang/python/sglang/srt/managers/scheduler.py(1149): event_loop_overlap",
+        "ts": 5430120578815.34,
+        "dur": 4072306.406,
+        "args": {}
+      },
+      {
+        "name": "torch/utils/_contextlib.py(120): decorate_context",
+        "ts": 5430120578813.511,
+        "dur": 4072308.235,
+        "args": {}
+      },
+      {
+        "name": "/home/t-jialianggu/work/sglang/python/sglang/srt/managers/scheduler.py(3169): run_scheduler_process",
+        "ts": 5430120578805.443,
+        "dur": 4072316.303,
+        "args": {}
+      },
+      {
+        "name": "multiprocessing/process.py(108): run",
+        "ts": 5430120578801.834,
+        "dur": 4072319.912,
+        "args": {}
+      },
+      {
+        "name": "multiprocessing/process.py(314): _bootstrap",
+        "ts": 5430120578799.831,
+        "dur": 4072321.915,
+        "args": {}
+      },
+      {
+        "name": "multiprocessing/spawn.py(135): _main",
+        "ts": 5430120578796.598,
+        "dur": 4072325.148,
+        "args": {}
+      },
+      {
+        "name": "multiprocessing/spawn.py(122): spawn_main",
+        "ts": 5430120578794.197,
+        "dur": 4072327.549,
+        "args": {}
+      },
+      {
+        "name": "<string>(1): <module>",
+        "ts": 5430120578791.369,
+        "dur": 4072330.377,
+        "args": {}
+      }
+    ]
+  },
+  "triton_poi_fused_clamp_copy__index_lt_neg_where_0": {
+    "kernel": "triton_poi_fused_clamp_copy__index_lt_neg_where_0",
+    "external_id": 122,
+    "cpu_op": {
+      "name": "triton_poi_fused_clamp_copy__index_lt_neg_where_0",
+      "ts": 5430122682564.009,
+      "dur": 94.918
+    },
+    "python_frames": [
+      {
+        "name": "torch/_inductor/runtime/triton_heuristics.py(1242): run",
+        "ts": 5430122682448.168,
+        "dur": 212.032,
+        "args": {}
+      },
+      {
+        "name": "/tmp/torchinductor_t-jialianggu/4c/c4csnfktkjtfud25lmsuppfnklhdeznn7y7p7ez3qz2soeff2dq7.py(107): call",
+        "ts": 5430122682357.123,
+        "dur": 308.051,
+        "args": {}
+      },
+      {
+        "name": "torch/_inductor/utils.py(3013): run",
+        "ts": 5430122682333.597,
+        "dur": 332.194,
+        "args": {}
+      },
+      {
+        "name": "torch/_inductor/output_code.py(590): __call__",
+        "ts": 5430122682154.074,
+        "dur": 685.879,
+        "args": {}
+      },
+      {
+        "name": "torch/_functorch/_aot_autograd/runtime_wrappers.py(512): wrapper",
+        "ts": 5430122682139.867,
+        "dur": 700.293,
+        "args": {}
+      },
+      {
+        "name": "torch/_functorch/_aot_autograd/utils.py(119): call_func_at_runtime_with_args",
+        "ts": 5430122682121.012,
+        "dur": 724.028,
+        "args": {}
+      },
+      {
+        "name": "torch/_functorch/_aot_autograd/runtime_wrappers.py(310): runtime_wrapper",
+        "ts": 5430122682028.079,
+        "dur": 823.521,
+        "args": {}
+      },
+      {
+        "name": "torch/_functorch/aot_autograd.py(1126): forward",
+        "ts": 5430122682001.144,
+        "dur": 850.922,
+        "args": {}
+      },
+      {
+        "name": "torch/_dynamo/eval_frame.py(1039): _fn",
+        "ts": 5430122681994.917,
+        "dur": 859.134,
+        "args": {}
+      },
+      {
+        "name": "/home/t-jialianggu/work/sglang/python/sglang/srt/managers/overlap_utils.py(20): _resolve_future_token_ids",
+        "ts": 5430122681886.273,
+        "dur": 968.497,
+        "args": {}
+      },
+      {
+        "name": "torch/_dynamo/eval_frame.py(791): compile_wrapper",
+        "ts": 5430122681562.605,
+        "dur": 1310.136,
+        "args": {}
+      },
+      {
+        "name": "/home/t-jialianggu/work/sglang/python/sglang/srt/managers/overlap_utils.py(120): resolve_future",
+        "ts": 5430122681543.266,
+        "dur": 1330.15,
+        "args": {}
+      },
+      {
+        "name": "/home/t-jialianggu/work/sglang/python/sglang/srt/managers/scheduler.py(2278): run_batch",
+        "ts": 5430122680990.833,
+        "dur": 856744.842,
+        "args": {}
+      },
+      {
+        "name": "/home/t-jialianggu/work/sglang/python/sglang/srt/managers/scheduler.py(1149): event_loop_overlap",
+        "ts": 5430120578815.34,
+        "dur": 4072306.406,
+        "args": {}
+      },
+      {
+        "name": "torch/utils/_contextlib.py(120): decorate_context",
+        "ts": 5430120578813.511,
+        "dur": 4072308.235,
+        "args": {}
+      }
+    ]
+  },
+  "void at::native::unrolled_elementwise_kernel<at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#3}::operator()() const::{lambda(int)#1}, std::array<char*, 2ul>, 4, TrivialOffsetCalculator<1, unsigned int>, TrivialOffsetCalculator<1, unsigned int>, at::native::memory::LoadWithCast<1>, at::native::memory::StoreWithCast<1> >(int, at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#3}::operator()() const::{lambda(int)#1}, std::array<char*, 2ul>, TrivialOffsetCalculator<1, unsigned int>, TrivialOffsetCalculator<1, unsigned int>, at::native::memory::LoadWithCast<1>, at::native::memory::StoreWithCast<1>)": {
+    "kernel": "void at::native::unrolled_elementwise_kernel<at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#3}::operator()() const::{lambda(int)#1}, std::array<char*, 2ul>, 4, TrivialOffsetCalculator<1, unsigned int>, TrivialOffsetCalculator<1, unsigned int>, at::native::memory::LoadWithCast<1>, at::native::memory::StoreWithCast<1> >(int, at::native::direct_copy_kernel_cuda(at::TensorIteratorBase&)::{lambda()#3}::operator()() const::{lambda()#3}::operator()() const::{lambda(int)#1}, std::array<char*, 2ul>, TrivialOffsetCalculator<1, unsigned int>, TrivialOffsetCalculator<1, unsigned int>, at::native::memory::LoadWithCast<1>, at::native::memory::StoreWithCast<1>)",
+    "external_id": 146,
+    "cpu_op": {
+      "name": "aten::copy_",
+      "ts": 5430122683535.958,
+      "dur": 27.931
+    },
+    "python_frames": [
+      {
+        "name": "<built-in method to of Tensor object at 0x767ccfb21430>",
+        "ts": 5430122683508.529,
+        "dur": 56.866,
+        "args": {}
+      },
+      {
+        "name": "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/attention/flashattention_backend.py(400): init_forward_metadata",
+        "ts": 5430122683472.255,
+        "dur": 686.013,
+        "args": {}
+      },
+      {
+        "name": "/home/t-jialianggu/work/sglang/python/sglang/srt/model_executor/model_runner.py(2307): forward_extend",
+        "ts": 5430122683429.747,
+        "dur": 853169.965,
+        "args": {}
+      },
+      {
+        "name": "/home/t-jialianggu/work/sglang/python/sglang/srt/model_executor/model_runner.py(2443): _forward_raw",
+        "ts": 5430122683390.299,
+        "dur": 853225.435,
+        "args": {}
+      },
+      {
+        "name": "/home/t-jialianggu/work/sglang/python/sglang/srt/model_executor/model_runner.py(2387): forward",
+        "ts": 5430122683360.091,
+        "dur": 853283.271,
+        "args": {}
+      },
+      {
+        "name": "/home/t-jialianggu/work/sglang/python/sglang/srt/managers/tp_worker.py(431): forward_batch_generation",
+        "ts": 5430122682904.417,
+        "dur": 854500.363,
+        "args": {}
+      },
+      {
+        "name": "/home/t-jialianggu/work/sglang/python/sglang/srt/managers/scheduler.py(2278): run_batch",
+        "ts": 5430122680990.833,
+        "dur": 856744.842,
+        "args": {}
+      },
+      {
+        "name": "/home/t-jialianggu/work/sglang/python/sglang/srt/managers/scheduler.py(1149): event_loop_overlap",
+        "ts": 5430120578815.34,
+        "dur": 4072306.406,
+        "args": {}
+      },
+      {
+        "name": "torch/utils/_contextlib.py(120): decorate_context",
+        "ts": 5430120578813.511,
+        "dur": 4072308.235,
+        "args": {}
+      },
+      {
+        "name": "/home/t-jialianggu/work/sglang/python/sglang/srt/managers/scheduler.py(3169): run_scheduler_process",
+        "ts": 5430120578805.443,
+        "dur": 4072316.303,
+        "args": {}
+      },
+      {
+        "name": "multiprocessing/process.py(108): run",
+        "ts": 5430120578801.834,
+        "dur": 4072319.912,
+        "args": {}
+      },
+      {
+        "name": "multiprocessing/process.py(314): _bootstrap",
+        "ts": 5430120578799.831,
+        "dur": 4072321.915,
+        "args": {}
+      },
+      {
+        "name": "multiprocessing/spawn.py(135): _main",
+        "ts": 5430120578796.598,
+        "dur": 4072325.148,
+        "args": {}
+      },
+      {
+        "name": "multiprocessing/spawn.py(122): spawn_main",
+        "ts": 5430120578794.197,
+        "dur": 4072327.549,
+        "args": {}
+      },
+      {
+        "name": "<string>(1): <module>",
+        "ts": 5430120578791.369,
+        "dur": 4072330.377,
+        "args": {}
+      }
+    ]
+  },
+  "void at_cuda_detail::cub::DeviceScanInitKernel<at_cuda_detail::cub::ScanTileState<int, true> >(at_cuda_detail::cub::ScanTileState<int, true>, int)": {
+    "kernel": "void at_cuda_detail::cub::DeviceScanInitKernel<at_cuda_detail::cub::ScanTileState<int, true> >(at_cuda_detail::cub::ScanTileState<int, true>, int)",
+    "external_id": 152,
+    "cpu_op": {
+      "name": "aten::cumsum",
+      "ts": 5430122683647.571,
+      "dur": 95.155
+    },
+    "python_frames": [
+      {
+        "name": "<built-in method cumsum of type object at 0x7681eabe7a60>",
+        "ts": 5430122683639.02,
+        "dur": 104.915,
+        "args": {}
+      },
+      {
+        "name": "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/attention/flashattention_backend.py(400): init_forward_metadata",
+        "ts": 5430122683472.255,
+        "dur": 686.013,
+        "args": {}
+      },
+      {
+        "name": "/home/t-jialianggu/work/sglang/python/sglang/srt/model_executor/model_runner.py(2307): forward_extend",
+        "ts": 5430122683429.747,
+        "dur": 853169.965,
+        "args": {}
+      },
+      {
+        "name": "/home/t-jialianggu/work/sglang/python/sglang/srt/model_executor/model_runner.py(2443): _forward_raw",
+        "ts": 5430122683390.299,
+        "dur": 853225.435,
+        "args": {}
+      },
+      {
+        "name": "/home/t-jialianggu/work/sglang/python/sglang/srt/model_executor/model_runner.py(2387): forward",
+        "ts": 5430122683360.091,
+        "dur": 853283.271,
+        "args": {}
+      },
+      {
+        "name": "/home/t-jialianggu/work/sglang/python/sglang/srt/managers/tp_worker.py(431): forward_batch_generation",
+        "ts": 5430122682904.417,
+        "dur": 854500.363,
+        "args": {}
+      },
+      {
+        "name": "/home/t-jialianggu/work/sglang/python/sglang/srt/managers/scheduler.py(2278): run_batch",
+        "ts": 5430122680990.833,
+        "dur": 856744.842,
+        "args": {}
+      },
+      {
+        "name": "/home/t-jialianggu/work/sglang/python/sglang/srt/managers/scheduler.py(1149): event_loop_overlap",
+        "ts": 5430120578815.34,
+        "dur": 4072306.406,
+        "args": {}
+      },
+      {
+        "name": "torch/utils/_contextlib.py(120): decorate_context",
+        "ts": 5430120578813.511,
+        "dur": 4072308.235,
+        "args": {}
+      },
+      {
+        "name": "/home/t-jialianggu/work/sglang/python/sglang/srt/managers/scheduler.py(3169): run_scheduler_process",
+        "ts": 5430120578805.443,
+        "dur": 4072316.303,
+        "args": {}
+      },
+      {
+        "name": "multiprocessing/process.py(108): run",
+        "ts": 5430120578801.834,
+        "dur": 4072319.912,
+        "args": {}
+      },
+      {
+        "name": "multiprocessing/process.py(314): _bootstrap",
+        "ts": 5430120578799.831,
+        "dur": 4072321.915,
+        "args": {}
+      },
+      {
+        "name": "multiprocessing/spawn.py(135): _main",
+        "ts": 5430120578796.598,
+        "dur": 4072325.148,
+        "args": {}
+      },
+      {
+        "name": "multiprocessing/spawn.py(122): spawn_main",
+        "ts": 5430120578794.197,
+        "dur": 4072327.549,
+        "args": {}
+      },
+      {
+        "name": "<string>(1): <module>",
+        "ts": 5430120578791.369,
+        "dur": 4072330.377,
+        "args": {}
+      }
+    ]
+  },
+  "void at_cuda_detail::cub::DeviceScanKernel<at_cuda_detail::cub::DeviceScanPolicy<int, std::plus<int> >::Policy900, int const*, int*, at_cuda_detail::cub::ScanTileState<int, true>, std::plus<int>, at_cuda_detail::cub::NullType, unsigned int, int, false>(int const*, int*, at_cuda_detail::cub::ScanTileState<int, true>, int, std::plus<int>, at_cuda_detail::cub::NullType, unsigned int)": {
+    "kernel": "void at_cuda_detail::cub::DeviceScanKernel<at_cuda_detail::cub::DeviceScanPolicy<int, std::plus<int> >::Policy900, int const*, int*, at_cuda_detail::cub::ScanTileState<int, true>, std::plus<int>, at_cuda_detail::cub::NullType, unsigned int, int, false>(int const*, int*, at_cuda_detail::cub::ScanTileState<int, true>, int, std::plus<int>, at_cuda_detail::cub::NullType, unsigned int)",
+    "external_id": 152,
+    "cpu_op": {
+      "name": "aten::cumsum",
+      "ts": 5430122683647.571,
+      "dur": 95.155
+    },
+    "python_frames": [
+      {
+        "name": "<built-in method cumsum of type object at 0x7681eabe7a60>",
+        "ts": 5430122683639.02,
+        "dur": 104.915,
+        "args": {}
+      },
+      {
+        "name": "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/attention/flashattention_backend.py(400): init_forward_metadata",
+        "ts": 5430122683472.255,
+        "dur": 686.013,
+        "args": {}
+      },
+      {
+        "name": "/home/t-jialianggu/work/sglang/python/sglang/srt/model_executor/model_runner.py(2307): forward_extend",
+        "ts": 5430122683429.747,
+        "dur": 853169.965,
+        "args": {}
+      },
+      {
+        "name": "/home/t-jialianggu/work/sglang/python/sglang/srt/model_executor/model_runner.py(2443): _forward_raw",
+        "ts": 5430122683390.299,
+        "dur": 853225.435,
+        "args": {}
+      },
+      {
+        "name": "/home/t-jialianggu/work/sglang/python/sglang/srt/model_executor/model_runner.py(2387): forward",
+        "ts": 5430122683360.091,
+        "dur": 853283.271,
+        "args": {}
+      },
+      {
+        "name": "/home/t-jialianggu/work/sglang/python/sglang/srt/managers/tp_worker.py(431): forward_batch_generation",
+        "ts": 5430122682904.417,
+        "dur": 854500.363,
+        "args": {}
+      },
+      {
+        "name": "/home/t-jialianggu/work/sglang/python/sglang/srt/managers/scheduler.py(2278): run_batch",
+        "ts": 5430122680990.833,
+        "dur": 856744.842,
+        "args": {}
+      },
+      {
+        "name": "/home/t-jialianggu/work/sglang/python/sglang/srt/managers/scheduler.py(1149): event_loop_overlap",
+        "ts": 5430120578815.34,
+        "dur": 4072306.406,
+        "args": {}
+      },
+      {
+        "name": "torch/utils/_contextlib.py(120): decorate_context",
+        "ts": 5430120578813.511,
+        "dur": 4072308.235,
+        "args": {}
+      },
+      {
+        "name": "/home/t-jialianggu/work/sglang/python/sglang/srt/managers/scheduler.py(3169): run_scheduler_process",
+        "ts": 5430120578805.443,
+        "dur": 4072316.303,
+        "args": {}
+      },
+      {
+        "name": "multiprocessing/process.py(108): run",
+        "ts": 5430120578801.834,
+        "dur": 4072319.912,
+        "args": {}
+      },
+      {
+        "name": "multiprocessing/process.py(314): _bootstrap",
+        "ts": 5430120578799.831,
+        "dur": 4072321.915,
+        "args": {}
+      },
+      {
+        "name": "multiprocessing/spawn.py(135): _main",
+        "ts": 5430120578796.598,
+        "dur": 4072325.148,
+        "args": {}
+      },
+      {
+        "name": "multiprocessing/spawn.py(122): spawn_main",
+        "ts": 5430120578794.197,
+        "dur": 4072327.549,
+        "args": {}
+      },
+      {
+        "name": "<string>(1): <module>",
+        "ts": 5430120578791.369,
+        "dur": 4072330.377,
+        "args": {}
+      }
+    ]
+  },
+  "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<int>, std::array<char*, 1ul> >(int, at::native::FillFunctor<int>, std::array<char*, 1ul>)": {
+    "kernel": "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<int>, std::array<char*, 1ul> >(int, at::native::FillFunctor<int>, std::array<char*, 1ul>)",
+    "external_id": 160,
+    "cpu_op": {
+      "name": "aten::fill_",
+      "ts": 5430122683962.134,
+      "dur": 23.173
+    },
+    "python_frames": [
+      {
+        "name": "<built-in function pad>",
+        "ts": 5430122683915.068,
+        "dur": 116.269,
+        "args": {}
+      },
+      {
+        "name": "torch/nn/functional.py(5213): pad",
+        "ts": 5430122683897.475,
+        "dur": 133.944,
+        "args": {}
+      },
+      {
+        "name": "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/attention/flashattention_backend.py(400): init_forward_metadata",
+        "ts": 5430122683472.255,
+        "dur": 686.013,
+        "args": {}
+      },
+      {
+        "name": "/home/t-jialianggu/work/sglang/python/sglang/srt/model_executor/model_runner.py(2307): forward_extend",
+        "ts": 5430122683429.747,
+        "dur": 853169.965,
+        "args": {}
+      },
+      {
+        "name": "/home/t-jialianggu/work/sglang/python/sglang/srt/model_executor/model_runner.py(2443): _forward_raw",
+        "ts": 5430122683390.299,
+        "dur": 853225.435,
+        "args": {}
+      },
+      {
+        "name": "/home/t-jialianggu/work/sglang/python/sglang/srt/model_executor/model_runner.py(2387): forward",
+        "ts": 5430122683360.091,
+        "dur": 853283.271,
+        "args": {}
+      },
+      {
+        "name": "/home/t-jialianggu/work/sglang/python/sglang/srt/managers/tp_worker.py(431): forward_batch_generation",
+        "ts": 5430122682904.417,
+        "dur": 854500.363,
+        "args": {}
+      },
+      {
+        "name": "/home/t-jialianggu/work/sglang/python/sglang/srt/managers/scheduler.py(2278): run_batch",
+        "ts": 5430122680990.833,
+        "dur": 856744.842,
+        "args": {}
+      },
+      {
+        "name": "/home/t-jialianggu/work/sglang/python/sglang/srt/managers/scheduler.py(1149): event_loop_overlap",
+        "ts": 5430120578815.34,
+        "dur": 4072306.406,
+        "args": {}
+      },
+      {
+        "name": "torch/utils/_contextlib.py(120): decorate_context",
+        "ts": 5430120578813.511,
+        "dur": 4072308.235,
+        "args": {}
+      },
+      {
+        "name": "/home/t-jialianggu/work/sglang/python/sglang/srt/managers/scheduler.py(3169): run_scheduler_process",
+        "ts": 5430120578805.443,
+        "dur": 4072316.303,
+        "args": {}
+      },
+      {
+        "name": "multiprocessing/process.py(108): run",
+        "ts": 5430120578801.834,
+        "dur": 4072319.912,
+        "args": {}
+      },
+      {
+        "name": "multiprocessing/process.py(314): _bootstrap",
+        "ts": 5430120578799.831,
+        "dur": 4072321.915,
+        "args": {}
+      },
+      {
+        "name": "multiprocessing/spawn.py(135): _main",
+        "ts": 5430120578796.598,
+        "dur": 4072325.148,
+        "args": {}
+      },
+      {
+        "name": "multiprocessing/spawn.py(122): spawn_main",
+        "ts": 5430120578794.197,
+        "dur": 4072327.549,
+        "args": {}
+      }
+    ]
+  }
+}

@@ -1,0 +1,182 @@
+{
+  "fused_qknorm_warp": {
+    "target": "fused_qknorm_warp",
+    "full_name": "void (anonymous namespace)::fused_qknorm_warp<128l, true, __nv_bfloat16>((anonymous namespace)::QKNormParams)",
+    "external_id": 197,
+    "cpu_op": "sglang::fused_inplace_qknorm",
+    "frames": [
+      "nn.Module: Qwen3MoeDecoderLayer_0",
+      "torch/nn/modules/module.py(1779): _call_impl",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/models/qwen3_moe.py(759): forward",
+      "nn.Module: Qwen3MoeAttention_0",
+      "torch/nn/modules/module.py(1779): _call_impl",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/models/qwen3_moe.py(658): forward",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/models/qwen3_moe.py(615): forward_prepare",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/models/qwen3_moe.py(546): forward_prepare_native",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/models/qwen3_moe.py(559): apply_qk_norm_rope",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/models/utils.py(204): apply_qk_norm",
+      "torch/_ops.py(1244): __call__",
+      "<built-in method fused_inplace_qknorm of pybind11_builtins.pybind11_detail_function_record_v1_system_libstdcpp_gxx_abi_1xxx_use_cxx11_abi_1 object at 0x767d16786d10>"
+    ]
+  },
+  "FlashAttnFwdSm90": {
+    "target": "FlashAttnFwdSm90",
+    "full_name": "void cutlass::device_kernel<flash::enable_sm90_or_later<flash::FlashAttnFwdSm90<flash::CollectiveMainloopFwdSm90<2, cute::tuple<cute::C<1>, cute::C<1>, cute::C<1> >, cute::tuple<cute::C<128>, cute::C<128>, cute::C<128> >, 128, cutlass::bfloat16_t, float, cutlass::arch::Sm90, true, false, false, true, true, false, false, true, true, true, false, false, cutlass::bfloat16_t>, flash::CollectiveEpilogueFwd<cute::tuple<cute::C<128>, cute::C<128>, cute::C<128> >, cute::tuple<cute::C<1>, cute::C<1>, cute::C<1> >, cutlass::bfloat16_t, cutlass::arch::Sm90, 256, true, true, false, false>, flash::VarlenDynamicPersistentTileScheduler<128, 128, 256, 128, false, true, true, true, true, true> > > >(flash::enable_sm90_or_later<flash::FlashAttnFwdSm90<flash::CollectiveMainloopFwdSm90<2, cute::tuple<cute::C<1>, cute::C<1>, cute::C<1> >, cute::tuple<cute::C<128>, cute::C<128>, cute::C<128> >, 128, cutlass::bfloat16_t, float, cutlass::arch::Sm90, true, false, false, true, true, false, false, true, true, true, false, false, cutlass::bfloat16_t>, flash::CollectiveEpilogueFwd<cute::tuple<cute::C<128>, cute::C<128>, cute::C<128> >, cute::tuple<cute::C<1>, cute::C<1>, cute::C<1> >, cutlass::bfloat16_t, cutlass::arch::Sm90, 256, true, true, false, false>, flash::VarlenDynamicPersistentTileScheduler<128, 128, 256, 128, false, true, true, true, true, true> > >::Params)",
+    "external_id": 219,
+    "cpu_op": "sgl_kernel::fwd",
+    "frames": [
+      "nn.Module: Qwen3MoeAttention_0",
+      "torch/nn/modules/module.py(1779): _call_impl",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/models/qwen3_moe.py(658): forward",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/models/qwen3_moe.py(636): forward_core",
+      "nn.Module: RadixAttention_0",
+      "torch/nn/modules/module.py(1779): _call_impl",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/radix_attention.py(99): forward",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/attention/base_attn_backend.py(79): forward",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/attention/flashattention_backend.py(735): forward_extend",
+      "sgl_kernel/flash_attn.py(39): flash_attn_with_kvcache",
+      "torch/_ops.py(840): __call__",
+      "<built-in method  of pybind11_builtins.pybind11_detail_function_record_v1_system_libstdcpp_gxx_abi_1xxx_use_cxx11_abi_1 object at 0x767d14988ed0>"
+    ]
+  },
+  "FusedAddRMSNormKernel": {
+    "target": "FusedAddRMSNormKernel",
+    "full_name": "void flashinfer::norm::FusedAddRMSNormKernel<8u, __nv_bfloat16>(__nv_bfloat16*, __nv_bfloat16*, __nv_bfloat16*, unsigned int, unsigned int, unsigned int, float, float)",
+    "external_id": 230,
+    "cpu_op": "sgl_kernel::fused_add_rmsnorm",
+    "frames": [
+      "nn.Module: Qwen3MoeDecoderLayer_0",
+      "torch/nn/modules/module.py(1779): _call_impl",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/models/qwen3_moe.py(759): forward",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/communicator.py(536): prepare_mlp",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/communicator.py(748): _simple",
+      "nn.Module: RMSNorm_1",
+      "torch/nn/modules/module.py(1779): _call_impl",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/utils/multi_platform.py(70): forward",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/layernorm.py(118): forward_cuda",
+      "sgl_kernel/elementwise.py(49): fused_add_rmsnorm",
+      "torch/_ops.py(840): __call__",
+      "<built-in method  of pybind11_builtins.pybind11_detail_function_record_v1_system_libstdcpp_gxx_abi_1xxx_use_cxx11_abi_1 object at 0x767d149888f0>"
+    ]
+  },
+  "topkGatingSoftmax": {
+    "target": "topkGatingSoftmax",
+    "full_name": "void topkGatingSoftmax<__nv_bfloat16, 8, 128, 4, 16>(__nv_bfloat16 const*, bool const*, float*, int, int*, int, int, int, bool, float, float const*)",
+    "external_id": 240,
+    "cpu_op": "sgl_kernel::topk_softmax",
+    "frames": [
+      "torch/nn/modules/module.py(1779): _call_impl",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/models/qwen3_moe.py(265): forward",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/models/qwen3_moe.py(293): forward_normal",
+      "nn.Module: TopK_0",
+      "torch/nn/modules/module.py(1779): _call_impl",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/utils/multi_platform.py(70): forward",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/moe/topk.py(272): forward_cuda",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/moe/topk.py(916): select_experts",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/moe/topk.py(450): fused_topk",
+      "sgl_kernel/moe.py(28): topk_softmax",
+      "torch/_ops.py(840): __call__",
+      "<built-in method  of pybind11_builtins.pybind11_detail_function_record_v1_system_libstdcpp_gxx_abi_1xxx_use_cxx11_abi_1 object at 0x767d14988ff0>"
+    ]
+  },
+  "moe_align_block_size_kernel": {
+    "target": "moe_align_block_size_kernel",
+    "full_name": "void moe_align_block_size_kernel<int>(int const*, int*, int*, int*, int, int, unsigned long, int*, bool, int, int)",
+    "external_id": 261,
+    "cpu_op": "sgl_kernel::moe_align_block_size",
+    "frames": [
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/quantization/unquant.py(347): forward_cuda",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/moe/moe_runner/runner.py(73): run",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/moe/moe_runner/triton.py(357): fused_experts_none_to_triton",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/moe/fused_moe_triton/fused_moe.py(202): fused_experts",
+      "torch/_ops.py(1244): __call__",
+      "<built-in method inplace_fused_experts of pybind11_builtins.pybind11_detail_function_record_v1_system_libstdcpp_gxx_abi_1xxx_use_cxx11_abi_1 object at 0x767d167847f0>",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/moe/fused_moe_triton/fused_moe.py(79): inplace_fused_experts",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/moe/fused_moe_triton/fused_moe.py(321): fused_experts_impl",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/moe/fused_moe_triton/moe_align_block_size.py(18): moe_align_block_size",
+      "sgl_kernel/moe.py(6): moe_align_block_size",
+      "torch/_ops.py(840): __call__",
+      "<built-in method  of pybind11_builtins.pybind11_detail_function_record_v1_system_libstdcpp_gxx_abi_1xxx_use_cxx11_abi_1 object at 0x767d14989050>"
+    ]
+  },
+  "fused_moe_kernel": {
+    "target": "fused_moe_kernel",
+    "full_name": "fused_moe_kernel",
+    "external_id": 242,
+    "cpu_op": "sglang::inplace_fused_experts",
+    "frames": [
+      "torch/nn/modules/module.py(1779): _call_impl",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/moe/fused_moe_triton/layer.py(963): forward",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/moe/fused_moe_triton/layer.py(979): forward_impl",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/moe/fused_moe_triton/layer.py(1015): run_moe_core",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/quantization/unquant.py(337): apply",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/utils/multi_platform.py(70): forward",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/quantization/unquant.py(347): forward_cuda",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/moe/moe_runner/runner.py(73): run",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/moe/moe_runner/triton.py(357): fused_experts_none_to_triton",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/moe/fused_moe_triton/fused_moe.py(202): fused_experts",
+      "torch/_ops.py(1244): __call__",
+      "<built-in method inplace_fused_experts of pybind11_builtins.pybind11_detail_function_record_v1_system_libstdcpp_gxx_abi_1xxx_use_cxx11_abi_1 object at 0x767d167847f0>"
+    ]
+  },
+  "act_and_mul_kernel": {
+    "target": "act_and_mul_kernel",
+    "full_name": "void flashinfer::activation::act_and_mul_kernel<__nv_bfloat16, &(float silu<float>(float const&))>(__nv_bfloat16*, __nv_bfloat16 const*, int)",
+    "external_id": 263,
+    "cpu_op": "sgl_kernel::silu_and_mul",
+    "frames": [
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/utils/multi_platform.py(70): forward",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/quantization/unquant.py(347): forward_cuda",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/moe/moe_runner/runner.py(73): run",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/moe/moe_runner/triton.py(357): fused_experts_none_to_triton",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/moe/fused_moe_triton/fused_moe.py(202): fused_experts",
+      "torch/_ops.py(1244): __call__",
+      "<built-in method inplace_fused_experts of pybind11_builtins.pybind11_detail_function_record_v1_system_libstdcpp_gxx_abi_1xxx_use_cxx11_abi_1 object at 0x767d167847f0>",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/moe/fused_moe_triton/fused_moe.py(79): inplace_fused_experts",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/moe/fused_moe_triton/fused_moe.py(321): fused_experts_impl",
+      "sgl_kernel/elementwise.py(172): silu_and_mul",
+      "torch/_ops.py(840): __call__",
+      "<built-in method  of pybind11_builtins.pybind11_detail_function_record_v1_system_libstdcpp_gxx_abi_1xxx_use_cxx11_abi_1 object at 0x767d14989290>"
+    ]
+  },
+  "moe_sum_reduce": {
+    "target": "moe_sum_reduce",
+    "full_name": "void moe_sum_reduce_warp_per_token_vec_kernel<8>(c10::BFloat16 const*, c10::BFloat16*, long, long, long, long, long, long, float)",
+    "external_id": 267,
+    "cpu_op": "sgl_kernel::moe_sum_reduce",
+    "frames": [
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/utils/multi_platform.py(70): forward",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/quantization/unquant.py(347): forward_cuda",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/moe/moe_runner/runner.py(73): run",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/moe/moe_runner/triton.py(357): fused_experts_none_to_triton",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/moe/fused_moe_triton/fused_moe.py(202): fused_experts",
+      "torch/_ops.py(1244): __call__",
+      "<built-in method inplace_fused_experts of pybind11_builtins.pybind11_detail_function_record_v1_system_libstdcpp_gxx_abi_1xxx_use_cxx11_abi_1 object at 0x767d167847f0>",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/moe/fused_moe_triton/fused_moe.py(79): inplace_fused_experts",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/moe/fused_moe_triton/fused_moe.py(321): fused_experts_impl",
+      "sgl_kernel/moe.py(83): moe_sum_reduce",
+      "torch/_ops.py(840): __call__",
+      "<built-in method  of pybind11_builtins.pybind11_detail_function_record_v1_system_libstdcpp_gxx_abi_1xxx_use_cxx11_abi_1 object at 0x767d14608ed0>"
+    ]
+  },
+  "BatchQKApplyRotaryPosIdsCosSinCacheEnhancedKernel": {
+    "target": "BatchQKApplyRotaryPosIdsCosSinCacheEnhancedKernel",
+    "full_name": "void flashinfer::BatchQKApplyRotaryPosIdsCosSinCacheEnhancedKernel<true, false, 128u, 8u, 16u, __nv_bfloat16, long>(__nv_bfloat16*, __nv_bfloat16*, __nv_bfloat16*, __nv_bfloat16*, __nv_bfloat16*, __nv_bfloat16*, __nv_bfloat16*, float*, long*, unsigned int, unsigned int, unsigned int, unsigned int, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, long*)",
+    "external_id": 4647,
+    "cpu_op": "sglang::apply_rope_pos_ids_cos_sin_cache_with_kv_cache",
+    "frames": [
+      "torch/nn/modules/module.py(1779): _call_impl",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/models/qwen3_moe.py(658): forward",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/models/qwen3_moe.py(615): forward_prepare",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/models/qwen3_moe.py(546): forward_prepare_native",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/models/qwen3_moe.py(559): apply_qk_norm_rope",
+      "nn.Module: RotaryEmbedding_0",
+      "torch/nn/modules/module.py(1779): _call_impl",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/utils/multi_platform.py(70): forward",
+      "/home/t-jialianggu/work/sglang/python/sglang/srt/layers/rotary_embedding.py(356): forward_cuda",
+      "/home/t-jialianggu/work/sglang/python/sglang/jit_kernel/rope.py(156): apply_rope_with_cos_sin_cache_inplace",
+      "torch/_ops.py(1244): __call__",
+      "<built-in method apply_rope_pos_ids_cos_sin_cache_with_kv_cache of pybind11_builtins.pybind11_detail_function_record_v1_system_libstdcpp_gxx_abi_1xxx_use_cxx11_abi_1 object at 0x767d16785750>"
+    ]
+  }
+}

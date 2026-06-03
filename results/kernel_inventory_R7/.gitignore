@@ -1,0 +1,2 @@
+torch_profile/
+*.trace.json.gz
