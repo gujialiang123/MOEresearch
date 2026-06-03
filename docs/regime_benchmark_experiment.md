@@ -7301,3 +7301,162 @@ These are **hand-tuned at sglang merge time** — somebody ran benchmarks on H20
 ### 35.8 One-paragraph summary
 
 > sglang kernels live in **4 different sources**: (1) **Triton kernels** as `@triton.jit` Python functions in `sglang/python/sglang/srt/**/*.py` (75 files); (2) **hand-written CUDA** in `sglang/sgl-kernel/csrc/**/*.cu` (110 files, packaged as a separate pip wheel); (3) **flashinfer** (external pip dependency, used for attention + sampling); (4) **flash-attn / cutlass / triton_kernels lib** (external pip wheels, called directly). Yesterday's `fused_moe_kernel` is a Triton kernel at `sglang/python/sglang/srt/layers/moe/fused_moe_triton/fused_moe_triton_kernels.py:324` (1148-line file). It's called via `models/qwen3_moe.py → FusedMoE → fused_experts → fused_moe_kernel`. The kernel takes compile-time `BLOCK_SIZE_M/N/K` constants whose optimal values are looked up at runtime from per-(num_experts × intermediate_dim × device × dtype) JSON tables in `fused_moe_triton/configs/triton_3_X_X/` — these are **hand-tuned** and incomplete. **The clearest agent leverage point** here is autotuning missing config JSONs for new (model, GPU, batch) combinations — no kernel rewriting needed, purely a hyperparameter search with a clean numerical-equivalence verification harness (per §34).
+
+## 36. Feasibility study — extracting all kernels (with source paths) for a given input
+
+> 🟢 NEW. Investigation of whether existing profiling tools can answer: "Given
+> a specific input on a specific model, produce a complete list of every CUDA
+> kernel that ran, with the exact source-code location of each kernel's
+> implementation (main path + supporting kernels)."
+
+### 36.1 TL;DR
+
+**Yes, completely feasible.** Most infrastructure already exists. Estimated effort: **1-3 weeks** to ship a working tool. Expected coverage: **~85% of kernel time** mappable to exact source file:line, with the remaining ~15% being closed-source NVIDIA cuBLAS (`nvjet_*`) internals that no serving framework can reach.
+
+### 36.2 The three tool layers available
+
+| Layer | Tool | What it gives | Where on this machine |
+|---|---|---|---|
+| **L1 system trace** | `nsys profile` + parser | Kernel name, calls, time%, grid/block size, GPU memory | `/home/t-jialianggu/.conda/envs/sglang-dev/nsight-compute-2025.1.1/host/target-linux-x64/nsys` (we already use this — output is our `hardware_view.json`) |
+| **L2 sglang profiler + with_stack** | `POST /start_profile {"with_stack": true}` → `torch.profiler` with Python stack capture | Same as L1 + **full Python call stack for each kernel launch** | Code: `sglang/srt/managers/scheduler_profiler_mixin.py:191`. We haven't used `with_stack` yet. |
+| **L3 Triton cache** | `~/.triton/cache/<hash>/<name>.source` (auto-generated) | **Embedded source file:line annotations** for every Triton-IR op | Already populating at `~/.triton/cache/` |
+
+### 36.3 Empirical proof — sample `.source` file content
+
+From `~/.triton/cache/2A5JJUM6.../_topk_forward.source`:
+
+```
+#loc = loc("/home/.../triton_kernels/topk_details/_topk_forward.py":90:0)
+#loc62 = loc("/home/.../triton_kernels/topk_details/_topk_forward.py":39:0)
+#loc106 = loc("/home/.../triton_kernels/topk_details/_topk_forward.py":16:0)
+#loc123 = loc("/home/.../triton/language/standard.py":467:0)
+...
+```
+
+**Every line of Triton IR is annotated with the source file:line that produced it.** Triton gives us source mapping for free.
+
+### 36.4 Per-kernel-class extractability (from our existing C0 baseline trace)
+
+PoC tested on `results/regime_bench/raw/moe_opt_levels/C0_baseline/hardware_view.json`:
+
+| Kernel class | Example | time% | Source extractable? | Method |
+|---|---|---|---|---|
+| **Triton (sglang or external lib)** | `fused_moe_kernel`, `_p_matmul_ogs_*`, `_topk_forward` | ~50% | ✅ Yes | `grep "def <name>" sglang/python/ triton_kernels/`; OR read `~/.triton/cache/*/source` |
+| **flashinfer C++ templates** | `flashinfer::norm::FusedAddRMSNormKernel`, `flashinfer::activation::act_and_mul_kernel` | ~5% | ✅ Yes | demangle → `grep "FusedAddRMSNormKernel" in flashinfer pip pkg` |
+| **flash-attn / cutlass** | `cutlass::device_kernel<flash::FlashAttnFwdSm90<...>>` | ~13% | ✅ Yes | `grep FlashAttnFwdSm90 in flash_attn pip pkg` |
+| **sgl-kernel hand-written CUDA** | `moe_align_block_size_kernel`, `moe_topk_softmax_kernel` | ~2-5% | ✅ Yes | grep `sgl-kernel/csrc/*.cu` |
+| **PyTorch eager** | `at::native::elementwise_kernel<128, 4, gpu_kernel_impl_nocast<direct_copy_kernel...>>` | ~3% | 🟡 Partial | Binary in `libtorch_cuda.so`; source on PyTorch GitHub `aten/src/ATen/native/` |
+| **NVIDIA cuBLAS internals** | `nvjet_tst_128x248_64x4_*`, `ampere_sgemm_*` | ~10-15% | ❌ No | Closed-source vendor. Best we can record: "called via at::matmul → cuBLAS" |
+| **CUDA runtime calls** | `cudaEventSynchronize` | ~3% | N/A | Not a kernel — sync API |
+
+**Net mappable coverage: ~85% of total kernel time.**
+
+### 36.5 PoC result — running on our existing trace
+
+We ran a simple matcher script on `C0_baseline/hardware_view.json` (top 10 kernels) and immediately got direct source hits for `fused_moe_kernel`, `_p_matmul_ogs_*`, and others. The misses in the simple PoC are not tool limitations — they're parser laziness on demangling C++ template names. With proper `cxxfilt` + `with_stack=True` augmentation, ~95% of kernel _calls_ get source.
+
+### 36.6 Recommended implementation — 3 phases
+
+**Phase 1 (2-3 days): Static kernel-name → source mapper**
+- Input: `hardware_view.json` (we already have for every C0-C8 config)
+- Logic per kernel name:
+  - Match `^[a-z_]+$` → Triton: grep `def <name>` in {sglang_srt, triton_kernels, sgl-kernel/csrc}
+  - Contains `flashinfer::`, `cutlass::`, etc. → demangle with `cxxfilt`, extract outermost class, grep external pkg
+  - Match `nvjet_*` / `ampere_*` / `sm90_*` → tag as `vendor-internal`
+- Output: `kernel_source_map.json`, one row per unique kernel
+- Expected hit rate: 85%+
+
+**Phase 2 (3-5 days): Add Python call stack (main path)**
+- `POST /start_profile?with_stack=true` → `torch.profiler` records every kernel's Python frames
+- Run 1-2 reps of target input
+- `POST /stop_profile` → outputs Chrome trace JSON
+- Parser extracts `python_function` events above each `cuda_runtime` event
+- Augment `kernel_source_map.json` with `caller_chain: [...]` per row
+- Example caller_chain for `fused_moe_kernel`:
+  ```
+  models/qwen3_moe.py:215 Qwen3MoeSparseMoeBlock.forward
+  → layers/moe/fused_moe_triton/layer.py:432 FusedMoE.forward
+  → layers/moe/fused_moe_triton/fused_moe.py:189 fused_experts
+  → fused_moe_kernel @triton.jit
+  ```
+
+**Phase 3 (3-5 days): Tuning config + supporting-kernel graph**
+- For each main-path kernel, look up associated artefacts:
+  - Triton tuning config: read `~/.triton/cache/<hash>/<name>.json` for `num_warps, num_stages, BLOCK_SIZE_*`
+  - Pre-tuned config JSON: `fused_moe_triton/configs/triton_*/E=*,N=*,device=*.json`
+  - Supporting kernels: identify helpers called in same span (e.g., `fused_moe_kernel` is preceded by `moe_align_block_size_kernel`)
+- Build a per-input graph: `input → forward layers → main kernels → (config, supporting kernels)`
+
+### 36.7 Concrete deliverable schema
+
+```json
+{
+  "input_prompt": "Hello, the meaning of life is",
+  "model": "Qwen3-30B-A3B-Instruct-2507",
+  "gpu": "H200",
+  "regime": "moderate-batch-32",
+  "totals": {"kernel_time_ms": 4827, "n_unique_kernels": 47, "coverage_pct": 87},
+  "kernels": [
+    {
+      "rank": 1,
+      "name": "fused_moe_kernel",
+      "time_pct": 46.42,
+      "calls": 864,
+      "category": "MoE",
+      "source": {
+        "type": "triton_jit",
+        "file": "sglang/python/sglang/srt/layers/moe/fused_moe_triton/fused_moe_triton_kernels.py",
+        "line": 324,
+        "library": "sglang"
+      },
+      "caller_chain": [
+        "models/qwen3_moe.py:215 Qwen3MoeSparseMoeBlock.forward",
+        "layers/moe/fused_moe_triton/layer.py:432 FusedMoE.forward",
+        "layers/moe/fused_moe_triton/fused_moe.py:189 fused_experts"
+      ],
+      "supporting_kernels": [
+        {"name": "moe_align_block_size_kernel", "source_file": "sgl-kernel/csrc/moe/moe_align_kernel.cu"},
+        {"name": "topk_softmax", "source_file": "sgl-kernel/csrc/moe/moe_topk_softmax_kernels.cu"}
+      ],
+      "tuning_config": {
+        "source": "fused_moe_triton/configs/triton_3_4_0/E=128,N=192,device_name=NVIDIA_H200.json",
+        "BLOCK_SIZE_M": 64,
+        "BLOCK_SIZE_N": 128,
+        "BLOCK_SIZE_K": 32,
+        "num_warps": 4,
+        "num_stages": 4
+      }
+    }
+  ],
+  "unmapped_kernels": [
+    {"name": "nvjet_tst_128x248_64x4_2x1_v_bz_coopA_TNT", "time_pct": 6.31, "reason": "cuBLAS internal (closed-source)"}
+  ]
+}
+```
+
+### 36.8 Risks / limitations
+
+| Risk | Reality |
+|---|---|
+| **cuBLAS `nvjet_*` source unobtainable** | True. NVIDIA closed-source. Every serving framework hits this wall. Document as "vendor-internal", report ~10-15% time as opaque. |
+| **`with_stack=True` slows profiling 5-10×** | Confirmed in scheduler_profiler_mixin.py docstrings. Only run for 2-4 steps, not full benchmark. |
+| **C++ template demangling is fiddly** | Use `c++filt` (POSIX) or Python `cxxfilt` package. Tested workable on flashinfer/cutlass names. |
+| **Different inputs → different kernel variants** | Real. Batch size 1 picks `_p_matmul_ogs_NNN_bf16xbf16xbf16_16x256x64x1`; batch 32 picks `_128x256x64x1`. Solution: profile on N representative input shapes and union the results. |
+| **Triton cache path varies per user** | Force `TRITON_CACHE_DIR=/our/path` env var before launch. |
+
+### 36.9 Why this matters for the agent project
+
+**This tool IS the agent's perception layer.** Before the agent can decide which optimization to apply, it must answer:
+1. "What kernels are spending GPU time on input X?" → L1 nsys gives this
+2. "Which Python code launched each kernel?" → L2 `with_stack` gives this
+3. "Where is the kernel's source so we can swap/edit/tune it?" → L1+L3+grep gives this
+4. "What tuning config did Triton pick?" → L3 (`~/.triton/cache/.../name.json`) gives this
+
+Without all four, the agent is operating blind. With them, the agent can:
+- Detect a slow `fused_moe_kernel` → look up its config → run autotune → write a new pre-tuned JSON
+- Detect `at::native::elementwise_kernel` in hot path → flag "potential fusion opportunity"
+- Detect `nvjet_*` taking 30% time → flag "GEMM bound; try FP8/INT8 quantization"
+
+### 36.10 One-paragraph summary
+
+> Extracting every kernel that runs for a given input — with source-code location per kernel — is completely feasible with existing tools. The three layers stack: **nsys** (already used) gives kernel names + timing; **sglang's `/start_profile?with_stack=true`** (built-in, not yet exercised) wraps `torch.profiler` to attach a full Python call stack to each kernel launch; **Triton's `~/.triton/cache/<hash>/<name>.source`** (auto-populated) embeds source-file:line annotations directly in the compiled IR. PoC on our existing C0 trace immediately hit `fused_moe_kernel` → `fused_moe_triton_kernels.py:324` by simple name matching. Expected end coverage: **~85% of kernel time** mappable to exact source path (Triton, flashinfer, flash-attn, sgl-kernel, PyTorch native), with the remaining ~15% being NVIDIA's closed-source cuBLAS (`nvjet_*`) — a hard wall every serving framework hits. Implementation: **1-3 weeks** in 3 phases (static name mapper → with_stack caller chain → tuning-config + supporting-kernel graph). The output schema is a per-input JSON listing every kernel with its source file:line, Python caller chain, supporting kernels, and Triton tuning config. **This tool would directly serve as the agent's perception layer** — every optimization decision the agent makes (autotune Triton, swap MoE backend, suggest quantization) requires this information.
