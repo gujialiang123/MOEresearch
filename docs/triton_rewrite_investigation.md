@@ -1595,6 +1595,208 @@ Updated agent-project framing:
 
 ---
 
+## 12. What's actually "fused" in vLLM's (and sglang's) `FusedMoE`? — router NOT included
+
+> Follow-up: does vLLM's FusedMoE fuse the router (gate Linear + topk) into the same kernel? Short answer: **No. The "fusion" is across experts, not across operations.** The router gate Linear runs as a separate cuBLAS GEMM, top-k routing is a separate kernel, and the actual MoE GEMM-pair takes another two `fused_moe_kernel` calls (gate_up + down).
+
+### 12.1 What "fused" actually means in `fused_moe_kernel`
+
+The kernel signature in both libraries:
+
+```python
+@triton.jit
+def fused_moe_kernel(
+    a_ptr,                          # already-computed hidden states (post-RMSNorm)
+    b_ptr,                          # per-expert weight bank (stacked across experts)
+    c_ptr,                          # output
+    topk_weights_ptr,               # ← already-computed top-k routing weights
+    sorted_token_ids_ptr,           # ← already-sorted-by-expert token indices
+    expert_ids_ptr,                 # ← already-computed expert assignments
+    num_tokens_post_padded_ptr,
+    N, K, EM, num_valid_tokens,
+    ...
+):
+```
+
+Inputs include `topk_weights_ptr`, `sorted_token_ids_ptr`, `expert_ids_ptr` — **all pre-computed**. The kernel doesn't compute routing; it consumes already-routed data.
+
+So **what "fused_moe_kernel" actually fuses**:
+
+| What it fuses | How |
+|---|---|
+| **Across all experts** | Instead of `N=128` separate GEMM kernel launches (one per expert), one launch handles all experts via `expert_ids_ptr` indirection — this is the "grouped GEMM" trick |
+| **Top-k weights into the matmul** | Multiplies `topk_weights_ptr` into the GEMM accumulator (`MUL_ROUTED_WEIGHT: tl.constexpr`) — avoids a separate scalar-multiply pass |
+| **Quantization scales** (if FP8/INT8) | `a_scale_ptr, b_scale_ptr` baked into the same kernel |
+
+And **what it does NOT fuse**:
+
+| What's NOT inside | Where it lives instead |
+|---|---|
+| **Router gate Linear** (`hidden_states @ gate_weight.T`) | Separate **cuBLAS GEMM** — a regular dense Linear layer |
+| **Top-k routing softmax** | Separate **sgl-kernel CUDA** kernel: `topkGatingSoftmax` (we see this in our R7 trace) |
+| **moe_align_block_size** (sort tokens by expert) | Separate sgl-kernel CUDA: `moe_align_block_size_kernel` |
+| **SiLU activation** between gate_up and down | Separate flashinfer kernel: `act_and_mul_kernel<silu>` |
+| **down_proj GEMM** | **Another `fused_moe_kernel` call** — the same kernel runs TWICE per MoE layer (w13 = gate+up combined, then w2 = down) |
+| **Per-token weighted sum** across top-k experts | Separate sgl-kernel CUDA: `moe_sum_reduce_warp_per_token_vec_kernel` |
+
+### 12.2 The full pipeline (both vLLM and sglang)
+
+Per MoE layer × per forward call:
+
+```
+hidden_states (after RMSNorm)
+       │
+       ▼
+[1]  router_logits = gate_Linear(hidden_states)           ← cuBLAS GEMM (small)
+       │
+       ▼
+[2]  topk_weights, topk_ids = topk_softmax(router_logits) ← sgl-kernel CUDA
+       │
+       ▼
+[3]  sorted_token_ids = moe_align_block_size(topk_ids)    ← sgl-kernel CUDA
+       │
+       ▼  ── Triton fused_moe_kernel #1 (gate+up combined w13) ──
+[4]  intermediate = fused_moe_kernel(
+        a = hidden_states,
+        b = w13_weights[experts],
+        topk_weights = (1, no scaling here),
+        sorted_token_ids = sorted_token_ids,
+        ...
+     )                                                     ← ← ← THE BIG KERNEL #1
+       │
+       ▼
+[5]  activated = silu_and_mul(intermediate)               ← flashinfer kernel
+       │
+       ▼  ── Triton fused_moe_kernel #2 (down w2, with top-k weights) ──
+[6]  output = fused_moe_kernel(
+        a = activated,
+        b = w2_weights[experts],
+        topk_weights = topk_weights,    ← weighted here
+        sorted_token_ids = sorted_token_ids,
+        MUL_ROUTED_WEIGHT = True,
+        ...
+     )                                                     ← ← ← THE BIG KERNEL #2
+       │
+       ▼
+[7]  final = moe_sum_reduce(output)                       ← sgl-kernel CUDA
+```
+
+**Total kernels per MoE layer**: 7 distinct kernels minimum (steps 1-7), plus aux kernels for memory mgmt.
+
+### 12.3 Empirical confirmation from our R7 trace
+
+The MoE-region kernels in our R7 Qwen3-30B-A3B trace:
+
+| Kernel | GPU time% | Calls | What it is |
+|---|---:|---:|---|
+| `fused_moe_kernel` | **50.17 %** | **672** | The Triton grouped-GEMM kernel; runs 2× per layer (w13 + w2) |
+| `moe_sum_reduce_warp_per_token_vec_kernel<8>` | 2.71 % | 96 | Post-MoE per-token weighted sum |
+| `moe_align_block_size_kernel<int>` | 0.82 % | 336 | Pre-MoE sort tokens by expert |
+| `topkGatingSoftmax<__nv_bfloat16, 8, 128, 4, 16>` | 0.63 % | 336 | The router top-k softmax |
+| (router gate Linear — `nvjet_*` GEMMs, mixed with other GEMMs) | counted in cuBLAS bucket | — | Hidden in the 17.5 % cuBLAS total |
+
+**Call-count math** confirms `fused_moe_kernel` runs 672 times = ~14 calls per layer (across 48 layers × 8 forward steps), which is the 2× per layer (~96 calls per layer prefill+decode) for w13 + w2.
+
+The other MoE kernels run **once per layer** for their respective phase.
+
+### 12.4 vLLM-specific: the "internal_router" mode
+
+vLLM's `Qwen3MoeSparseMoeBlock.forward` (`vllm/model_executor/models/qwen3_moe.py`) has a branch:
+
+```python
+if self.experts.is_internal_router:
+    # In this case, the gate/router runs inside the FusedMoE class
+    final_hidden_states = self.experts(
+        hidden_states=hidden_states, router_logits=hidden_states  # NOTE: passes hidden_states
+    )                                                              # as router_logits — gets
+                                                                   # overwritten inside
+else:
+    # Legacy: caller computes router_logits first
+    router_logits, _ = self.gate(hidden_states)
+    final_hidden_states = self.experts(hidden_states, router_logits)
+```
+
+And inside `MoERunner.forward` (`vllm/.../runner/moe_runner.py:778`):
+
+```python
+if self.gate is not None:
+    if self._fse_fuse_gate:
+        self._maybe_fuse_gate_weights()
+        router_logits = F.linear(hidden_states, self._combined_gate_weight)  ← cuBLAS GEMM
+    else:
+        router_logits, _ = self.gate(hidden_states)                          ← cuBLAS GEMM
+```
+
+So vLLM's "internal router" is a **Python-level refactor that moves the gate Linear ownership inside FusedMoE class** — **but the gate is still a separate cuBLAS GEMM call**, not fused with the Triton kernel. The advantage of the refactor is:
+- Cleaner API (callers don't need to compute router_logits separately)
+- Enables potential stream-overlap between gate Linear and other work
+- The `_fse_fuse_gate` flag (which we DON'T have on by default) can pre-combine gate weights across replicas for one larger GEMM
+
+**Neither is real kernel fusion** — these are scheduling and convenience optimizations.
+
+### 12.5 sglang does this slightly differently
+
+Looking at `sglang/srt/models/qwen3_moe.py:303-305`:
+
+```python
+# router_logits: (num_tokens, n_experts)
+router_logits, _ = self.gate(hidden_states)         # explicit cuBLAS GEMM in model file
+topk_output = self.topk(hidden_states, router_logits)
+final_hidden_states = self.experts(hidden_states, topk_output)
+```
+
+sglang **always uses the "external" pattern** — it computes router_logits in the model file, then passes them to `FusedMoE`. Functionally identical to vLLM, just visible in the model code.
+
+### 12.6 So what would "real" router fusion look like?
+
+If you wanted to ACTUALLY fuse router_gate + topk + routing-sort + first MoE GEMM into one kernel:
+
+```python
+# Hypothetical "router_fused_moe_kernel"
+@triton.jit
+def router_fused_moe_kernel(
+    a_ptr,                  # hidden_states
+    gate_weight_ptr,        # router gate Linear weight (NEW input)
+    expert_weights_ptr,     # per-expert MoE weights
+    output_ptr,
+    top_k: tl.constexpr,
+    num_experts: tl.constexpr,
+    ...
+):
+    # Step 1: compute router_logits = a @ gate_weight INSIDE the kernel
+    # Step 2: compute top-k INSIDE the kernel
+    # Step 3: compute MoE GEMM INSIDE the kernel
+    # Step 4: per-token weighted reduce
+```
+
+This **doesn't exist** in vLLM or sglang. Why?
+- **Register pressure**: holding router_logits (size `[batch, num_experts]` = 128 floats per token) + active expert weights + activations all in registers is hard
+- **Branching divergence**: top-k creates per-thread branching that wastes Triton/CUDA warp parallelism
+- **Reusability**: the GEMM tile sizes for `[batch, hidden] × [hidden, num_experts]` (small, K-dominated) are very different from `[batch, K=hidden] × [num_experts × N=intermediate, K=hidden]` (the big MoE GEMM)
+- **Marginal win**: router GEMM is < 1 % of GPU time anyway (we see this empirically); fusing it saves the kernel-launch overhead (~5 µs) per layer = ~0.2 % end-to-end
+
+So even if you could fuse router INTO `fused_moe_kernel`, it would buy you very little. The current "fuse across experts" is the right fusion to focus on.
+
+### 12.7 Short answer to your question
+
+> **"vLLM 的 fused moe 是把 router 也 fuse 进去了吗?"**
+
+**No**. vLLM's FusedMoE is "fused" in two specific senses:
+1. **Across experts** — one Triton kernel launch handles all `N=128` experts in a grouped-GEMM pattern (instead of `N` separate launches)
+2. **Top-k weights into the second matmul** — the per-token routing weights are baked into the down-proj GEMM accumulator (avoids a separate weighted-add pass)
+
+It does NOT fuse:
+- Router gate Linear (separate cuBLAS GEMM)
+- Top-k softmax (separate sgl-kernel CUDA)
+- Token sorting / alignment (separate sgl-kernel CUDA)
+- Activation between gate_up and down (separate flashinfer kernel)
+- Per-token reduction over top-k experts (separate sgl-kernel CUDA)
+
+**sglang's behaviour is identical** — both libraries' `fused_moe_kernel` came from the same heritage (the 2024-02 vLLM commit) and have the same fusion scope. The difference is only that vLLM's recent refactor lets `FusedMoE` Python class **own** the gate Linear (so calling code can pass `hidden_states` directly), whereas sglang's model file calls gate / topk / experts as 3 separate steps. Same kernels, different Python ergonomics.
+
+
+---
+
 <a id="中文版"></a>
 
 # 中文版
@@ -3176,5 +3378,205 @@ agent 两条有效路径:
 修订的 agent 项目定位:
 
 > *"sglang 的 MoE 优化投入集中在少数高优先级 (模型 × GPU × 量化) 三元组 —— 主要是 DeepSeek-V3 / Llama-4 / GPT-OSS / Qwen3Next 在 Blackwell 上加 FP8/FP4。**长尾 (Mixtral, Phi-MoE, OLMoE, Hunyuan, Granite, Exaone, Qwen3-30B-A3B 等) 在 Hopper (H100/H200) bf16 上 —— 整体上是大部分部署量 —— 跑 Triton,而且 autotune 覆盖大部分是手 tune 的、不全的**。我们在搭一个 agent 自动闭合这个覆盖缺口: 检测缺失 config、跑 autotune、PR。拉伸目标: 把现有 CUTLASS-DSL FP4 MoE wrapper 适配到 bf16,**第一次给 Hopper 用户打开非-Triton bf16 路径**。"*
+---
+
+## 12. vLLM (和 sglang) 的 `FusedMoE` 到底"fuse"了什么? —— router 没被 fuse 进去
+
+> Follow-up: vLLM 的 FusedMoE 把 router (gate Linear + topk) fuse 进同一个 kernel 了吗? 简答: **没有。"fusion"是跨专家,不是跨操作**。Router gate Linear 是单独的 cuBLAS GEMM,top-k 路由是单独 kernel,实际 MoE GEMM-对再用两次 `fused_moe_kernel` 调用 (gate_up + down)。
+
+### 12.1 `fused_moe_kernel` 真实的"fused"含义
+
+两个库的 kernel 签名:
+
+```python
+@triton.jit
+def fused_moe_kernel(
+    a_ptr,                          # 已计算的 hidden states (RMSNorm 之后)
+    b_ptr,                          # per-expert 权重 bank (跨专家堆叠)
+    c_ptr,                          # 输出
+    topk_weights_ptr,               # ← 已计算的 top-k 路由权重
+    sorted_token_ids_ptr,           # ← 已按专家排好序的 token indices
+    expert_ids_ptr,                 # ← 已计算的专家分配
+    num_tokens_post_padded_ptr,
+    N, K, EM, num_valid_tokens,
+    ...
+):
+```
+
+输入有 `topk_weights_ptr`、`sorted_token_ids_ptr`、`expert_ids_ptr` —— **全是预先算好的**。kernel **不**计算 routing;它消费已经 route 好的数据。
+
+所以 **`fused_moe_kernel` 实际 fuse 了什么**:
+
+| 它 fuse 了什么 | 怎么 fuse |
+|---|---|
+| **跨所有专家** | 不是 N=128 个独立 GEMM kernel launch (每个专家一个),一次 launch 通过 `expert_ids_ptr` 间接处理所有专家 —— 这就是"grouped GEMM"trick |
+| **Top-k 权重进 matmul** | 把 `topk_weights_ptr` 乘进 GEMM 累加器 (`MUL_ROUTED_WEIGHT: tl.constexpr`) —— 省一次单独 scalar-multiply pass |
+| **量化 scale** (如果 FP8/INT8) | `a_scale_ptr, b_scale_ptr` 烤进同一 kernel |
+
+它 **没** fuse 的:
+
+| 没在里面的 | 在哪 |
+|---|---|
+| **Router gate Linear** (`hidden_states @ gate_weight.T`) | 单独的 **cuBLAS GEMM** —— 一个正常的 dense Linear |
+| **Top-k routing softmax** | 单独的 **sgl-kernel CUDA**: `topkGatingSoftmax` (我们 R7 trace 里看到) |
+| **moe_align_block_size** (按专家排 token) | 单独的 sgl-kernel CUDA: `moe_align_block_size_kernel` |
+| **SiLU 激活** 在 gate_up 和 down 之间 | 单独的 flashinfer kernel: `act_and_mul_kernel<silu>` |
+| **down_proj GEMM** | **又一个 `fused_moe_kernel` 调用** —— 同一 kernel 每 MoE 层跑**两次** (w13 = gate+up 合并,然后 w2 = down) |
+| **Per-token 加权求和** 跨 top-k 专家 | 单独的 sgl-kernel CUDA: `moe_sum_reduce_warp_per_token_vec_kernel` |
+
+### 12.2 完整 pipeline (vLLM 和 sglang 都是)
+
+每个 MoE 层 × 每个 forward 调用:
+
+```
+hidden_states (RMSNorm 之后)
+       │
+       ▼
+[1]  router_logits = gate_Linear(hidden_states)           ← cuBLAS GEMM (小)
+       │
+       ▼
+[2]  topk_weights, topk_ids = topk_softmax(router_logits) ← sgl-kernel CUDA
+       │
+       ▼
+[3]  sorted_token_ids = moe_align_block_size(topk_ids)    ← sgl-kernel CUDA
+       │
+       ▼  ── Triton fused_moe_kernel #1 (gate+up 合并 w13) ──
+[4]  intermediate = fused_moe_kernel(
+        a = hidden_states,
+        b = w13_weights[experts],
+        topk_weights = (1, 这里不缩放),
+        sorted_token_ids = sorted_token_ids,
+        ...
+     )                                                     ← ← ← 大 kernel #1
+       │
+       ▼
+[5]  activated = silu_and_mul(intermediate)               ← flashinfer kernel
+       │
+       ▼  ── Triton fused_moe_kernel #2 (down w2, 带 top-k 权重) ──
+[6]  output = fused_moe_kernel(
+        a = activated,
+        b = w2_weights[experts],
+        topk_weights = topk_weights,    ← 这里加权
+        sorted_token_ids = sorted_token_ids,
+        MUL_ROUTED_WEIGHT = True,
+        ...
+     )                                                     ← ← ← 大 kernel #2
+       │
+       ▼
+[7]  final = moe_sum_reduce(output)                       ← sgl-kernel CUDA
+```
+
+**每 MoE 层 kernel 总数**: 至少 7 个不同 kernel (步骤 1-7),加上内存管理的辅助 kernel。
+
+### 12.3 R7 trace 实证
+
+我们 R7 Qwen3-30B-A3B trace 里的 MoE 区域 kernel:
+
+| Kernel | GPU 时间% | 调用次数 | 是什么 |
+|---|---:|---:|---|
+| `fused_moe_kernel` | **50.17%** | **672** | Triton grouped-GEMM kernel;每层跑 2× (w13 + w2) |
+| `moe_sum_reduce_warp_per_token_vec_kernel<8>` | 2.71% | 96 | MoE 后 per-token 加权求和 |
+| `moe_align_block_size_kernel<int>` | 0.82% | 336 | MoE 前按专家排 token |
+| `topkGatingSoftmax<__nv_bfloat16, 8, 128, 4, 16>` | 0.63% | 336 | Router top-k softmax |
+| (router gate Linear —— 混在 `nvjet_*` GEMM 里) | 算在 cuBLAS 桶 | —— | 隐藏在 17.5% cuBLAS 总数里 |
+
+**调用次数算术** 确认 `fused_moe_kernel` 跑 672 次 = 每层 ~14 次 (48 层 × 8 forward step),即每层 2× (w13 + w2)。
+
+其他 MoE kernel 每层各运行**一次**对应的 phase。
+
+### 12.4 vLLM 特定的: "internal_router" 模式
+
+vLLM 的 `Qwen3MoeSparseMoeBlock.forward` (`vllm/model_executor/models/qwen3_moe.py`) 有个分支:
+
+```python
+if self.experts.is_internal_router:
+    # 这种情况下,gate/router 在 FusedMoE class 内跑
+    final_hidden_states = self.experts(
+        hidden_states=hidden_states, router_logits=hidden_states  # 注: 传 hidden_states
+    )                                                              # 作为 router_logits —— 
+                                                                   # 内部会被覆盖
+else:
+    # 旧模式: 调用者先算 router_logits
+    router_logits, _ = self.gate(hidden_states)
+    final_hidden_states = self.experts(hidden_states, router_logits)
+```
+
+而 `MoERunner.forward` 内 (`vllm/.../runner/moe_runner.py:778`):
+
+```python
+if self.gate is not None:
+    if self._fse_fuse_gate:
+        self._maybe_fuse_gate_weights()
+        router_logits = F.linear(hidden_states, self._combined_gate_weight)  ← cuBLAS GEMM
+    else:
+        router_logits, _ = self.gate(hidden_states)                          ← cuBLAS GEMM
+```
+
+所以 vLLM 的 "internal router" 是**Python 层重构,把 gate Linear 所有权移到 FusedMoE class 内** —— **但 gate 仍是单独的 cuBLAS GEMM 调用**,不是和 Triton kernel fuse。这个重构的好处是:
+- API 更干净 (调用者不需要单独算 router_logits)
+- 启用 gate Linear 和其他工作的 stream 重叠潜力
+- `_fse_fuse_gate` flag (我们默认**没**开) 可以预合并跨副本的 gate 权重做一个更大 GEMM
+
+**都不是真正的 kernel fusion** —— 这些是调度和便利的优化。
+
+### 12.5 sglang 稍微不同的做法
+
+看 `sglang/srt/models/qwen3_moe.py:303-305`:
+
+```python
+# router_logits: (num_tokens, n_experts)
+router_logits, _ = self.gate(hidden_states)         # 模型文件里显式 cuBLAS GEMM
+topk_output = self.topk(hidden_states, router_logits)
+final_hidden_states = self.experts(hidden_states, topk_output)
+```
+
+sglang **始终用 "external" 模式** —— 在模型文件里算 router_logits,然后传给 `FusedMoE`。功能上和 vLLM 一致,只是在模型代码里可见。
+
+### 12.6 那"真正" router fusion 会长啥样?
+
+如果你想真正把 router_gate + topk + routing-sort + 第一个 MoE GEMM fuse 进一个 kernel:
+
+```python
+# 假设的 "router_fused_moe_kernel"
+@triton.jit
+def router_fused_moe_kernel(
+    a_ptr,                  # hidden_states
+    gate_weight_ptr,        # router gate Linear 权重 (新输入)
+    expert_weights_ptr,     # per-expert MoE 权重
+    output_ptr,
+    top_k: tl.constexpr,
+    num_experts: tl.constexpr,
+    ...
+):
+    # 第 1 步: kernel 内算 router_logits = a @ gate_weight
+    # 第 2 步: kernel 内算 top-k
+    # 第 3 步: kernel 内算 MoE GEMM
+    # 第 4 步: per-token 加权 reduce
+```
+
+这在 vLLM 或 sglang 里**都不存在**。为啥?
+- **寄存器压力**: 同时持有 router_logits (大小 `[batch, num_experts]` = 每 token 128 个 float) + 活跃专家权重 + 激活,全在寄存器很难
+- **分支发散**: top-k 创造 per-thread 分支,浪费 Triton/CUDA warp 并行
+- **复用性**: `[batch, hidden] × [hidden, num_experts]` (小,K-主导) 的 GEMM tile size 和 `[batch, K=hidden] × [num_experts × N=intermediate, K=hidden]` (大 MoE GEMM) 非常不同
+- **边际赢面**: router GEMM 本来就 < 1% GPU 时间 (我们实证看到);fuse 它只省 kernel launch 开销 (~5 µs) per layer = ~0.2% 端到端
+
+所以即使你能把 router fuse 进 `fused_moe_kernel`,赢面也很小。当前"跨专家 fuse"才是该聚焦的对的 fusion。
+
+### 12.7 简短回答你的问题
+
+> **"vLLM 的 fused moe 是把 router 也 fuse 进去了吗?"**
+
+**没有**。vLLM 的 FusedMoE "fuse" 在两个特定意义:
+1. **跨专家** —— 一次 Triton kernel launch 处理所有 `N=128` 专家 (grouped GEMM 模式),代替 `N` 个单独 launch
+2. **Top-k 权重进第二个 matmul** —— per-token 路由权重烤进 down-proj GEMM 累加器 (省一次单独加权-加法 pass)
+
+它**没** fuse:
+- Router gate Linear (单独 cuBLAS GEMM)
+- Top-k softmax (单独 sgl-kernel CUDA)
+- Token 排序 / 对齐 (单独 sgl-kernel CUDA)
+- gate_up 和 down 之间的激活 (单独 flashinfer kernel)
+- Per-token 跨 top-k 专家的 reduction (单独 sgl-kernel CUDA)
+
+**sglang 行为完全一样** —— 两个库的 `fused_moe_kernel` 同源 (2024-02 vLLM commit),fusion 范围一样。区别只是 vLLM 最近重构让 `FusedMoE` Python class **拥有** gate Linear (调用代码可以直接传 `hidden_states`),而 sglang 模型文件把 gate / topk / experts 当 3 个单独步骤调。kernel 一样,Python 工效不同。
 
 
