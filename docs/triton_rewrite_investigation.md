@@ -694,6 +694,221 @@ This is **the most under-served niche** in sglang right now:
 
 ---
 
+## 6. Why was Triton chosen for our model? Other MoE implementations + work opportunities
+
+> Follow-up: for our Qwen3-30B-A3B bf16 run, why did sglang pick the Triton backend (`fused_moe_kernel`)? What do other MoE models use? Are there higher-performance MoE kernels in other languages? Is rewriting one a viable contribution?
+
+### 6.1 The 9 MoE backend choices and how sglang picks one
+
+`server_args.py:176-184` lists the full set:
+
+```python
+MOE_RUNNER_BACKEND_CHOICES = [
+    "auto",              ← default; sglang decides based on model + hardware + quantization
+    "deep_gemm",         ← DeepGEMM library
+    "triton",            ← sglang's fused_moe_kernel (Triton)
+    "triton_kernel",     ← external triton_kernels lib (matmul_ogs)
+    "flashinfer_trtllm", ← flashinfer wrappers around TRT-LLM moe
+    "flashinfer_cutlass",← flashinfer CUTLASS path
+    "flashinfer_mxfp4",  ← flashinfer MXFP4 specialised
+    "flashinfer_cutedsl",← flashinfer CUTLASS-DSL (Python)
+    "cutlass",           ← raw CUTLASS
+]
+```
+
+The dispatch happens in two places:
+
+**1. `server_args.py:1290-1600`** (the "auto" → concrete backend conversion at startup) decides based on `(model_arch, GPU compute capability, quantization, EP backend)`.
+
+**2. `layers/moe/ep_moe/layer.py:686 get_moe_impl_class`** (instantiated per-layer in the model) picks the actual Python class:
+
+```python
+def get_moe_impl_class(quant_config):
+    if get_moe_a2a_backend().is_mori():       return MoriEPMoE         # ROCm
+    if get_moe_a2a_backend().is_deepep():     return DeepEPMoE         # DeepEP a2a
+    if get_moe_a2a_backend().is_ascend_fuseep(): return NpuFuseEPMoE   # Ascend NPU
+
+    if get_moe_runner_backend().is_flashinfer_trtllm():
+        if quant_config is "modelopt_fp4":  return FlashInferFP4MoE
+        elif quant_config in {None, "fp8", "modelopt_fp8", "compressed_tensors"}:
+            return FlashInferFusedMoE                                  # bf16 / fp8
+
+    return FusedMoE  # ← THIS IS THE DEFAULT (the Triton path)
+```
+
+### 6.2 Why our specific run got `triton`
+
+Mapping the conditions to our Qwen3-30B-A3B bf16 run:
+
+| Check | Our value | Result |
+|---|---|---|
+| `model_arch == "DeepseekV3ForCausalLM"` | No (Qwen3MoeForCausalLM) | skip DeepSeek-specific overrides |
+| `model_arch == "GptOssForCausalLM"` | No | skip GPT-OSS-specific |
+| `quantization in [fp8, modelopt_fp8, modelopt_fp4]` | No (bf16) | skip flashinfer_trtllm autoselect |
+| `is_sm100_supported()` (Blackwell B100/B200) | No (H200 is sm90) | skip Blackwell paths |
+| `is_hip() and SGLANG_USE_AITER` | No (NVIDIA) | skip AMD AITER path |
+| a2a backend = mori / deepep / ascend | No | skip EP-specialised classes |
+| **Final fall-through** | — | **`return FusedMoE` (= Triton fused_moe_kernel)** |
+
+So **Triton was picked by elimination**, not preference. For bf16 + non-Blackwell + standard a2a + non-AMD, **none of the alternative backends apply**.
+
+### 6.3 What all 13 sglang MoE models actually use
+
+Every single one of the 13 MoE-architecture model files imports `FusedMoE` from `fused_moe_triton`:
+
+```
+qwen2_moe.py:    4 uses    qwen3_moe.py:    4 uses (inherits from qwen2_moe)
+llama4.py:       2 uses    mixtral.py:      3 uses
+grok.py:         3 uses    phimoe.py:       3 uses
+granitemoe.py:   2 uses    olmoe.py:        3 uses
+exaone_moe.py:   4 uses    hunyuan.py:      3 uses
+mllama4.py:      2 uses    lfm2_moe.py:    15 uses
+step3_vl.py:     4 uses    kimi_vl.py:      2 uses
+```
+
+**Every MoE model in sglang defaults to the Triton path.** The non-Triton paths are runtime opt-ins gated on (quantization, hardware, EP backend).
+
+### 6.4 What other-language MoE implementations exist (and what they cover)
+
+#### 6.4.1 sglang's sgl-kernel (hand-written CUDA)
+
+In `sglang/sgl-kernel/csrc/moe/`:
+
+| File | What it computes | Replaces Triton fused_moe_kernel? |
+|---|---|---|
+| `moe_align_kernel.cu` | sort tokens by expert assignment | ❌ no — this is auxiliary (runs BEFORE fused_moe_kernel) |
+| `moe_topk_softmax_kernels.cu` | top-k routing softmax | ❌ no — auxiliary (runs BEFORE) |
+| `moe_topk_sigmoid_kernels.cu` | top-k routing sigmoid | ❌ no — auxiliary |
+| `moe_fused_gate.cu` | fused router + softmax | ❌ no — auxiliary |
+| `moe_sum_reduce.cu` | post-MoE summation | ❌ no — auxiliary (runs AFTER fused_moe_kernel) |
+| `kimi_k2_moe_fused_gate.cu` | Kimi-K2-specific routing | ❌ no — auxiliary |
+| `fp8_blockwise_moe_kernel.cu` | **MoE GEMM in FP8** | ✅ **YES** — only for FP8 path |
+| `nvfp4_blockwise_moe.cu` | **MoE GEMM in NVFP4** | ✅ **YES** — only for NVFP4 path |
+| `cutlass_moe/w4a8/*` | CUTLASS templates for W4A8 quant | ✅ **YES** — only for W4A8 path |
+| `marlin_moe_wna16/*` | Marlin INT4 quant MoE | ✅ **YES** — only for INT4-AWQ quant |
+
+**Pattern**: sgl-kernel CUDA covers MoE GEMM for **quantized paths** (FP8 / NVFP4 / W4A8 / INT4), but **not for bf16**.
+
+#### 6.4.2 flashinfer (mostly C++/CUDA with Python bindings)
+
+Verified in our env:
+
+```python
+# Available in flashinfer pip pkg:
+fused_moe                # generic wrapper
+cutlass_fused_moe        # CUTLASS path
+trtllm_fp4_block_scale_moe         # FP4 only
+trtllm_fp4_block_scale_routed_moe  # FP4 only
+trtllm_fp8_block_scale_moe         # FP8 only
+trtllm_fp8_per_tensor_scale_moe    # FP8 only
+SegmentGEMMWrapper                 # generic block-segment GEMM
+prepare_low_latency_gemm_weights
+reorder_rows_for_gated_act_gemm
+```
+
+Plus `flashinfer.cute_dsl.blockscaled_gemm` (CUTLASS-DSL Python frontend) wrapping NVIDIA's cute-dsl templates.
+
+**Pattern**: flashinfer covers MoE GEMM for **FP8 / FP4 quantized paths** plus generic infra. **No bf16 hot path here either**.
+
+#### 6.4.3 triton_kernels (the external library — Triton-based)
+
+Used by `--moe-runner-backend=triton_kernel`. Lives at `site-packages/triton_kernels/`:
+
+```
+matmul_ogs.py / matmul_ogs_details/_p_matmul_ogs.py
+topk.py / topk_details/_topk_forward.py
+swiglu.py / swiglu_details/...
+```
+
+**This is also Triton**, just a different / more recent implementation (the `_p_matmul_ogs_*` kernels we saw in C8). NOT a different language.
+
+#### 6.4.4 Other libraries NOT in our env
+
+| Library | Language | What it does for MoE | In our env? |
+|---|---|---|---|
+| **DeepGEMM** | CUDA + CUTLASS templates | FP8 / NVFP4 grouped GEMM | ❌ Not installed |
+| **TensorRT-LLM** | CUDA + C++ | FP4 / FP8 / FP16 trtllm_moe | ❌ Not installed (used via flashinfer bindings only) |
+| **AITER** (AMD) | HIP / CK (Composable Kernels) | AMD-optimized MoE | ❌ Not installed (NVIDIA env) |
+
+### 6.5 The critical gap — bf16 MoE GEMM has NO production CUDA alternative in sglang today
+
+Putting it all together:
+
+| Quantization | sglang's MoE GEMM choices |
+|---|---|
+| **bf16 / fp16** | **Triton `fused_moe_kernel` ONLY** (or `triton_kernels._p_matmul_ogs` — also Triton) |
+| fp8 | Triton fused_moe_kernel, sgl-kernel `fp8_blockwise_moe_kernel.cu`, flashinfer `trtllm_fp8_*_moe`, DeepGEMM (if installed), CUTLASS-DSL (`cute_dsl`) |
+| nvfp4 | Triton, sgl-kernel `nvfp4_blockwise_moe.cu`, flashinfer `trtllm_fp4_*_moe`, CUTLASS-DSL |
+| W4A8 / INT4 quant | Triton, sgl-kernel `cutlass_moe/w4a8/*`, sgl-kernel `marlin_moe_wna16/*` |
+
+**Translation**: if you deploy a bf16 MoE model (like ours), **Triton is the only mature path**. Every alternative MoE kernel in sglang requires a quantized weight format.
+
+### 6.6 So is rewriting a bf16 MoE kernel in CUDA / CUTLASS-DSL / Gluon a viable contribution?
+
+**Yes, but the framing should be precise:**
+
+| Claim | Truthful version |
+|---|---|
+| "Triton bf16 MoE is suboptimal" | Probably true on H200 vs hand-tuned CUTLASS; needs benchmark to confirm magnitude |
+| "There's no CUDA bf16 MoE in sglang" | **True** — verified by file listing |
+| "DeepSeek/Llama-4/Mixtral teams would benefit" | True if they deploy bf16; many DO move to FP8 in production, which already has CUDA paths |
+| "It would be a unique upstream contribution" | True — would be the first bf16-specific CUTLASS/CUDA MoE in sglang |
+
+#### Three viable scoping options, ranked by risk:
+
+##### Option A — Port the bf16 MoE GEMM to CUTLASS-DSL (`cute_dsl`)
+- **Precedent**: `flashinfer_cutedsl_moe.py` already does this for FP4 in sglang
+- **Effort**: 2-4 weeks (clone the FP4 wrapper structure, swap to bf16 grouped-GEMM, write weight-loading mapping)
+- **Risk**: Medium — CUTLASS-DSL is mature, sglang has integration pattern
+- **Upside**: 1.2-2× on H200/H100 bf16 MoE workloads if hand-tuned tile sizes win over Triton
+
+##### Option B — Port to Triton-Gluon (low-level Triton)
+- **Precedent**: None in sglang (we'd be first)
+- **Effort**: 3-6 weeks (Gluon is experimental, less debugging tooling)
+- **Risk**: Higher — API may change, peak perf vs CUTLASS uncertain
+- **Upside**: Same as Option A perf-wise, but stays in the Triton ecosystem (easier maintenance long-term)
+
+##### Option C — Hand-write CUDA `bf16_moe_kernel.cu` in sgl-kernel
+- **Precedent**: `fp8_blockwise_moe_kernel.cu` and `nvfp4_blockwise_moe.cu` show the structure
+- **Effort**: 4-8 weeks (peak CUDA expertise required)
+- **Risk**: Highest — long debugging cycle, every GPU generation needs new code
+- **Upside**: Peak performance; full control of memory hierarchy
+
+#### What to deliver before claiming the rewrite is worthwhile
+
+The minimum viable benchmark:
+
+```python
+# Compare on H200, Qwen3-30B-A3B (E=128, N=768), bf16
+# Same input batch sizes [1, 8, 32, 128, 1024]
+# Same num_iters=100, take median µs
+
+baseline = run_with('--moe-runner-backend=triton')           # uses fused_moe_kernel
+your_impl = run_with('--moe-runner-backend=your_new_backend')
+
+# Report: per batch_size, (your_impl_us / baseline_us)
+# To justify the rewrite, you want < 0.8 (i.e. 20% faster) on AT LEAST 2 batch sizes.
+```
+
+If the win is smaller than 20%, sglang maintainers will (rightly) push back — the maintenance cost of another MoE backend isn't worth a 10% speedup.
+
+### 6.7 Recommended ordering for our agent project
+
+Given everything in §1-6, here's the ranked work plan, refined:
+
+| Phase | Work | Risk | Time | Why |
+|---|---|---|---|---|
+| **1** | Agent harness to auto-tune missing config JSONs and PR them | Low | 1-2 weeks | No code change, immediate value, opens door to sglang community |
+| **2** | Quantitative benchmark of current Triton vs. CUTLASS-DSL `cute_dsl` MoE on H200 bf16 (use existing flashinfer wrapper as starting point) | Low | 1 week | Decides whether Option A is even worth it |
+| **3a** | If Phase 2 shows ≥ 20% win → implement Option A (CUTLASS-DSL bf16 MoE) | Medium | 2-4 weeks | Lower-risk than Gluon |
+| **3b** | If Phase 2 shows < 20% win → focus on FP8 conversion pipeline + maintain Triton autotune bot | Low | ongoing | Honest about where the wins are |
+| **4** (stretch) | If Option A succeeds, port the same kernel to Triton-Gluon to compare and document | Medium | 2-4 weeks | Research contribution (Gluon for production MoE) |
+
+The **trap to avoid**: starting Option C (hand-written CUDA) before doing Phase 2 benchmark. If Triton is already within 10% of CUTLASS on H200, the rewrite isn't justified.
+
+
+---
+
 <a id="中文版"></a>
 
 # 中文版
@@ -1386,5 +1601,218 @@ jobs:
 | 覆盖不完整 (几百个 (model, GPU, dtype, TP) cell,3.5.1 里只 ~64 个 H200 config) | Agent 枚举缺口矩阵,按高流量部署排优先级 |
 
 **最干净的第一个 PR 真的就是**: "我搭了个 bot,检测 `Config file not found` 警告,跑 autotune,开 PR。这是 10 个生成的 config,关闭了 10 个已知缺口"。低风险、高曝光、对 sglang 社区立即有用。
+---
+
+## 6. 为啥我们这个模型选了 Triton 做 backend? 其他 MoE 实现 + 工作机会
+
+> Follow-up: 我们 Qwen3-30B-A3B bf16 跑出来 sglang 为啥选了 Triton backend (`fused_moe_kernel`)? 其他 MoE 模型怎么实现的? 有没有人用更高性能的语言写 MoE kernel? 重写是不是可行贡献?
+
+### 6.1 9 个 MoE backend 选项 + sglang 怎么选
+
+`server_args.py:176-184` 列了全集:
+
+```python
+MOE_RUNNER_BACKEND_CHOICES = [
+    "auto",              ← 默认; sglang 按 模型 + 硬件 + 量化 决定
+    "deep_gemm",         ← DeepGEMM 库
+    "triton",            ← sglang 自家 fused_moe_kernel (Triton)
+    "triton_kernel",     ← 外部 triton_kernels 库 (matmul_ogs)
+    "flashinfer_trtllm", ← flashinfer 包装的 TRT-LLM moe
+    "flashinfer_cutlass",← flashinfer CUTLASS 路径
+    "flashinfer_mxfp4",  ← flashinfer MXFP4 专用
+    "flashinfer_cutedsl",← flashinfer CUTLASS-DSL (Python)
+    "cutlass",           ← 原生 CUTLASS
+]
+```
+
+派发发生在两处:
+
+**1. `server_args.py:1290-1600`** ("auto" → 具体 backend 启动时的转换) 按 `(模型架构, GPU 计算能力, 量化, EP backend)` 决定。
+
+**2. `layers/moe/ep_moe/layer.py:686 get_moe_impl_class`** (模型逐层实例化) 挑实际的 Python class:
+
+```python
+def get_moe_impl_class(quant_config):
+    if get_moe_a2a_backend().is_mori():       return MoriEPMoE         # ROCm
+    if get_moe_a2a_backend().is_deepep():     return DeepEPMoE         # DeepEP a2a
+    if get_moe_a2a_backend().is_ascend_fuseep(): return NpuFuseEPMoE   # Ascend NPU
+
+    if get_moe_runner_backend().is_flashinfer_trtllm():
+        if quant_config is "modelopt_fp4":  return FlashInferFP4MoE
+        elif quant_config in {None, "fp8", "modelopt_fp8", "compressed_tensors"}:
+            return FlashInferFusedMoE                                  # bf16 / fp8
+
+    return FusedMoE  # ← 默认 (Triton 路径)
+```
+
+### 6.2 为啥我们这次跑得到 `triton`
+
+把条件映射到我们 Qwen3-30B-A3B bf16 跑:
+
+| 检查 | 我们的值 | 结果 |
+|---|---|---|
+| `model_arch == "DeepseekV3ForCausalLM"` | 否 (Qwen3MoeForCausalLM) | 跳过 DeepSeek 特殊覆盖 |
+| `model_arch == "GptOssForCausalLM"` | 否 | 跳过 GPT-OSS 特殊 |
+| `quantization in [fp8, modelopt_fp8, modelopt_fp4]` | 否 (bf16) | 跳过 flashinfer_trtllm 自选 |
+| `is_sm100_supported()` (Blackwell B100/B200) | 否 (H200 是 sm90) | 跳过 Blackwell 路径 |
+| `is_hip() and SGLANG_USE_AITER` | 否 (NVIDIA) | 跳过 AMD AITER 路径 |
+| a2a backend = mori / deepep / ascend | 否 | 跳过 EP 专用类 |
+| **最终 fall-through** | — | **`return FusedMoE` (= Triton fused_moe_kernel)** |
+
+所以 **Triton 是被淘汰法选中的,不是偏好**。对 bf16 + 非 Blackwell + 标准 a2a + 非 AMD,**其他 backend 都不适用**。
+
+### 6.3 13 个 sglang MoE 模型实际用什么
+
+全部 13 个 MoE 架构模型都 import `FusedMoE` from `fused_moe_triton`:
+
+```
+qwen2_moe.py:    4 处    qwen3_moe.py:    4 处 (继承 qwen2_moe)
+llama4.py:       2 处    mixtral.py:      3 处
+grok.py:         3 处    phimoe.py:       3 处
+granitemoe.py:   2 处    olmoe.py:        3 处
+exaone_moe.py:   4 处    hunyuan.py:      3 处
+mllama4.py:      2 处    lfm2_moe.py:    15 处
+step3_vl.py:     4 处    kimi_vl.py:      2 处
+```
+
+**sglang 里每个 MoE 模型默认都走 Triton 路径**。其他路径是运行时按 (量化, 硬件, EP backend) 选择性 opt-in。
+
+### 6.4 其他语言的 MoE 实现都有哪些 (各自覆盖什么)
+
+#### 6.4.1 sglang 自家的 sgl-kernel (手写 CUDA)
+
+在 `sglang/sgl-kernel/csrc/moe/`:
+
+| 文件 | 算什么 | 替代 Triton fused_moe_kernel? |
+|---|---|---|
+| `moe_align_kernel.cu` | 按专家分配排 token | ❌ 否 —— 这是辅助 (在 fused_moe_kernel **之前**跑) |
+| `moe_topk_softmax_kernels.cu` | top-k routing softmax | ❌ 否 —— 辅助 (之前) |
+| `moe_topk_sigmoid_kernels.cu` | top-k routing sigmoid | ❌ 否 —— 辅助 |
+| `moe_fused_gate.cu` | 融合 router + softmax | ❌ 否 —— 辅助 |
+| `moe_sum_reduce.cu` | MoE 后求和 | ❌ 否 —— 辅助 (在 **之后** 跑) |
+| `kimi_k2_moe_fused_gate.cu` | Kimi-K2 特定 routing | ❌ 否 —— 辅助 |
+| `fp8_blockwise_moe_kernel.cu` | **MoE GEMM 在 FP8** | ✅ **是** —— 只 FP8 路径 |
+| `nvfp4_blockwise_moe.cu` | **MoE GEMM 在 NVFP4** | ✅ **是** —— 只 NVFP4 路径 |
+| `cutlass_moe/w4a8/*` | W4A8 量化 CUTLASS 模板 | ✅ **是** —— 只 W4A8 路径 |
+| `marlin_moe_wna16/*` | Marlin INT4 量化 MoE | ✅ **是** —— 只 INT4-AWQ 量化 |
+
+**规律**: sgl-kernel CUDA 给 MoE GEMM 覆盖 **量化路径** (FP8 / NVFP4 / W4A8 / INT4),**但不覆盖 bf16**。
+
+#### 6.4.2 flashinfer (大部分 C++/CUDA + Python 绑定)
+
+我们环境里验证过:
+
+```python
+# flashinfer pip 包提供:
+fused_moe                # 通用 wrapper
+cutlass_fused_moe        # CUTLASS 路径
+trtllm_fp4_block_scale_moe         # 只 FP4
+trtllm_fp4_block_scale_routed_moe  # 只 FP4
+trtllm_fp8_block_scale_moe         # 只 FP8
+trtllm_fp8_per_tensor_scale_moe    # 只 FP8
+SegmentGEMMWrapper                 # 通用 block-segment GEMM
+prepare_low_latency_gemm_weights
+reorder_rows_for_gated_act_gemm
+```
+
+加上 `flashinfer.cute_dsl.blockscaled_gemm` (CUTLASS-DSL Python 前端) 包装 NVIDIA 的 cute-dsl 模板。
+
+**规律**: flashinfer 给 MoE GEMM 覆盖 **FP8 / FP4 量化路径** 加通用 infra。**bf16 热路径在这也没有**。
+
+#### 6.4.3 triton_kernels (外部库 —— 也是 Triton)
+
+`--moe-runner-backend=triton_kernel` 走这个。在 `site-packages/triton_kernels/`:
+
+```
+matmul_ogs.py / matmul_ogs_details/_p_matmul_ogs.py
+topk.py / topk_details/_topk_forward.py
+swiglu.py / swiglu_details/...
+```
+
+**这也是 Triton**,只是不同/更新的实现 (我们 C8 看到的 `_p_matmul_ogs_*`)。**不是别的语言**。
+
+#### 6.4.4 环境里**没装**的其他库
+
+| 库 | 语言 | MoE 做什么 | 我们环境? |
+|---|---|---|---|
+| **DeepGEMM** | CUDA + CUTLASS 模板 | FP8 / NVFP4 grouped GEMM | ❌ 没装 |
+| **TensorRT-LLM** | CUDA + C++ | FP4 / FP8 / FP16 trtllm_moe | ❌ 没装 (只通过 flashinfer 绑定用) |
+| **AITER** (AMD) | HIP / CK (Composable Kernels) | AMD 优化的 MoE | ❌ 没装 (NVIDIA 环境) |
+
+### 6.5 关键缺口 —— sglang 今天**没有 bf16 MoE GEMM 的生产 CUDA 替代**
+
+汇总:
+
+| 量化 | sglang 的 MoE GEMM 选择 |
+|---|---|
+| **bf16 / fp16** | **只有 Triton `fused_moe_kernel`** (或 `triton_kernels._p_matmul_ogs` —— 也是 Triton) |
+| fp8 | Triton fused_moe_kernel, sgl-kernel `fp8_blockwise_moe_kernel.cu`, flashinfer `trtllm_fp8_*_moe`, DeepGEMM (装了的话), CUTLASS-DSL (`cute_dsl`) |
+| nvfp4 | Triton, sgl-kernel `nvfp4_blockwise_moe.cu`, flashinfer `trtllm_fp4_*_moe`, CUTLASS-DSL |
+| W4A8 / INT4 量化 | Triton, sgl-kernel `cutlass_moe/w4a8/*`, sgl-kernel `marlin_moe_wna16/*` |
+
+**翻译**: 如果你部署 bf16 MoE 模型 (像我们),**Triton 是唯一成熟路径**。sglang 里其他所有 MoE kernel 都要量化权重格式。
+
+### 6.6 那么用 CUDA / CUTLASS-DSL / Gluon 重写 bf16 MoE kernel 是可行贡献吗?
+
+**是,但说法要精确:**
+
+| 说法 | 老实版本 |
+|---|---|
+| "Triton bf16 MoE 次优" | H200 上对比手 tune 的 CUTLASS 大概率是真的;但需要 benchmark 确认幅度 |
+| "sglang 没 CUDA bf16 MoE" | **是真的** —— 文件清单验证过 |
+| "DeepSeek/Llama-4/Mixtral 团队会受益" | 真,如果他们部署 bf16;很多生产是 FP8,而 FP8 已经有 CUDA 路径 |
+| "会是独特的上游贡献" | 真 —— 会是 sglang 第一个 bf16 专用 CUTLASS/CUDA MoE |
+
+#### 3 个可行选项,按风险排序:
+
+##### 选项 A —— bf16 MoE GEMM port 到 CUTLASS-DSL (`cute_dsl`)
+- **先例**: sglang `flashinfer_cutedsl_moe.py` 已经给 FP4 做过
+- **工作量**: 2-4 周 (clone FP4 wrapper 结构,换 bf16 grouped-GEMM,写 weight loading mapping)
+- **风险**: 中 —— CUTLASS-DSL 成熟,sglang 有集成模式
+- **上限**: 1.2-2× on H200/H100 bf16 MoE 负载,如果手 tune 的 tile size 赢过 Triton
+
+##### 选项 B —— Port 到 Triton-Gluon (低层 Triton)
+- **先例**: sglang 没有 (我们会是第一个)
+- **工作量**: 3-6 周 (Gluon 是 experimental,调试工具少)
+- **风险**: 较高 —— API 可能变,vs CUTLASS 的峰值性能不确定
+- **上限**: 性能与选项 A 相当,但留在 Triton 生态 (长期维护好)
+
+##### 选项 C —— 在 sgl-kernel 手写 CUDA `bf16_moe_kernel.cu`
+- **先例**: `fp8_blockwise_moe_kernel.cu` 和 `nvfp4_blockwise_moe.cu` 展示了结构
+- **工作量**: 4-8 周 (需要顶尖 CUDA 专家)
+- **风险**: 最高 —— 调试周期长,每代 GPU 都要重写
+- **上限**: 峰值性能;完全控制内存层级
+
+#### 在声称重写值得之前要交付什么
+
+最小可行 benchmark:
+
+```python
+# 对比 H200, Qwen3-30B-A3B (E=128, N=768), bf16
+# 同样 input batch size [1, 8, 32, 128, 1024]
+# 同样 num_iters=100, 取中位数 µs
+
+baseline = run_with('--moe-runner-backend=triton')           # 用 fused_moe_kernel
+your_impl = run_with('--moe-runner-backend=your_new_backend')
+
+# 报告: per batch_size, (your_impl_us / baseline_us)
+# 要让重写有理由, 至少 2 个 batch size 上 < 0.8 (即快 20%)
+```
+
+如果赢面小于 20%,sglang 维护者 (合理地) 会推回 —— 多加一个 MoE backend 的维护成本不值 10% 加速。
+
+### 6.7 给我们 agent 项目的推荐顺序
+
+综合 §1-6,精炼后的排序:
+
+| Phase | 工作 | 风险 | 时间 | 为啥 |
+|---|---|---|---|---|
+| **1** | Agent harness 自动 tune 缺失 config JSON 并 PR | 低 | 1-2 周 | 不改代码,立即有价值,打开 sglang 社区大门 |
+| **2** | 在 H200 bf16 上量化 benchmark: 当前 Triton vs CUTLASS-DSL `cute_dsl` MoE (用现有 flashinfer wrapper 当起点) | 低 | 1 周 | 决定选项 A 到底值不值 |
+| **3a** | 如果 Phase 2 显示 ≥ 20% 赢 → 实施选项 A (CUTLASS-DSL bf16 MoE) | 中 | 2-4 周 | 比 Gluon 风险低 |
+| **3b** | 如果 Phase 2 显示 < 20% 赢 → 转向 FP8 转换 pipeline + 维护 Triton autotune bot | 低 | 持续 | 老实接受赢面在哪 |
+| **4** (拉伸) | 选项 A 成功后,把同样 kernel port 到 Triton-Gluon 对比 + 文档化 | 中 | 2-4 周 | 研究贡献 (Gluon 用于生产 MoE) |
+
+**要避免的陷阱**: 没做 Phase 2 benchmark 就开始选项 C (手写 CUDA)。如果 H200 上 Triton 已经在 CUTLASS 10% 之内,重写不值得。
 
 
