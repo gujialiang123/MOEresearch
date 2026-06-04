@@ -909,6 +909,194 @@ The **trap to avoid**: starting Option C (hand-written CUDA) before doing Phase 
 
 ---
 
+## 7. vLLM vs sglang on the same Qwen3-MoE — implementation comparison
+
+> Follow-up: how does vLLM implement Qwen3-MoE compared to sglang? They use different KV cache strategies (PagedAttention vs RadixAttention) — does that affect MoE kernel choice? Are they sharing the same Triton kernel? This section: every claim has a file:line reference in both repos.
+
+### 7.1 The headline finding
+
+| Aspect | vLLM | sglang | Comment |
+|---|---|---|---|
+| Qwen3-MoE model file size | 788 lines | 1151 lines | sglang inlines more EP / dispatch logic |
+| fused_moe_kernel Triton source | `vllm/model_executor/layers/fused_moe/fused_moe.py` (1740 lines, 4 `@triton.jit`) | `python/sglang/srt/layers/moe/fused_moe_triton/fused_moe_triton_kernels.py` (1148 lines, 8 `@triton.jit`) | **same heritage, sglang has evolved further** |
+| Config JSONs | 316 flat files | 279 files in 7 `triton_X_Y_Z/` subdirs | **fundamental design split** |
+| `E=128,N=768,H200.json` content | exists, md5 `ce414c2a65b023825ed4893c3c72efe1` | exists in `triton_3_2_0/`, md5 `ce414c2a65b023825ed4893c3c72efe1` | **byte-identical** — confirmed via md5sum |
+| Attention class | `Attention` (782-line generic dispatcher) | `RadixAttention` (173-line thin wrapper) | vLLM heavier; sglang delegates to `ForwardBatch` |
+| KV cache manager | `vllm/v1/core/kv_cache_manager.py` (572 lines, PagedAttention block_pool) | `sglang/srt/mem_cache/memory_pool.py` (2025 lines, KVCache + radix tree) | sglang ~4× larger; integrates prefix-sharing |
+
+### 7.2 The 4 areas that differ — with evidence
+
+#### 7.2.1 The Qwen3-MoE FFN block — almost the same, slightly different dispatch
+
+**vLLM** (`qwen3_moe.py:46-49, 211-237`):
+
+```python
+from vllm.model_executor.layers.fused_moe import FusedMoE
+
+# Inside Qwen3MoeSparseMoeBlock:
+self.experts = FusedMoE(...)               # one-step instantiation
+final_hidden_states = self.experts(...)    # one-step call
+```
+
+**sglang** (`qwen3_moe.py:51-53, 237-247`):
+
+```python
+from sglang.srt.layers.moe.fused_moe_triton.layer import FusedMoE
+from sglang.srt.layers.moe.ep_moe.layer import get_moe_impl_class
+
+# Inside Qwen3MoeSparseMoeBlock:
+self.experts = get_moe_impl_class(quant_config)(...)   # dispatcher chooses FusedMoE
+                                                        # or FlashInferFusedMoE / DeepEPMoE / etc.
+```
+
+**Interpretation**: vLLM hard-codes `FusedMoE`. sglang adds a dispatcher layer that can swap to `FlashInferFusedMoE`, `FlashInferFP4MoE`, `DeepEPMoE`, `MoriEPMoE` depending on `(a2a_backend, quant_config, runner_backend)`. This is what we documented in §6.1-6.2.
+
+#### 7.2.2 The fused_moe_kernel itself — shared lineage, sglang evolved further
+
+**Git ancestry:**
+- vLLM `fused_moe.py` first commit: **2024-02-26 by Philipp Moritz** (`#2979 Optimize Triton MoE Kernel`)
+- sglang's `fused_moe_triton_kernels.py` first commit (in its current location): **2025-09-02 by BBuf** (`#9878 [code style] restructure fused_moe to avoid very long single file`) — the file existed earlier under different name
+- sglang's tuning script header (`benchmark/kernels/fused_moe_triton/tuning_fused_moe_triton.py:1`):
+  ```python
+  # Adapted from https://github.com/vllm-project/vllm/blob/main/benchmarks/kernels/benchmark_moe.py
+  ```
+
+**So sglang's MoE Triton infrastructure is a fork of vLLM's**, restructured and extended.
+
+**Where they've diverged** — kernel signature differences:
+
+| Parameter | vLLM `fused_moe_kernel` (L293) | sglang `fused_moe_kernel` (L324) |
+|---|---|---|
+| TMA descriptors | ❌ none | ✅ `a_desc`, `b_desc` (Hopper Tensor Memory Accelerator support) |
+| Bias pointer naming | `b_bias_ptr` + `stride_bbe, stride_bbn` | `bias_ptr` + `stride_bias_e, stride_bias_n` |
+| `c_sorted` / `filter_expert` / `swap_ab` constexprs | ❌ none | ✅ all three (sorted output + expert filtering + M/N swap optimization) |
+| Number of `@triton.jit` kernels in file | 4 | **8** (added: `_p_matmul_ogs`-style + TMA variants) |
+
+**Interpretation**: sglang has **actively forked and extended** vLLM's MoE kernel — added Hopper TMA, M/N swap-AB optimization, and expert filtering. They share the same skeleton.
+
+#### 7.2.3 The config JSON system — fundamental design split
+
+This is the most important divergence:
+
+**vLLM** (`vllm/model_executor/layers/fused_moe/fused_moe.py:1015-1067 get_moe_configs`):
+
+```python
+default_config_file_path = os.path.join(
+    os.path.dirname(os.path.realpath(__file__)), "configs", json_file_name  # flat dir
+)
+# ...
+tuned_config = json.load(f)
+tuned_config.pop("triton_version", None)   # ← EXPLICITLY STRIPS triton_version
+return {int(key): val for key, val in tuned_config.items()}
+```
+
+**sglang** (`fused_moe_triton_config.py:80, 88-92`):
+
+```python
+triton_version = triton.__version__
+version_dir = f"triton_{triton_version.replace('.', '_')}"   # ← uses Triton version
+config_file_path = os.path.join(config_dir, "configs", version_dir, json_file_name)
+```
+
+**The design philosophies are opposite:**
+
+| Aspect | vLLM | sglang |
+|---|---|---|
+| Tracks Triton version? | **No** — explicitly strips it | **Yes** — versioned subdirs |
+| Assumption | one config works across all Triton versions | each Triton version needs its own tuning |
+| Maintenance cost | low (PR once, works forever) | high (re-tune on every Triton bump) |
+| Pre-merge perf check | nothing | nothing (we documented in §5.6) |
+| Coverage | 316 configs covering many (E,N,GPU) | 279 configs split 7 ways across Triton versions |
+| Our problem | (vLLM users get the H200/E=128/N=768 config straight) | (sglang `triton_3_5_1/` is incomplete → fallback warning) |
+
+**Critical observation**: the very config sglang was missing for `(triton_3_5_1, E=128, N=768, H200)` **exists at the top level in vLLM's flat dir**, with **byte-identical content** to sglang's `triton_3_2_0/` copy. So the maintenance lag is purely "nobody copied the file into `triton_3_5_1/` yet" — not a missing data point.
+
+#### 7.2.4 KV cache & attention — DRAMATICALLY different
+
+This is what you intuited. Both frameworks store the same data (K and V tensors per layer × per token) but organise it completely differently.
+
+**vLLM's PagedAttention model**:
+
+```
+KV cache = pool of fixed-size BLOCKS (e.g. 16 tokens per block)
+              ↓
+   each request gets a list of (logical block index → physical block index)
+              ↓
+   attention kernel reads via a block_table lookup per row
+```
+
+Source: `vllm/v1/core/kv_cache_manager.py:26 KVCacheBlocks, :110 KVCacheManager, :115 scheduler_block_size, :116 hash_block_size`
+
+**sglang's RadixAttention model**:
+
+```
+KV cache = token-level pool (page_size usually = 1 token)
+              ↓
+   global radix tree maps prefix-text → cached tokens
+              ↓
+   new requests look up longest shared prefix, reuse those tokens automatically
+```
+
+Source: `sglang/srt/mem_cache/memory_pool.py:601 KVCache (abstract), :697 MHATokenToKVPool, :126 ReqToTokenPool`; `sglang/srt/layers/radix_attention.py` (173 lines, very thin)
+
+Both rely on **FlashAttention3 / flashinfer kernels** at the actual GPU level — but they construct different metadata (block_table vs token offsets) and feed it to the kernels.
+
+**Concrete impact on kernel choice:**
+
+| Kernel | Affected by KV cache strategy? | How |
+|---|---|---|
+| **`fused_moe_kernel` (MoE GEMM)** | ❌ **NO** | MoE operates on (M=tokens, K=hidden, N=intermediate). Has zero KV-cache awareness. |
+| FlashAttention forward | ✅ **YES** | vLLM passes block_table; sglang passes req_to_token_indices |
+| RoPE / RMSNorm | ❌ NO | per-token element-wise, layout-agnostic |
+| Sampler | ❌ NO | logit-level, post-model |
+
+**So `fused_moe_kernel` is the SAME function in vLLM and sglang** — KV cache differences don't reach it. **Attention kernels are configured differently** by each framework, but both ultimately call the same flash-attn / flashinfer underlying CUDA.
+
+### 7.3 Why is sglang's Qwen3-MoE 363 lines longer?
+
+`diff`-style summary of the 1151 vs 788 line gap (sglang has):
+
+| Extra code in sglang | Lines | Source |
+|---|---|---|
+| Two-Batch Overlap (TBO) for expert parallelism (`dispatcher.dispatch_a/dispatch_b/combine_a/combine_b`) | ~100 | `qwen3_moe.py:367-397` |
+| Explicit KV cache save logic (`save_kv_cache`, `must_save_kv`) | ~30 | `qwen3_moe.py:527, 644-653` |
+| `attn_tp_rank` / `attn_tp_size` parameters (asymmetric TP between attn and MoE) | ~20 | `qwen3_moe.py:715-716` |
+| `forward_prepare_native` / `apply_qk_norm_rope` split (sglang separates prep from main attention) | ~80 | `qwen3_moe.py:546, 559, 615` |
+| `get_moe_impl_class` dispatch + EP runner integration | ~50 | `qwen3_moe.py:237, 286-289` |
+| `make_expert_params_mapping` weight-loading helper | ~50 | `qwen3_moe.py:1036` |
+| Other utility / config wiring | ~30 | scattered |
+
+**Interpretation**: vLLM hides all this behind `class Attention` and `class FusedMoE`. sglang exposes it in the model file — more flexibility for research / specialised deployments, more lines to read.
+
+### 7.4 Direct answers to your sub-questions
+
+> **"vLLM 和 sglang 用了不同的 kv cache 策略"** — confirmed:
+> - vLLM: PagedAttention (block_pool, fixed block size, block_table per request)
+> - sglang: RadixAttention (token-level pool, global radix tree for prefix sharing)
+> - Different code (572 vs 2025 lines for the cache manager)
+
+> **"这导致他们在 kernel 选择, 路由逻辑等地方的选项都完全不同"** — partially correct:
+> - **Attention kernel binding** IS different (block_table vs token_offsets) → both ultimately call flash-attn / flashinfer
+> - **MoE kernel** is essentially THE SAME — both call a fused_moe_kernel that descended from vLLM's original
+> - **MoE backend dispatch** is more abstracted in sglang (`get_moe_impl_class` → `FusedMoE` / `FlashInferFusedMoE` / `DeepEPMoE` / `MoriEPMoE`); vLLM uses a single `FusedMoE` class
+
+> **"对 kernel 的设计和选择有没有影响?"** — answer in two parts:
+> - **Kernel SOURCE (the .py / .cu file)**: vLLM and sglang's `fused_moe_kernel` come from the same lineage (Feb-2024 Philipp Moritz commit in vLLM, restructured into sglang). sglang has evolved it (added TMA, swap-AB, etc.) but the core algorithm is shared.
+> - **Kernel SELECTION (which to call at runtime)**: substantially different — sglang has 9 MoE backend choices + a runtime dispatcher; vLLM has fewer hand-coded backends and relies more on flashinfer at the wrapper layer.
+
+### 7.5 Implications for our agent project
+
+Three concrete takeaways:
+
+1. **Our missing config IS available in vLLM** — `vllm/.../configs/E=128,N=768,device_name=NVIDIA_H200.json`. **We could copy it into sglang's `triton_3_5_1/` as a quick patch**, BUT it was tuned for Triton 3.2 era. Need to verify it still wins vs the autotuned 3.5.1 config we'd generate. **Cheap experiment**: copy + benchmark + compare.
+
+2. **The "version-by-Triton-compiler" design choice is sglang's alone** — vLLM ignores Triton version entirely. We could open a discussion PR on sglang asking "do we still believe Triton version matters?". If we autotune and show the configs are within 5 % across Triton 3.2-3.5, sglang could deprecate the version subdirs and reduce maintenance burden. This is a **process improvement**, not a code-perf win.
+
+3. **MoE kernel rewrite (§6.6 Option A/B/C) would benefit both ecosystems** — since vLLM and sglang share the kernel lineage, a faster CUTLASS-DSL bf16 MoE would be portable. **Strategy**: prototype in sglang (smaller PR), upstream to both. **First contribution** could be: "I built an agent that detects missing configs in sglang, generates them via the existing autotune script, and PR's them. Here are 10 fresh configs and a comparison vs vLLM's." That's immediately useful + opens dialogue with sglang maintainers.
+
+
+---
+
 <a id="中文版"></a>
 
 # 中文版
@@ -1814,5 +2002,191 @@ your_impl = run_with('--moe-runner-backend=your_new_backend')
 | **4** (拉伸) | 选项 A 成功后,把同样 kernel port 到 Triton-Gluon 对比 + 文档化 | 中 | 2-4 周 | 研究贡献 (Gluon 用于生产 MoE) |
 
 **要避免的陷阱**: 没做 Phase 2 benchmark 就开始选项 C (手写 CUDA)。如果 H200 上 Triton 已经在 CUTLASS 10% 之内,重写不值得。
+---
+
+## 7. vLLM vs sglang 同一个 Qwen3-MoE —— 实现对比
+
+> Follow-up: vLLM 怎么实现 Qwen3-MoE? 和 sglang 比有啥区别? 他们用不同 KV cache 策略 (PagedAttention vs RadixAttention) —— 这影响 MoE kernel 选择吗? 他们共享 Triton kernel 吗? 本节每个论断都有两个仓库的 file:line 证据。
+
+### 7.1 头条发现
+
+| 方面 | vLLM | sglang | 评注 |
+|---|---|---|---|
+| Qwen3-MoE 模型文件大小 | 788 行 | 1151 行 | sglang 内联更多 EP / dispatch 逻辑 |
+| fused_moe_kernel Triton 源 | `vllm/model_executor/layers/fused_moe/fused_moe.py` (1740 行,4 个 `@triton.jit`) | `python/sglang/srt/layers/moe/fused_moe_triton/fused_moe_triton_kernels.py` (1148 行,8 个 `@triton.jit`) | **同源,sglang 已演化得更远** |
+| Config JSON | 316 个扁平文件 | 279 个文件,分布在 7 个 `triton_X_Y_Z/` 子目录 | **根本设计分歧** |
+| `E=128,N=768,H200.json` 内容 | 存在,md5 `ce414c2a65b023825ed4893c3c72efe1` | 存在于 `triton_3_2_0/`,md5 `ce414c2a65b023825ed4893c3c72efe1` | **逐字节相同** —— md5sum 验证 |
+| Attention 类 | `Attention` (782 行通用 dispatcher) | `RadixAttention` (173 行薄包装) | vLLM 更重;sglang 委托给 `ForwardBatch` |
+| KV cache 管理器 | `vllm/v1/core/kv_cache_manager.py` (572 行,PagedAttention block_pool) | `sglang/srt/mem_cache/memory_pool.py` (2025 行,KVCache + radix tree) | sglang ~4× 大;集成 prefix 共享 |
+
+### 7.2 4 个差异点 —— 带证据
+
+#### 7.2.1 Qwen3-MoE FFN block —— 基本一样,只是 dispatch 不同
+
+**vLLM** (`qwen3_moe.py:46-49, 211-237`):
+
+```python
+from vllm.model_executor.layers.fused_moe import FusedMoE
+
+# 在 Qwen3MoeSparseMoeBlock 里:
+self.experts = FusedMoE(...)               # 一步实例化
+final_hidden_states = self.experts(...)    # 一步调用
+```
+
+**sglang** (`qwen3_moe.py:51-53, 237-247`):
+
+```python
+from sglang.srt.layers.moe.fused_moe_triton.layer import FusedMoE
+from sglang.srt.layers.moe.ep_moe.layer import get_moe_impl_class
+
+# 在 Qwen3MoeSparseMoeBlock 里:
+self.experts = get_moe_impl_class(quant_config)(...)   # dispatcher 选 FusedMoE
+                                                        # 或 FlashInferFusedMoE / DeepEPMoE 等
+```
+
+**解读**: vLLM 硬编码 `FusedMoE`。sglang 加了 dispatcher 层,可以按 `(a2a_backend, quant_config, runner_backend)` 切换到 `FlashInferFusedMoE` / `FlashInferFP4MoE` / `DeepEPMoE` / `MoriEPMoE`。这正是 §6.1-6.2 记录的。
+
+#### 7.2.2 fused_moe_kernel 本身 —— 共享血统,sglang 进一步演化
+
+**git 血统:**
+- vLLM `fused_moe.py` 首次提交: **2024-02-26 Philipp Moritz** (`#2979 Optimize Triton MoE Kernel`)
+- sglang `fused_moe_triton_kernels.py` 首次提交 (当前位置): **2025-09-02 BBuf** (`#9878 [code style] restructure fused_moe to avoid very long single file`) —— 这个文件早就存在,只是名字变了
+- sglang tuning 脚本头 (`benchmark/kernels/fused_moe_triton/tuning_fused_moe_triton.py:1`):
+  ```python
+  # Adapted from https://github.com/vllm-project/vllm/blob/main/benchmarks/kernels/benchmark_moe.py
+  ```
+
+**所以 sglang 的 MoE Triton 基础设施是 vLLM 的 fork**,重构 + 扩展过。
+
+**他们分叉的地方** —— kernel 签名差异:
+
+| 参数 | vLLM `fused_moe_kernel` (L293) | sglang `fused_moe_kernel` (L324) |
+|---|---|---|
+| TMA descriptor | ❌ 没有 | ✅ `a_desc`, `b_desc` (Hopper Tensor Memory Accelerator 支持) |
+| Bias 指针命名 | `b_bias_ptr` + `stride_bbe, stride_bbn` | `bias_ptr` + `stride_bias_e, stride_bias_n` |
+| `c_sorted` / `filter_expert` / `swap_ab` constexpr | ❌ 没有 | ✅ 全有 (sorted 输出 + 专家过滤 + M/N 交换优化) |
+| 文件内 `@triton.jit` 个数 | 4 | **8** (加了 `_p_matmul_ogs` 风格 + TMA 变体) |
+
+**解读**: sglang **主动 fork 并扩展了** vLLM 的 MoE kernel —— 加了 Hopper TMA、M/N swap-AB 优化、专家过滤。共享同一个骨架。
+
+#### 7.2.3 Config JSON 系统 —— 根本设计分歧
+
+这是最重要的分叉:
+
+**vLLM** (`vllm/model_executor/layers/fused_moe/fused_moe.py:1015-1067 get_moe_configs`):
+
+```python
+default_config_file_path = os.path.join(
+    os.path.dirname(os.path.realpath(__file__)), "configs", json_file_name  # 扁平目录
+)
+# ...
+tuned_config = json.load(f)
+tuned_config.pop("triton_version", None)   # ← 显式删掉 triton_version
+return {int(key): val for key, val in tuned_config.items()}
+```
+
+**sglang** (`fused_moe_triton_config.py:80, 88-92`):
+
+```python
+triton_version = triton.__version__
+version_dir = f"triton_{triton_version.replace('.', '_')}"   # ← 用 Triton 版本
+config_file_path = os.path.join(config_dir, "configs", version_dir, json_file_name)
+```
+
+**两种设计哲学完全相反:**
+
+| 方面 | vLLM | sglang |
+|---|---|---|
+| 跟踪 Triton 版本? | **不** —— 显式删掉 | **跟踪** —— 版本化子目录 |
+| 假设 | 一个 config 适用所有 Triton 版本 | 每个 Triton 版本需要单独 tune |
+| 维护成本 | 低 (PR 一次永远管用) | 高 (Triton 升一次重 tune 一次) |
+| 合并前性能检查 | 没有 | 没有 (我们 §5.6 记录过) |
+| 覆盖 | 316 个 config 覆盖很多 (E,N,GPU) | 279 个 config 分 7 个 Triton 版本切分 |
+| 我们的问题 | (vLLM 用户直接拿到 H200/E=128/N=768 config) | (sglang `triton_3_5_1/` 不全 → fallback 警告) |
+
+**关键观察**: sglang 缺的那个 `(triton_3_5_1, E=128, N=768, H200)` config,**就在 vLLM 扁平目录的顶层**,内容**和 sglang `triton_3_2_0/` 副本逐字节相同**。所以维护滞后纯粹是"没人把文件复制到 `triton_3_5_1/`",**不是缺数据**。
+
+#### 7.2.4 KV cache & attention —— 完全不同
+
+这是你直觉对的点。两个框架存同样的数据 (每层 × 每 token 的 K 和 V tensor),但**组织方式完全不一样**。
+
+**vLLM 的 PagedAttention 模型**:
+
+```
+KV cache = 固定大小 BLOCK 池 (例如每个 block 16 个 token)
+              ↓
+   每个 request 拿一个列表 (逻辑 block index → 物理 block index)
+              ↓
+   attention kernel 通过 block_table 查找每行
+```
+
+来源: `vllm/v1/core/kv_cache_manager.py:26 KVCacheBlocks, :110 KVCacheManager, :115 scheduler_block_size, :116 hash_block_size`
+
+**sglang 的 RadixAttention 模型**:
+
+```
+KV cache = token 级别的池 (page_size 通常 = 1 token)
+              ↓
+   全局 radix tree 把 prefix-text → cached tokens
+              ↓
+   新 request 查最长共享前缀,自动复用那些 token
+```
+
+来源: `sglang/srt/mem_cache/memory_pool.py:601 KVCache (抽象), :697 MHATokenToKVPool, :126 ReqToTokenPool`; `sglang/srt/layers/radix_attention.py` (173 行,非常薄)
+
+两者都靠 **FlashAttention3 / flashinfer kernel** 在实际 GPU 层做计算 —— 但构造不同的 metadata (block_table vs token offsets) 喂给 kernel。
+
+**对 kernel 选择的具体影响:**
+
+| Kernel | 被 KV cache 策略影响? | 怎么影响 |
+|---|---|---|
+| **`fused_moe_kernel` (MoE GEMM)** | ❌ **不** | MoE 操作 (M=tokens, K=hidden, N=intermediate)。零 KV-cache 意识。 |
+| FlashAttention forward | ✅ **是** | vLLM 传 block_table;sglang 传 req_to_token_indices |
+| RoPE / RMSNorm | ❌ 不 | per-token 逐元素,无 layout 依赖 |
+| Sampler | ❌ 不 | logit 级别,模型之后 |
+
+**所以 `fused_moe_kernel` 在 vLLM 和 sglang 里是同一个函数** —— KV cache 差异够不到它。**Attention kernel 配置不同**,但最终都调同样的 flash-attn / flashinfer 底层 CUDA。
+
+### 7.3 为啥 sglang Qwen3-MoE 多 363 行?
+
+1151 vs 788 行差距的 `diff` 总结 (sglang 多出来的):
+
+| sglang 多的代码 | 行数 | 源 |
+|---|---|---|
+| Two-Batch Overlap (TBO) 给专家并行 (`dispatcher.dispatch_a/dispatch_b/combine_a/combine_b`) | ~100 | `qwen3_moe.py:367-397` |
+| 显式 KV cache 保存逻辑 (`save_kv_cache`, `must_save_kv`) | ~30 | `qwen3_moe.py:527, 644-653` |
+| `attn_tp_rank` / `attn_tp_size` 参数 (attn 和 MoE 之间非对称 TP) | ~20 | `qwen3_moe.py:715-716` |
+| `forward_prepare_native` / `apply_qk_norm_rope` 拆分 (sglang 把 prep 从主 attention 拆开) | ~80 | `qwen3_moe.py:546, 559, 615` |
+| `get_moe_impl_class` dispatch + EP runner 集成 | ~50 | `qwen3_moe.py:237, 286-289` |
+| `make_expert_params_mapping` 权重加载 helper | ~50 | `qwen3_moe.py:1036` |
+| 其他工具 / config 接线 | ~30 | 散落 |
+
+**解读**: vLLM 把这些藏在 `class Attention` 和 `class FusedMoE` 后面。sglang 在模型文件里暴露 —— 给研究 / 特殊部署更多灵活性,读起来行数也多。
+
+### 7.4 直接回答你的子问题
+
+> **"vLLM 和 sglang 用了不同的 kv cache 策略"** —— 确认:
+> - vLLM: PagedAttention (block_pool, 固定 block size, 每 request 一个 block_table)
+> - sglang: RadixAttention (token 级别池, 全局 radix tree 做 prefix 共享)
+> - 不同代码 (cache 管理器分别 572 vs 2025 行)
+
+> **"这导致他们在 kernel 选择, 路由逻辑等地方的选项都完全不同"** —— 部分对:
+> - **Attention kernel 绑定** 确实不同 (block_table vs token_offsets) → 但最终都调 flash-attn / flashinfer
+> - **MoE kernel** 基本是同一个 —— 两边都调 `fused_moe_kernel`,起源都是 vLLM 的原版
+> - **MoE backend 派发** 在 sglang 里更抽象 (`get_moe_impl_class` → `FusedMoE` / `FlashInferFusedMoE` / `DeepEPMoE` / `MoriEPMoE`);vLLM 用更少的硬编码 backend,更多依赖 flashinfer 在 wrapper 层
+
+> **"对 kernel 的设计和选择有没有影响?"** —— 分两部分答:
+> - **Kernel 源 (.py / .cu 文件)**: vLLM 和 sglang 的 `fused_moe_kernel` 同源 (2024-02 vLLM Philipp Moritz 那个 commit,后来重构进 sglang)。sglang 演化了它 (加 TMA、swap-AB 等) 但核心算法共享。
+> - **Kernel 选择 (运行时调哪个)**: 差异显著 —— sglang 有 9 个 MoE backend 选择 + 运行时 dispatcher;vLLM 硬编码的 backend 少,在 wrapper 层更依赖 flashinfer。
+
+### 7.5 对我们 agent 项目的含义
+
+3 个具体收获:
+
+1. **我们缺失的 config 在 vLLM 里有现成的** —— `vllm/.../configs/E=128,N=768,device_name=NVIDIA_H200.json`。**我们可以复制到 sglang `triton_3_5_1/` 作为快速补丁**,但它是 Triton 3.2 时代 tune 的。需要验证它在 3.5.1 编译器下还能赢自动 tune 出来的。**便宜的实验**: 复制 + benchmark + 对比。
+
+2. **"按 Triton 编译器版本"的设计选择是 sglang 独有** —— vLLM 完全无视 Triton 版本。我们可以给 sglang 开一个讨论 PR: "我们还相信 Triton 版本重要吗?"。如果我们 autotune 后显示 Triton 3.2-3.5 之间 config 差异 < 5%,sglang 可以废弃版本子目录降低维护负担。这是**流程改进**,不是代码性能赢。
+
+3. **MoE kernel 重写 (§6.6 选项 A/B/C) 会同时惠及两个生态** —— 既然 vLLM 和 sglang 共享 kernel 血统,更快的 CUTLASS-DSL bf16 MoE 是可移植的。**策略**: 在 sglang 原型 (PR 小),上游到两个。**第一个贡献** 可以是: "我做了 agent 检测 sglang 缺失的 config,用现有 autotune 脚本生成,然后 PR。这里是 10 个新 config 和 vs vLLM 的对比。" 立即有用 + 打开和 sglang 维护者的对话。
 
 
