@@ -1,0 +1,86 @@
+{
+  "model": "Qwen3-30B-A3B",
+  "gpu": "NVIDIA H200",
+  "h200_bf16_peak_tflops": 989.0,
+  "moe_dims": {
+    "E": 128,
+    "topk": 8,
+    "hidden": 2048,
+    "N": 768,
+    "dtype": "bf16"
+  },
+  "results": [
+    {
+      "batch_size": 1,
+      "triton_old_us": 300.82815170288086,
+      "triton_new_us": null,
+      "naive_us": 3772.665786743164,
+      "new_vs_old_speedup": null,
+      "new_vs_naive_speedup": null,
+      "tflops_old": 0.25096544845499247,
+      "tflops_new": 0,
+      "tflops_naive": 0.020011704261027278,
+      "pct_of_h200_peak_new": 0
+    },
+    {
+      "batch_size": 8,
+      "triton_old_us": 239.58560943603516,
+      "triton_new_us": null,
+      "naive_us": 7852.960205078125,
+      "new_vs_old_speedup": null,
+      "new_vs_naive_speedup": null,
+      "tflops_old": 2.520935115517659,
+      "tflops_new": 0,
+      "tflops_naive": 0.07691109597237432,
+      "pct_of_h200_peak_new": 0
+    },
+    {
+      "batch_size": 32,
+      "triton_old_us": 276.1043167114258,
+      "triton_new_us": 274.50016021728516,
+      "naive_us": 14095.487976074219,
+      "new_vs_old_speedup": 1.0058439182435115,
+      "new_vs_naive_speedup": 51.3496530017203,
+      "tflops_old": 8.75002293616811,
+      "tflops_new": 8.801157354835928,
+      "tflops_naive": 0.17139662763721256,
+      "pct_of_h200_peak_new": 0.8899046870410442
+    },
+    {
+      "batch_size": 128,
+      "triton_old_us": 309.73791122436523,
+      "triton_new_us": null,
+      "naive_us": 15664.016723632812,
+      "new_vs_old_speedup": null,
+      "new_vs_naive_speedup": null,
+      "tflops_old": 31.199527296482312,
+      "tflops_new": 0,
+      "tflops_naive": 0.61693476114719,
+      "pct_of_h200_peak_new": 0
+    },
+    {
+      "batch_size": 512,
+      "triton_old_us": 343.9865493774414,
+      "triton_new_us": null,
+      "naive_us": 15035.087585449219,
+      "new_vs_old_speedup": null,
+      "new_vs_naive_speedup": null,
+      "tflops_old": 112.3727242648255,
+      "tflops_new": 0,
+      "tflops_naive": 2.5709664439473947,
+      "pct_of_h200_peak_new": 0
+    },
+    {
+      "batch_size": 2048,
+      "triton_old_us": 510.61023712158203,
+      "triton_new_us": null,
+      "naive_us": 16093.936157226562,
+      "new_vs_old_speedup": null,
+      "new_vs_naive_speedup": null,
+      "tflops_old": 302.81183457585774,
+      "tflops_new": 0,
+      "tflops_naive": 9.607272027519038,
+      "pct_of_h200_peak_new": 0
+    }
+  ]
+}
