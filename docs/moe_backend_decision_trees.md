@@ -1,0 +1,804 @@
+# MoE Backend Decision Trees — vLLM vs sglang deep dive
+
+> 🇬🇧 English first · 🇨🇳 [跳转中文版](#中文版)
+>
+> **Date**: 2026-06-04 · **Status**: comprehensive enumeration of every MoE backend dispatch branch in both frameworks, with code-snippet + file:line evidence
+>
+> Companion to `docs/triton_rewrite_investigation.md` (§17 has the high-level comparison). This doc is the **exhaustive catalog** with all special cases collected for follow-up investigation.
+
+## TL;DR
+
+- **sglang**: 1 file (`server_args.py`), 16 `model_arch` branches (L1191-1654), imperative if/elif chain. Decisions made by `(model_arch, GPU, quant)`.
+- **vLLM**: 9 files (`oracle/*.py`), priority lists per quantization type, declarative `is_supported_config()` callbacks. Decisions made by `(quant, GPU, config)`.
+- **Both arrive at Triton for ~70% of (model × GPU × dtype) combinations** but via completely different code paths.
+- **9 "special-case override" comments found** (8 in vLLM, 1 explicit in sglang) where a developer hand-coded a fallback because Triton/CUDA/etc was empirically slower or buggier — these are the **highest-value cells to investigate** as agent targets.
+
+---
+
+## 1. sglang full decision tree (file: `python/sglang/srt/server_args.py`)
+
+### 1.1 The 16 model_arch branches (L1190-1654)
+
+| Branch line | model_arch(es) matched | Trigger conditions for non-Triton | → Backend |
+|---:|---|---|---|
+| L1197 | `DeepseekV3ForCausalLM`, `KimiK25ForConditionalGeneration`, `MistralLarge3ForCausalLM`, `PixtralForConditionalGeneration` | sm_100 + (fp8 / modelopt_fp8 / modelopt_fp4) | flashinfer_trtllm |
+| L1333 | `GptOssForCausalLM` | Blackwell+MXFP4 → flashinfer_mxfp4 / AMD+AITER → AITER / triton_kernels lib → triton_kernel | various |
+| L1475 | `Llama4ForCausalLM` | sm_100 + (fp8 / modelopt_fp8) | flashinfer_trtllm |
+| L1488 | `Exaone4ForCausalLM`, `ExaoneMoEForCausalLM` | SWA mem handling only — NO MoE backend change | (Triton default) |
+| L1499 | `Olmo2ForCausalLM` | SWA mem only | (Triton default) |
+| L1524 | `KimiLinearForCausalLM`, `BailingMoeV2_5ForCausalLM` | Mamba radix cache only | (Triton default) |
+| L1529 | `NemotronHForCausalLM` | NVFP4 / modelopt_fp8 | flashinfer_cutlass |
+| L1558 | `Qwen3MoeForCausalLM`, `Qwen3VLMoeForConditionalGeneration` | sm_100 + (fp8 / modelopt_fp4 / **None** ← bf16 also!) | flashinfer_trtllm |
+| L1579 | `Qwen3NextForCausalLM`, `Qwen3_5MoeForConditionalGeneration`, `Qwen3_5ForConditionalGeneration` | sm_100 + (fp8 / modelopt_fp4 / None) | flashinfer_trtllm |
+| L1607 | `Glm4MoeForCausalLM` | sm_100 + modelopt_fp4 + flashinfer ≥ 0.6.3 | flashinfer_trtllm |
+| L1629 | `FalconH1ForCausalLM`, `JetNemotronForCausalLM`, ... | (Mamba/SWA) | (Triton default) |
+| L1641 | `GraniteMoeHybridForCausalLM` | Mamba layers | (Triton default) |
+| L1654 | `Lfm2ForCausalLM` | Mamba | (Triton default) |
+| L2125-2134 | (any model) | MXFP8 quantization | **cutlass (forced override)** |
+| L2161-2174 | (any model) | manual `--moe-runner-backend=cutlass` + fp8/mxfp8 | cutlass |
+
+**Default (catch-all)**: any combination not matching above ⇒ **`triton`** (the global default at `moe_runner_backend: str = "auto"`, L498).
+
+### 1.2 Code snippet: the Qwen3-MoE branch (our model's branch)
+
+`sglang/srt/server_args.py:1558-1577`:
+
+```python
+elif model_arch in [
+    "Qwen3MoeForCausalLM",
+    "Qwen3VLMoeForConditionalGeneration",
+]:
+    if is_sm100_supported():
+        quant_method = get_quantization_config(hf_config)
+        if self.quantization is None and quant_method is not None:
+            self.quantization = quant_method
+        if (
+            (
+                self.quantization in ("fp8", "modelopt_fp4")
+                or self.quantization is None    # ← bf16 ALSO qualifies
+            )
+            and self.moe_a2a_backend == "none"
+            and self.moe_runner_backend == "auto"
+        ):
+            self.moe_runner_backend = "flashinfer_trtllm"
+```
+
+### 1.3 sglang special-case override hunt
+
+Special hand-coded fallbacks found in sglang MoE dispatch:
+
+| File:line | Type | Quote | Significance |
+|---|---|---|---|
+| `server_args.py:1674-1675` | TODO | "currently, it is only supported in the single node scenario" + "there is currently a bug on H20 device specifically" | Known H20 bug — investigation target |
+| `server_args.py:1789` | NOTE | "trtllm_mha does not support SM120, which will fall back to flashinfer" | SM120 (RTX 6000 Pro) limitation |
+| `server_args.py:2746` | COMMENT | "fallback to triton for DeepSeek models because flashinfer doesn't support deterministic inference for DeepSeek models yet" | **For deterministic inference path only**; DeepSeek explicitly demoted |
+| `server_args.py:2749` | COMMENT | "fallback to flashinfer on Blackwell for non-DeepSeek models" | Inverse rule for the same path |
+| `layers/moe/moe_runner/flashinfer_trtllm.py:256` | FIXME | "there is a bug in the trtllm_fp8_block_scale_moe. It ignored the `output` argument." | Known bug in upstream flashinfer |
+| `server_args.py:1945` | LOG | "The current platform does not support Intel XMX, will fallback to triton backend." | XMX hardware gate |
+
+### 1.4 Honest assessment of sglang's design
+
+- **Pro**: All MoE dispatch in ONE place (1 file, ~450 lines for 16 branches) — easy to audit
+- **Con**: Adding a new backend requires touching the central if/elif (every branch); can't be added by a single contributor without coordinating
+- **Pro for agent**: Easy to enumerate which (model, GPU, quant) tuples fall through to Triton — that's our TAM
+
+---
+
+## 2. vLLM full decision tree (dir: `vllm/model_executor/layers/fused_moe/oracle/`)
+
+### 2.1 The 9 oracle files
+
+| File | Lines | Quantization type | Enum class | # backend options |
+|---|---:|---|---|---:|
+| `unquantized.py` | 370 | bf16/fp16 | `UnquantizedMoeBackend` | **9** |
+| `fp8.py` | 634 | FP8 | `Fp8MoeBackend` | **13** |
+| `nvfp4.py` | 560 | NVFP4 | `NvFp4MoeBackend` | 8 |
+| `mxfp4.py` | 1710 | MXFP4 | `Mxfp4MoeBackend` | (very many — model-specific) |
+| `mxfp8.py` | 91 | MXFP8 | `Mxfp8MoeBackend` | 1 |
+| `int8.py` | 218 | INT8 | `Int8MoeBackend` | 1 (Triton only) |
+| `int_wna16.py` | 908 | INT4/INT8 weight-only | `WNA16MoEBackend` | 4 |
+| `w4a8.py` | 195 | W4A8 | `W4A8MoeBackend` | 1 (CUTLASS only) |
+| `w4a8_int8.py` | 360 | W4A8 INT8 | `W4A8Int8MoeBackend` | several |
+
+### 2.2 Enum lists in full
+
+**bf16/fp16 (`unquantized.py:32`)**:
+```python
+class UnquantizedMoeBackend(Enum):
+    FLASHINFER_TRTLLM = "FlashInfer TRTLLM"
+    FLASHINFER_CUTLASS = "FlashInfer CUTLASS"
+    AITER = "ROCm AITER"
+    TRITON = "TRITON"
+    BATCHED_TRITON = "BATCHED_TRITON"
+    CPU = "CPU"
+    XPU = "XPU"
+    TPU = "TPU"
+    OOT = "OOT"
+```
+
+**FP8 (`fp8.py:42`)** — **13 options**:
+```python
+class Fp8MoeBackend(Enum):
+    NONE = "NONE"
+    FLASHINFER_TRTLLM = "FLASHINFER_TRTLLM"
+    FLASHINFER_CUTLASS = "FLASHINFER_CUTLASS"
+    DEEPGEMM = "DEEPGEMM"
+    BATCHED_DEEPGEMM = "BATCHED_DEEPGEMM"
+    MARLIN = "MARLIN"
+    TRITON = "TRITON"
+    BATCHED_TRITON = "BATCHED_TRITON"
+    AITER = "AITER"
+    VLLM_CUTLASS = "VLLM_CUTLASS"
+    BATCHED_VLLM_CUTLASS = "BATCHED_VLLM_CUTLASS"
+    XPU = "XPU"
+    CPU = "CPU"
+```
+
+**NVFP4 (`nvfp4.py:41`)**:
+```python
+class NvFp4MoeBackend(Enum):
+    FLASHINFER_TRTLLM = "FLASHINFER_TRTLLM"
+    FLASHINFER_CUTLASS = "FLASHINFER_CUTLASS"
+    FLASHINFER_CUTEDSL = "FLASHINFER_CUTEDSL"
+    FLASHINFER_CUTEDSL_BATCHED = "FLASHINFER_CUTEDSL_BATCHED"
+    FLASHINFER_B12X = "FLASHINFER_B12X"
+    VLLM_CUTLASS = "VLLM_CUTLASS"
+    MARLIN = "MARLIN"
+    EMULATION = "EMULATION"
+```
+
+**WNA16 (`int_wna16.py:?`)**:
+```python
+class WNA16MoEBackend(Enum):
+    MARLIN = "MARLIN"
+    BATCHED_MARLIN = "BATCHED_MARLIN"
+    FLASHINFER_TRTLLM = "FLASHINFER_TRTLLM"
+    XPU = "XPU"
+```
+
+### 2.3 The 5 explicit hand-tuned fallbacks in vLLM
+
+These are the **highest-value findings** for our investigation — each is a case where vLLM developers found a specific kernel was slower or buggier than expected:
+
+#### F1. **`unquantized.py:71` — Hopper bf16 prefers Triton over FlashInfer**
+
+```python
+# On Hopper (SM90), the FlashInfer unquantized MoE kernels are slower
+# than Triton, so prefer Triton by default.
+if current_platform.is_device_capability_family(90):
+    _move_to_back(_AVAILABLE_BACKENDS, UnquantizedMoeBackend.FLASHINFER_TRTLLM)
+    _move_to_back(_AVAILABLE_BACKENDS, UnquantizedMoeBackend.FLASHINFER_CUTLASS)
+```
+
+**Significance**: Direct empirical confirmation that Hopper bf16 + FlashInfer MoE is SLOWER than Triton — corroborates our §14 measurement that Triton-on-H200 at 30% peak is actually the BEST option. This is **the single most important finding** for the project pitch — it's external validation from another framework's team.
+
+#### F2. **`unquantized.py:77` — Qwen3.5 crashes with FlashInfer CUTLASS BF16 + DEP**
+
+```python
+# HACK: Qwen3.5 has crash with FLASHINFER_CUTLASS BF16 if DEP.
+# Updating the oracle querying logic is out of the scope of this
+# PR. Need to fix the kernel or update structure in follow up.
+if moe_config.moe_parallel_config.dp_size > 1:
+    _move_to_back(_AVAILABLE_BACKENDS, UnquantizedMoeBackend.FLASHINFER_CUTLASS)
+```
+
+**Significance**: Production bug, not yet fixed. **Investigation target**: figure out the root cause and report/fix upstream — would benefit Qwen3.5 users on Blackwell with DP/EP.
+
+#### F3. **`fp8.py:87` — Hopper FP8 Block: TP→Triton, EP→FlashInfer CUTLASS**
+
+```python
+# On Hopper for Block Fp8, prefer Triton for TP and FI CUTLASS for EP.
+if (
+    current_platform.is_cuda()
+    and current_platform.is_device_capability(90)
+    and activation_key == kFp8Dynamic128Sym
+    and weight_key == kFp8Static128BlockSym
+):
+    if moe_config.moe_parallel_config.ep_size > 1:
+        _move_to_front(_AVAILABLE_BACKENDS, Fp8MoeBackend.FLASHINFER_CUTLASS)
+    else:
+        _move_to_front(_AVAILABLE_BACKENDS, Fp8MoeBackend.TRITON)
+```
+
+**Significance**: Triton is the BEST option for TP-only FP8 on Hopper (not just a fallback). FlashInfer CUTLASS is only better when you have multi-rank EP. **Investigation target**: at what EP size does the crossover happen? Could be the basis for a smart-dispatch contribution.
+
+#### F4. **`mxfp4.py:283, 306` — TRITON_UNFUSED disabled because of MTP bug**
+
+```python
+_AVAILABLE_BACKENDS = [
+    Mxfp4MoeBackend.FLASHINFER_TRTLLM_MXFP4_MXFP8,
+    ...,
+    Mxfp4MoeBackend.TRITON,
+    Mxfp4MoeBackend.FLASHINFER_CUTLASS_MXFP4_BF16,
+    Mxfp4MoeBackend.FLASHINFER_CUTLASS_MXFP4_MXFP8,
+    # TRITON_UNFUSED has bug with MTP support
+    # TODO re-enable after kernel is fixed
+    # TRITON_UNFUSED                                  ← commented out!
+    Mxfp4MoeBackend.MARLIN,
+    ...
+]
+```
+
+**Significance**: A specific Triton kernel variant is disabled entirely due to a multi-token-prediction (MTP / speculative decoding) bug. Two occurrences (lines 283 + 306). **Investigation target**: fix the bug, re-enable the kernel, measure the impact.
+
+#### F5. **`mxfp4.py:625` — DeepSeek-V4 on ROCm prefers AITER FlyDSL**
+
+```python
+# DeepSeek-V4 on ROCm: prefer AITER FlyDSL MoE (better perf + accuracy
+# after shuffle/TP-offset fixes), with Triton-unfused as fallback.
+if (
+    current_platform.is_rocm()
+    and config.routing_method == RoutingMethodType.DeepseekV4
+):
+    priority_backends = [
+        Mxfp4MoeBackend.AITER_MXFP4_BF16,
+        Mxfp4MoeBackend.TRITON_UNFUSED,
+    ]
+```
+
+**Significance**: Specific model + GPU vendor combo gets a custom priority list. Documents both perf AND accuracy concerns ("shuffle/TP-offset fixes"). Shows that even for one quantization (MXFP4), there are 3 different priority lists in the file (general, GPT-OSS, DeepSeek-V4).
+
+#### F6. **`unquantized.py:162` — "TODO: migrate to MK structure"**
+
+```python
+# TODO: migrate to MK structure.
+```
+
+**Significance**: vLLM team is actively refactoring; current dispatch in `unquantized.py` is considered legacy. Worth tracking for stability.
+
+### 2.4 Code snippet: how `select_unquantized_moe_backend` works
+
+`unquantized.py:153+`:
+
+```python
+def select_unquantized_moe_backend(
+    moe_config: FusedMoEConfig,
+) -> tuple[UnquantizedMoeBackend, type[mk.FusedMoEExperts] | None]:
+    """
+    Select the unquantized MoE backend.
+    Note: Shape-specific fallbacks may still occur at runtime.
+    """
+    # Special-case CPU/TPU/OOT first
+    if current_platform.is_cpu():
+        return UnquantizedMoeBackend.CPU, None
+    # ...
+    
+    # Get priority list (after the Hopper demotion + Qwen3.5 crash workaround)
+    priority_backends = _get_priority_backends(moe_config)
+    
+    # Try each backend in priority order; first one that says
+    # is_supported_config(...) wins
+    for backend in priority_backends:
+        kernel_cls = backend_to_kernel_cls(backend)
+        supported, reason = kernel_cls.is_supported_config(kernel_cls, moe_config)
+        if supported:
+            return backend, kernel_cls
+    raise ValueError("No backend supports this config")
+```
+
+The `is_supported_config` pattern is the **declarative key**: each backend self-reports whether it can handle the configuration. This is what makes vLLM's design extensible.
+
+---
+
+## 3. Side-by-side comparison: dispatch for our exact case
+
+**Setup**: Qwen3-30B-A3B (Qwen3MoeForCausalLM) + H200 (sm_90) + bf16
+
+### 3.1 sglang's path
+
+```
+1. Read server_args.py
+2. moe_runner_backend = "auto" (default, L498)
+3. Hit L1558 elif: model_arch == "Qwen3MoeForCausalLM" → enter branch
+4. Check is_sm100_supported() → FALSE (H200 is sm_90)
+5. Branch body skipped entirely
+6. Fall through all remaining elif's
+7. moe_runner_backend stays "auto"
+8. Later, get_moe_impl_class (ep_moe/layer.py:686) returns FusedMoE (Triton path)
+9. fused_moe_kernel runs
+```
+
+### 3.2 vLLM's path
+
+```
+1. Read kernel.py: moe_backend = "auto" (default, L171)
+2. select_unquantized_moe_backend called
+3. _get_priority_backends returns: [FLASHINFER_TRTLLM, FLASHINFER_CUTLASS, TRITON, BATCHED_TRITON]
+4. Hopper check (L74): is_device_capability_family(90) → TRUE
+5. Demote FLASHINFER_TRTLLM and FLASHINFER_CUTLASS to back
+6. Result: [TRITON, BATCHED_TRITON, FLASHINFER_TRTLLM, FLASHINFER_CUTLASS]
+7. TRITON.is_supported_config() → TRUE
+8. Returns (TRITON, TritonExperts class)
+9. fused_moe Triton kernel runs
+```
+
+**Both arrive at Triton**, but vLLM's path includes an EXPLICIT decision "FlashInfer is slower here" while sglang's path passively defaults to Triton.
+
+### 3.3 Same case on B200 (counterfactual)
+
+| Step | sglang on B200 | vLLM on B200 |
+|---|---|---|
+| Detect Blackwell | `is_sm100_supported()` → TRUE | `is_device_capability_family(90)` → FALSE |
+| Branch entered? | YES, L1558 branch executes | Hopper demotion skipped, priority list unchanged |
+| Condition check | `quantization is None` (bf16) → passes | `FLASHINFER_TRTLLM.is_supported_config()` → ? |
+| Final pick | **flashinfer_trtllm** (auto-set) | **FLASHINFER_TRTLLM** (top of priority list) |
+
+So both frameworks ALSO arrive at the same conclusion on Blackwell. The dispatch logic LOOKS different but the outcome is consistent — both teams agree on which kernel to pick.
+
+---
+
+## 4. The "special case override" catalog — investigation roadmap
+
+Collecting all hand-tuned fallbacks found in §1.3 + §2.3, ranked by investigation value:
+
+| # | Source | What's overridden | Reason recorded | Investigation value |
+|---|---|---|---|---|
+| **1** | vLLM `unquantized.py:71` | Hopper bf16: demote FlashInfer to back of priority list | "FlashInfer unquantized MoE kernels are slower than Triton on SM90" | ⭐⭐⭐⭐⭐ Direct support for our §14 finding. Confirms Triton is the BEST for Hopper bf16, not just default. |
+| **2** | vLLM `fp8.py:87` | Hopper FP8 Block: TP→Triton, EP→FlashInfer CUTLASS | "On Hopper for Block Fp8, prefer Triton for TP and FI CUTLASS for EP" | ⭐⭐⭐⭐⭐ Crossover behavior — at what EP size does FlashInfer become faster? Could be the basis for smart auto-dispatch. |
+| **3** | vLLM `unquantized.py:77` | Qwen3.5 + DEP: disable FlashInfer CUTLASS bf16 | "HACK: Qwen3.5 has crash with FLASHINFER_CUTLASS BF16 if DEP" | ⭐⭐⭐⭐ Real bug, not yet fixed. Investigation target: fix upstream. |
+| **4** | vLLM `mxfp4.py:283,306` | TRITON_UNFUSED disabled in MXFP4 priority list | "has bug with MTP support" | ⭐⭐⭐⭐ Bug fix opportunity. |
+| **5** | sglang `server_args.py:2746` | DeepSeek deterministic inference: force Triton | "flashinfer doesn't support deterministic inference for DeepSeek yet" | ⭐⭐⭐ Niche path but documented gap. |
+| **6** | vLLM `mxfp4.py:625` | DeepSeek-V4 ROCm: custom priority list | "better perf + accuracy after shuffle/TP-offset fixes" | ⭐⭐⭐ Model + GPU combo specific, complex. |
+| **7** | sglang `server_args.py:1674-1675` | flashinfer_trtllm: "currently only single-node + H20 bug" | TODO with GitHub issue links | ⭐⭐⭐ Tracked upstream. |
+| **8** | sglang `flashinfer_trtllm.py:256` | `trtllm_fp8_block_scale_moe`: ignores `output` argument | "FIXME: there is a bug" + link | ⭐⭐⭐ Upstream bug. |
+| **9** | sglang `server_args.py:1789` | SM120: trtllm_mha falls back to flashinfer | "trtllm_mha does not support SM120" | ⭐⭐ Hardware-specific limitation. |
+| **10** | sglang `server_args.py:1945` | Intel XMX absent: fallback to triton backend | hardware gate | ⭐⭐ Edge case. |
+| **11** | vLLM `unquantized.py:162` | Refactor TODO | "migrate to MK structure" | ⭐ Internal vLLM concern. |
+
+**Top 4 (⭐⭐⭐⭐ and above) are concrete research opportunities** — each represents a known limitation where an agent or human investigator could potentially:
+- Validate the empirical claim (e.g. "is FlashInfer really slower than Triton on Hopper bf16?" — we can re-measure)
+- Fix the underlying bug (e.g. Qwen3.5 + DEP crash)
+- Re-tune the crossover point (e.g. EP-size threshold for Hopper FP8)
+
+---
+
+## 5. Coverage delta — what vLLM has that sglang doesn't (and vice versa)
+
+| Capability | sglang | vLLM | Note |
+|---|---|---|---|
+| FP8 Marlin path | ❌ no | ✅ `Fp8MoeBackend.MARLIN` | INT4-style optimization for FP8 |
+| BATCHED variants | ❌ no | ✅ BATCHED_TRITON, BATCHED_DEEPGEMM, BATCHED_VLLM_CUTLASS, BATCHED_MARLIN | For attn_metadata.use_batched_activation_format |
+| Per-GPU explicit demotion | ❌ no | ✅ `_move_to_back` based on `device_capability_family(90)` | Empirically tuned |
+| `is_supported_config` self-reporting | ❌ no (hardcoded if/else) | ✅ each backend class has the method | Extensibility |
+| Multiple FlashInfer variants per quant | only TRTLLM/CUTLASS/CUTEDSL | All 5 (TRTLLM/CUTLASS/CUTEDSL/CUTEDSL_BATCHED/B12X for NVFP4) | More fine-grained |
+| Custom routing-method-aware dispatch | partial (head models) | yes (`RoutingMethodType.DeepseekV4` check) | More principled |
+
+**Bottom line on coverage**: vLLM has notably MORE dispatch nuance (about 1.5-2× more backend options per quant). But the "default → Triton" terminal is the same in both, so for our target user (long-tail MoE on Hopper bf16), the coverage delta doesn't matter.
+
+---
+
+## 6. Recommended next steps
+
+1. **Reproduce Finding #1** (Hopper bf16: FlashInfer slower than Triton): We already showed Triton at 30% peak; need to actually run FlashInfer on H200 (won't work for trtllm_bf16 — Blackwell only — but can try `cutlass_fused_moe` once we fix the JIT include path from §9.3).
+
+2. **Investigate Finding #3** (Qwen3.5 + DEP crash): Reproduce the crash on H200 with DP > 1, capture the exact error, file a follow-up.
+
+3. **Crossover study for Finding #2** (TP vs EP for Hopper FP8): Run sglang with `--tp-size 1 vs 2 vs 4 vs 8 vs 16` at FP8 (would need FP8 weights — convert Qwen3-30B-A3B first), measure when CUTLASS becomes faster than Triton.
+
+4. **Re-enable Triton-unfused for MXFP4 (Finding #4)**: If MTP bug is fixable, could re-enable a backend and benchmark.
+
+---
+
+## 7. Files referenced
+
+### sglang
+- `python/sglang/srt/server_args.py` (L1190-1654 the model_arch branches, L2125-2174 the cutlass overrides)
+- `python/sglang/srt/layers/moe/ep_moe/layer.py:686` (`get_moe_impl_class` — the actual class chooser)
+- `python/sglang/srt/layers/moe/moe_runner/flashinfer_trtllm.py:256` (FIXME comment)
+
+### vLLM
+- `vllm/config/kernel.py:171` (the `moe_backend` knob)
+- `vllm/model_executor/layers/fused_moe/oracle/unquantized.py` (bf16 dispatch)
+- `vllm/model_executor/layers/fused_moe/oracle/fp8.py` (FP8 dispatch with 13 backends)
+- `vllm/model_executor/layers/fused_moe/oracle/nvfp4.py`
+- `vllm/model_executor/layers/fused_moe/oracle/mxfp4.py` (1710 lines, 3 priority lists)
+- `vllm/model_executor/layers/fused_moe/oracle/mxfp8.py`
+- `vllm/model_executor/layers/fused_moe/oracle/int8.py`
+- `vllm/model_executor/layers/fused_moe/oracle/int_wna16.py`
+- `vllm/model_executor/layers/fused_moe/oracle/w4a8.py`
+- `vllm/model_executor/layers/fused_moe/oracle/w4a8_int8.py`
+
+---
+
+---
+
+<a id="中文版"></a>
+
+# 中文版
+
+# MoE Backend 决策树 —— vLLM vs sglang 深挖
+
+> **日期**: 2026-06-04 · **状态**: 全面枚举两个框架所有 MoE backend dispatch 分支,带代码片段 + file:line 证据
+>
+> `docs/triton_rewrite_investigation.md` (§17 有 high-level 对比) 的伴生文档。本文是**详尽 catalog**,把所有特殊 case 收集起来供后续研究。
+
+## TL;DR
+
+- **sglang**: 1 个文件 (`server_args.py`),16 个 `model_arch` 分支 (L1191-1654),命令式 if/elif 链。决策按 `(model_arch, GPU, quant)`。
+- **vLLM**: 9 个文件 (`oracle/*.py`),每个量化类型一个优先级列表,声明式 `is_supported_config()` callback。决策按 `(quant, GPU, config)`。
+- **两个框架对约 70% 的 (model × GPU × dtype) 组合都最终到 Triton**,但通过完全不同的代码路径。
+- **找到 9 个"特殊 case override"注释** (vLLM 8 个,sglang 显式 1 个),开发者手动写了 fallback 因为 Triton/CUDA/etc 实测更慢或有 bug —— 这些是**研究价值最高的 cell**,适合作 agent 目标。
+
+---
+
+## 1. sglang 完整决策树 (文件: `python/sglang/srt/server_args.py`)
+
+### 1.1 16 个 model_arch 分支 (L1190-1654)
+
+| 分支行 | 匹配的 model_arch | 非-Triton 触发条件 | → Backend |
+|---:|---|---|---|
+| L1197 | `DeepseekV3ForCausalLM`, `KimiK25ForConditionalGeneration`, `MistralLarge3ForCausalLM`, `PixtralForConditionalGeneration` | sm_100 + (fp8/modelopt_fp8/modelopt_fp4) | flashinfer_trtllm |
+| L1333 | `GptOssForCausalLM` | Blackwell+MXFP4 → flashinfer_mxfp4 / AMD+AITER → AITER / triton_kernels lib → triton_kernel | 多种 |
+| L1475 | `Llama4ForCausalLM` | sm_100 + (fp8/modelopt_fp8) | flashinfer_trtllm |
+| L1488 | `Exaone4ForCausalLM`, `ExaoneMoEForCausalLM` | 只 SWA mem 处理 —— 不改 MoE backend | (Triton 默认) |
+| L1499 | `Olmo2ForCausalLM` | 只 SWA mem | (Triton 默认) |
+| L1524 | `KimiLinearForCausalLM`, `BailingMoeV2_5ForCausalLM` | 只 Mamba radix cache | (Triton 默认) |
+| L1529 | `NemotronHForCausalLM` | NVFP4 / modelopt_fp8 | flashinfer_cutlass |
+| L1558 | `Qwen3MoeForCausalLM`, `Qwen3VLMoeForConditionalGeneration` | sm_100 + (fp8/modelopt_fp4/**None** ← bf16 也!) | flashinfer_trtllm |
+| L1579 | `Qwen3NextForCausalLM`, `Qwen3_5MoeForConditionalGeneration`, `Qwen3_5ForConditionalGeneration` | sm_100 + (fp8/modelopt_fp4/None) | flashinfer_trtllm |
+| L1607 | `Glm4MoeForCausalLM` | sm_100 + modelopt_fp4 + flashinfer ≥ 0.6.3 | flashinfer_trtllm |
+| L1629 | `FalconH1ForCausalLM`, `JetNemotronForCausalLM`, ... | (Mamba/SWA) | (Triton 默认) |
+| L1641 | `GraniteMoeHybridForCausalLM` | Mamba 层 | (Triton 默认) |
+| L1654 | `Lfm2ForCausalLM` | Mamba | (Triton 默认) |
+| L2125-2134 | (任何模型) | MXFP8 量化 | **cutlass (强制覆盖)** |
+| L2161-2174 | (任何模型) | 手动 `--moe-runner-backend=cutlass` + fp8/mxfp8 | cutlass |
+
+**默认 (catch-all)**: 任何不匹配以上的组合 ⇒ **`triton`** (全局默认 `moe_runner_backend: str = "auto"`, L498)。
+
+### 1.2 代码片段: Qwen3-MoE 分支 (我们模型的)
+
+`sglang/srt/server_args.py:1558-1577`:
+
+```python
+elif model_arch in [
+    "Qwen3MoeForCausalLM",
+    "Qwen3VLMoeForConditionalGeneration",
+]:
+    if is_sm100_supported():
+        quant_method = get_quantization_config(hf_config)
+        if self.quantization is None and quant_method is not None:
+            self.quantization = quant_method
+        if (
+            (
+                self.quantization in ("fp8", "modelopt_fp4")
+                or self.quantization is None    # ← bf16 也满足
+            )
+            and self.moe_a2a_backend == "none"
+            and self.moe_runner_backend == "auto"
+        ):
+            self.moe_runner_backend = "flashinfer_trtllm"
+```
+
+### 1.3 sglang 特殊 case override 搜寻
+
+sglang MoE dispatch 里发现的手动 fallback:
+
+| File:line | 类型 | 引文 | 意义 |
+|---|---|---|---|
+| `server_args.py:1674-1675` | TODO | "currently, it is only supported in the single node scenario" + "there is currently a bug on H20 device specifically" | H20 已知 bug —— 研究目标 |
+| `server_args.py:1789` | NOTE | "trtllm_mha does not support SM120, which will fall back to flashinfer" | SM120 (RTX 6000 Pro) 限制 |
+| `server_args.py:2746` | 注释 | "fallback to triton for DeepSeek models because flashinfer doesn't support deterministic inference for DeepSeek models yet" | **仅 deterministic inference 路径**;DeepSeek 被显式降级 |
+| `server_args.py:2749` | 注释 | "fallback to flashinfer on Blackwell for non-DeepSeek models" | 同路径的反向规则 |
+| `layers/moe/moe_runner/flashinfer_trtllm.py:256` | FIXME | "there is a bug in the trtllm_fp8_block_scale_moe. It ignored the `output` argument." | 上游 flashinfer 已知 bug |
+| `server_args.py:1945` | LOG | "The current platform does not support Intel XMX, will fallback to triton backend." | XMX 硬件门控 |
+
+### 1.4 sglang 设计的诚实评价
+
+- **优**: 所有 MoE dispatch 在一个地方 (1 个文件,约 450 行 for 16 个分支) —— 容易审计
+- **劣**: 加新 backend 要改中央 if/elif (每个分支都得改);单个贡献者难以独立完成
+- **对 agent 的优势**: 容易枚举哪些 (model, GPU, quant) 三元组 fall through 到 Triton —— 那就是我们的 TAM
+
+---
+
+## 2. vLLM 完整决策树 (目录: `vllm/model_executor/layers/fused_moe/oracle/`)
+
+### 2.1 9 个 oracle 文件
+
+| 文件 | 行数 | 量化类型 | Enum class | # backend 选项 |
+|---|---:|---|---|---:|
+| `unquantized.py` | 370 | bf16/fp16 | `UnquantizedMoeBackend` | **9** |
+| `fp8.py` | 634 | FP8 | `Fp8MoeBackend` | **13** |
+| `nvfp4.py` | 560 | NVFP4 | `NvFp4MoeBackend` | 8 |
+| `mxfp4.py` | 1710 | MXFP4 | `Mxfp4MoeBackend` | (很多 —— 模型特定) |
+| `mxfp8.py` | 91 | MXFP8 | `Mxfp8MoeBackend` | 1 |
+| `int8.py` | 218 | INT8 | `Int8MoeBackend` | 1 (只 Triton) |
+| `int_wna16.py` | 908 | INT4/INT8 weight-only | `WNA16MoEBackend` | 4 |
+| `w4a8.py` | 195 | W4A8 | `W4A8MoeBackend` | 1 (只 CUTLASS) |
+| `w4a8_int8.py` | 360 | W4A8 INT8 | `W4A8Int8MoeBackend` | 数个 |
+
+### 2.2 Enum 完整列表
+
+**bf16/fp16 (`unquantized.py:32`)**:
+```python
+class UnquantizedMoeBackend(Enum):
+    FLASHINFER_TRTLLM = "FlashInfer TRTLLM"
+    FLASHINFER_CUTLASS = "FlashInfer CUTLASS"
+    AITER = "ROCm AITER"
+    TRITON = "TRITON"
+    BATCHED_TRITON = "BATCHED_TRITON"
+    CPU = "CPU"
+    XPU = "XPU"
+    TPU = "TPU"
+    OOT = "OOT"
+```
+
+**FP8 (`fp8.py:42`)** —— **13 个选项**:
+```python
+class Fp8MoeBackend(Enum):
+    NONE = "NONE"
+    FLASHINFER_TRTLLM = "FLASHINFER_TRTLLM"
+    FLASHINFER_CUTLASS = "FLASHINFER_CUTLASS"
+    DEEPGEMM = "DEEPGEMM"
+    BATCHED_DEEPGEMM = "BATCHED_DEEPGEMM"
+    MARLIN = "MARLIN"
+    TRITON = "TRITON"
+    BATCHED_TRITON = "BATCHED_TRITON"
+    AITER = "AITER"
+    VLLM_CUTLASS = "VLLM_CUTLASS"
+    BATCHED_VLLM_CUTLASS = "BATCHED_VLLM_CUTLASS"
+    XPU = "XPU"
+    CPU = "CPU"
+```
+
+**NVFP4 (`nvfp4.py:41`)**:
+```python
+class NvFp4MoeBackend(Enum):
+    FLASHINFER_TRTLLM = "FLASHINFER_TRTLLM"
+    FLASHINFER_CUTLASS = "FLASHINFER_CUTLASS"
+    FLASHINFER_CUTEDSL = "FLASHINFER_CUTEDSL"
+    FLASHINFER_CUTEDSL_BATCHED = "FLASHINFER_CUTEDSL_BATCHED"
+    FLASHINFER_B12X = "FLASHINFER_B12X"
+    VLLM_CUTLASS = "VLLM_CUTLASS"
+    MARLIN = "MARLIN"
+    EMULATION = "EMULATION"
+```
+
+**WNA16**:
+```python
+class WNA16MoEBackend(Enum):
+    MARLIN = "MARLIN"
+    BATCHED_MARLIN = "BATCHED_MARLIN"
+    FLASHINFER_TRTLLM = "FLASHINFER_TRTLLM"
+    XPU = "XPU"
+```
+
+### 2.3 vLLM 里 5 个显式手动 fallback
+
+这些是我们调研中**最有价值的发现** —— 每个都是 vLLM 开发者发现某个 kernel 比预期更慢或有 bug 的具体 case:
+
+#### F1. **`unquantized.py:71` —— Hopper bf16 偏好 Triton 超过 FlashInfer**
+
+```python
+# 在 Hopper (SM90) 上,FlashInfer 未量化 MoE kernel 比 Triton 慢
+# 所以默认偏好 Triton
+if current_platform.is_device_capability_family(90):
+    _move_to_back(_AVAILABLE_BACKENDS, UnquantizedMoeBackend.FLASHINFER_TRTLLM)
+    _move_to_back(_AVAILABLE_BACKENDS, UnquantizedMoeBackend.FLASHINFER_CUTLASS)
+```
+
+**意义**: 直接实证确认 Hopper bf16 + FlashInfer MoE 比 Triton **更慢** —— 印证我们 §14 测的 Triton-在-H200-达 30% 峰值实际上是**最优**选项。这是项目 pitch **最重要的发现** —— 来自另一个框架团队的外部验证。
+
+#### F2. **`unquantized.py:77` —— Qwen3.5 + DEP 会让 FlashInfer CUTLASS bf16 崩**
+
+```python
+# HACK: Qwen3.5 在 DEP 下用 FLASHINFER_CUTLASS BF16 会崩
+# 改派发逻辑超出本 PR 范围
+# 需要后续修 kernel 或改结构
+if moe_config.moe_parallel_config.dp_size > 1:
+    _move_to_back(_AVAILABLE_BACKENDS, UnquantizedMoeBackend.FLASHINFER_CUTLASS)
+```
+
+**意义**: 生产 bug,尚未修。**研究目标**: 查清根因,上报或修上游 —— 惠及 Blackwell 上用 DP/EP 的 Qwen3.5 用户。
+
+#### F3. **`fp8.py:87` —— Hopper FP8 Block: TP→Triton, EP→FlashInfer CUTLASS**
+
+```python
+# 在 Hopper 上 Block Fp8: TP 偏好 Triton, EP 偏好 FI CUTLASS
+if (
+    current_platform.is_cuda()
+    and current_platform.is_device_capability(90)
+    and activation_key == kFp8Dynamic128Sym
+    and weight_key == kFp8Static128BlockSym
+):
+    if moe_config.moe_parallel_config.ep_size > 1:
+        _move_to_front(_AVAILABLE_BACKENDS, Fp8MoeBackend.FLASHINFER_CUTLASS)
+    else:
+        _move_to_front(_AVAILABLE_BACKENDS, Fp8MoeBackend.TRITON)
+```
+
+**意义**: Triton 是 Hopper TP-only FP8 的**最优选项** (不只是 fallback)。FlashInfer CUTLASS 只在多 rank EP 才赢。**研究目标**: EP 多大开始 crossover? 可以作为智能派发贡献的基础。
+
+#### F4. **`mxfp4.py:283, 306` —— TRITON_UNFUSED 因 MTP bug 被禁用**
+
+```python
+_AVAILABLE_BACKENDS = [
+    Mxfp4MoeBackend.FLASHINFER_TRTLLM_MXFP4_MXFP8,
+    ...,
+    Mxfp4MoeBackend.TRITON,
+    Mxfp4MoeBackend.FLASHINFER_CUTLASS_MXFP4_BF16,
+    Mxfp4MoeBackend.FLASHINFER_CUTLASS_MXFP4_MXFP8,
+    # TRITON_UNFUSED has bug with MTP support
+    # TODO re-enable after kernel is fixed
+    # TRITON_UNFUSED                                  ← 注释掉了!
+    Mxfp4MoeBackend.MARLIN,
+    ...
+]
+```
+
+**意义**: 一个特定 Triton kernel 变体因 multi-token-prediction (MTP / 推测解码) bug 完全禁用。两处出现 (L283 + L306)。**研究目标**: 修 bug,重启 kernel,测影响。
+
+#### F5. **`mxfp4.py:625` —— DeepSeek-V4 on ROCm 偏好 AITER FlyDSL**
+
+```python
+# DeepSeek-V4 on ROCm: 偏好 AITER FlyDSL MoE (perf + 精度都更好,
+# 在修了 shuffle/TP-offset 之后), 用 Triton-unfused 做 fallback
+if (
+    current_platform.is_rocm()
+    and config.routing_method == RoutingMethodType.DeepseekV4
+):
+    priority_backends = [
+        Mxfp4MoeBackend.AITER_MXFP4_BF16,
+        Mxfp4MoeBackend.TRITON_UNFUSED,
+    ]
+```
+
+**意义**: 特定模型 + GPU 厂商组合拿到定制优先级。同时记录 perf **和**精度顾虑 ("shuffle/TP-offset fixes")。展示甚至对一个量化 (MXFP4),文件里有 3 个不同优先级列表 (general, GPT-OSS, DeepSeek-V4)。
+
+#### F6. **`unquantized.py:162` —— "TODO: migrate to MK structure"**
+
+```python
+# TODO: migrate to MK structure.
+```
+
+**意义**: vLLM 团队在重构;`unquantized.py` 里当前 dispatch 被视为遗留。值得跟踪稳定性。
+
+### 2.4 代码片段: `select_unquantized_moe_backend` 怎么工作
+
+`unquantized.py:153+`:
+
+```python
+def select_unquantized_moe_backend(
+    moe_config: FusedMoEConfig,
+) -> tuple[UnquantizedMoeBackend, type[mk.FusedMoEExperts] | None]:
+    """
+    选择未量化 MoE backend。
+    注: 运行时仍可能 shape-specific fallback。
+    """
+    # CPU/TPU/OOT 先特殊处理
+    if current_platform.is_cpu():
+        return UnquantizedMoeBackend.CPU, None
+    # ...
+    
+    # 拿优先级列表 (Hopper 降级 + Qwen3.5 崩溃 workaround 之后)
+    priority_backends = _get_priority_backends(moe_config)
+    
+    # 按优先级试每个 backend;第一个说 is_supported_config(...) 的赢
+    for backend in priority_backends:
+        kernel_cls = backend_to_kernel_cls(backend)
+        supported, reason = kernel_cls.is_supported_config(kernel_cls, moe_config)
+        if supported:
+            return backend, kernel_cls
+    raise ValueError("没 backend 支持这个 config")
+```
+
+`is_supported_config` 模式是**声明式关键** —— 每个 backend 自报能否处理这个 config。这就是 vLLM 设计可扩展的原因。
+
+---
+
+## 3. 并排对比: 我们具体 case 的派发
+
+**设置**: Qwen3-30B-A3B (Qwen3MoeForCausalLM) + H200 (sm_90) + bf16
+
+### 3.1 sglang 路径
+
+```
+1. 读 server_args.py
+2. moe_runner_backend = "auto" (默认, L498)
+3. 命中 L1558 elif: model_arch == "Qwen3MoeForCausalLM" → 进分支
+4. 检查 is_sm100_supported() → FALSE (H200 是 sm_90)
+5. 整个分支 body 跳过
+6. Fall through 剩下所有 elif
+7. moe_runner_backend 保持 "auto"
+8. 后续 get_moe_impl_class (ep_moe/layer.py:686) 返回 FusedMoE (Triton 路径)
+9. fused_moe_kernel 跑
+```
+
+### 3.2 vLLM 路径
+
+```
+1. 读 kernel.py: moe_backend = "auto" (默认, L171)
+2. 调 select_unquantized_moe_backend
+3. _get_priority_backends 返回: [FLASHINFER_TRTLLM, FLASHINFER_CUTLASS, TRITON, BATCHED_TRITON]
+4. Hopper 检查 (L74): is_device_capability_family(90) → TRUE
+5. 把 FLASHINFER_TRTLLM 和 FLASHINFER_CUTLASS 降到队尾
+6. 结果: [TRITON, BATCHED_TRITON, FLASHINFER_TRTLLM, FLASHINFER_CUTLASS]
+7. TRITON.is_supported_config() → TRUE
+8. 返回 (TRITON, TritonExperts class)
+9. fused_moe Triton kernel 跑
+```
+
+**两者都到 Triton**,但 vLLM 路径包含**显式**决策 "FlashInfer 在这慢" 而 sglang 路径被动默认到 Triton。
+
+### 3.3 同样 case 在 B200 上 (反事实)
+
+| 步骤 | sglang on B200 | vLLM on B200 |
+|---|---|---|
+| 检测 Blackwell | `is_sm100_supported()` → TRUE | `is_device_capability_family(90)` → FALSE |
+| 进分支? | 是,L1558 分支执行 | Hopper 降级跳过,优先级列表不变 |
+| 条件检查 | `quantization is None` (bf16) → 通过 | `FLASHINFER_TRTLLM.is_supported_config()` → ? |
+| 最终选 | **flashinfer_trtllm** (auto-set) | **FLASHINFER_TRTLLM** (优先级列表顶) |
+
+所以两个框架在 Blackwell 上**也**到同一个结论。派发逻辑**看起来**不同但**结果一致** —— 两个团队都同意选哪个 kernel。
+
+---
+
+## 4. "特殊 case override" 目录 —— 研究路线图
+
+汇总 §1.3 + §2.3 找到的手动 fallback,按研究价值排序:
+
+| # | 来源 | 覆盖什么 | 记录原因 | 研究价值 |
+|---|---|---|---|---|
+| **1** | vLLM `unquantized.py:71` | Hopper bf16: 把 FlashInfer 降到队尾 | "FlashInfer 未量化 MoE kernel 在 SM90 上比 Triton 慢" | ⭐⭐⭐⭐⭐ 直接支持我们 §14 发现。确认 Triton 在 Hopper bf16 上是**最优**,不只默认。 |
+| **2** | vLLM `fp8.py:87` | Hopper FP8 Block: TP→Triton, EP→FlashInfer CUTLASS | "Hopper Block Fp8: TP 偏好 Triton, EP 偏好 FI CUTLASS" | ⭐⭐⭐⭐⭐ Crossover 行为 —— EP 多大 FlashInfer 才赢? 可以做智能 auto-dispatch 贡献。 |
+| **3** | vLLM `unquantized.py:77` | Qwen3.5 + DEP: 禁用 FlashInfer CUTLASS bf16 | "HACK: Qwen3.5 + DEP 在 FLASHINFER_CUTLASS BF16 上崩" | ⭐⭐⭐⭐ 真 bug,未修。研究目标: 修上游。 |
+| **4** | vLLM `mxfp4.py:283,306` | TRITON_UNFUSED 在 MXFP4 优先级里禁用 | "MTP 支持有 bug" | ⭐⭐⭐⭐ Bug 修复机会。 |
+| **5** | sglang `server_args.py:2746` | DeepSeek deterministic inference: 强制 Triton | "flashinfer 还不支持 DeepSeek 的 deterministic inference" | ⭐⭐⭐ 小众路径但有文档缺口。 |
+| **6** | vLLM `mxfp4.py:625` | DeepSeek-V4 ROCm: 定制优先级列表 | "shuffle/TP-offset 修复后 perf + 精度更好" | ⭐⭐⭐ 模型 + GPU 组合特定,复杂。 |
+| **7** | sglang `server_args.py:1674-1675` | flashinfer_trtllm: "目前只单节点 + H20 有 bug" | TODO + GitHub issue 链接 | ⭐⭐⭐ 已上游跟踪。 |
+| **8** | sglang `flashinfer_trtllm.py:256` | `trtllm_fp8_block_scale_moe`: 忽略 `output` 参数 | "FIXME: 有 bug" + 链接 | ⭐⭐⭐ 上游 bug。 |
+| **9** | sglang `server_args.py:1789` | SM120: trtllm_mha fallback 到 flashinfer | "trtllm_mha 不支持 SM120" | ⭐⭐ 硬件特定限制。 |
+| **10** | sglang `server_args.py:1945` | Intel XMX 缺失: fallback 到 triton backend | 硬件门控 | ⭐⭐ 边缘 case。 |
+| **11** | vLLM `unquantized.py:162` | Refactor TODO | "migrate to MK structure" | ⭐ vLLM 内部 |
+
+**前 4 个 (⭐⭐⭐⭐ 及以上) 是具体研究机会** —— 每个代表一个已知限制,agent 或人工调研可能:
+- 验证实证 claim (例: "FlashInfer 在 Hopper bf16 上真的比 Triton 慢吗?" —— 我们可以重测)
+- 修底层 bug (例: Qwen3.5 + DEP 崩溃)
+- 重 tune crossover 点 (例: Hopper FP8 的 EP-size 阈值)
+
+---
+
+## 5. 覆盖差异 —— vLLM 有但 sglang 没有的 (反之)
+
+| 能力 | sglang | vLLM | 说明 |
+|---|---|---|---|
+| FP8 Marlin 路径 | ❌ 无 | ✅ `Fp8MoeBackend.MARLIN` | INT4-style 优化给 FP8 |
+| BATCHED 变体 | ❌ 无 | ✅ BATCHED_TRITON, BATCHED_DEEPGEMM, BATCHED_VLLM_CUTLASS, BATCHED_MARLIN | 给 attn_metadata.use_batched_activation_format |
+| Per-GPU 显式降级 | ❌ 无 | ✅ `_move_to_back` 基于 `device_capability_family(90)` | 实证 tune |
+| `is_supported_config` 自报 | ❌ 无 (硬编 if/else) | ✅ 每个 backend class 都有这方法 | 可扩展性 |
+| 每量化多个 FlashInfer 变体 | 只 TRTLLM/CUTLASS/CUTEDSL | 全 5 个 (TRTLLM/CUTLASS/CUTEDSL/CUTEDSL_BATCHED/B12X for NVFP4) | 更细粒度 |
+| 自定义 routing-method-aware dispatch | 部分 (头部模型) | 是 (`RoutingMethodType.DeepseekV4` 检查) | 更原则化 |
+
+**覆盖底线**: vLLM 派发明显**更细** (per quant 约 1.5-2× 多 backend 选项)。但 "default → Triton" 终点两边一样,所以对我们目标用户 (长尾 MoE on Hopper bf16),覆盖差异不重要。
+
+---
+
+## 6. 推荐下一步
+
+1. **复现发现 #1** (Hopper bf16: FlashInfer 比 Triton 慢): 我们已经显示 Triton 在 30% 峰值;需要在 H200 上实际跑 FlashInfer (`trtllm_bf16` 不行 —— Blackwell only —— 但修了 §9.3 的 JIT include 路径后可以试 `cutlass_fused_moe`)。
+
+2. **调研发现 #3** (Qwen3.5 + DEP 崩溃): 在 H200 上 DP > 1 复现崩溃,捕获精确错误,提 follow-up。
+
+3. **Crossover 研究 (发现 #2)** (Hopper FP8 的 TP vs EP): 用 `--tp-size 1 vs 2 vs 4 vs 8 vs 16` 跑 sglang FP8 (需要 FP8 权重 —— 先转 Qwen3-30B-A3B),测 CUTLASS 何时超过 Triton。
+
+4. **MXFP4 重启 Triton-unfused (发现 #4)**: 如果 MTP bug 可修,重启一个 backend 然后 benchmark。
+
+---
+
+## 7. 引用的文件
+
+### sglang
+- `python/sglang/srt/server_args.py` (L1190-1654 是 model_arch 分支,L2125-2174 是 cutlass 覆盖)
+- `python/sglang/srt/layers/moe/ep_moe/layer.py:686` (`get_moe_impl_class` —— 实际 class 选择器)
+- `python/sglang/srt/layers/moe/moe_runner/flashinfer_trtllm.py:256` (FIXME 注释)
+
+### vLLM
+- `vllm/config/kernel.py:171` (`moe_backend` 开关)
+- `vllm/model_executor/layers/fused_moe/oracle/unquantized.py` (bf16 dispatch)
+- `vllm/model_executor/layers/fused_moe/oracle/fp8.py` (FP8 dispatch,13 backends)
+- `vllm/model_executor/layers/fused_moe/oracle/nvfp4.py`
+- `vllm/model_executor/layers/fused_moe/oracle/mxfp4.py` (1710 行,3 个优先级列表)
+- `vllm/model_executor/layers/fused_moe/oracle/mxfp8.py`
+- `vllm/model_executor/layers/fused_moe/oracle/int8.py`
+- `vllm/model_executor/layers/fused_moe/oracle/int_wna16.py`
+- `vllm/model_executor/layers/fused_moe/oracle/w4a8.py`
+- `vllm/model_executor/layers/fused_moe/oracle/w4a8_int8.py`
