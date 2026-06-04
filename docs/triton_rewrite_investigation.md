@@ -1371,6 +1371,113 @@ So **seeing "flashinfer kernels" in a trace from any sglang run is normal** (RMS
 
 ---
 
+## 10. The complete (model × GPU × dtype) → MoE backend matrix
+
+> Follow-up: is "H200 bf16 → Triton" a universal rule, or does it change a lot across GPUs and dtypes? Answer: **it's mostly about (model architecture + quantization), with GPU as a secondary gate**. Below is the full enumeration of every condition in sglang's auto-mode dispatcher.
+
+### 10.1 The actual decision matrix from `server_args.py:1290-1640`
+
+I traced every branch that sets `moe_runner_backend = ...` and reduced them to this table:
+
+| # | Model arch | GPU | Quantization | → Auto backend | Source |
+|---|---|---|---|---|---|
+| 1 | `DeepseekV3ForCausalLM` | sm100 (Blackwell) | None→fp8 / fp8 / modelopt_fp8 / modelopt_fp4 | **flashinfer_trtllm** | L1295-1310 |
+| 2 | `GptOssForCausalLM` | Blackwell | MXFP4 | **flashinfer_mxfp4** | L1370-1374 |
+| 3 | `GptOssForCausalLM` | AMD ROCm + AITER | MXFP4 | auto → **AITER MXFP4** | L1376-1383 |
+| 4 | `GptOssForCausalLM` | AMD ROCm + AITER | bf16 | **triton** (forced; CK doesn't cover all GEMM dims) | L1384-1392 |
+| 5 | `GptOssForCausalLM` | any | None + triton_kernels available + ep=1 | **triton_kernel** (external lib) | L1392-1399 |
+| 6 | `Llama4ForCausalLM` | sm100 | fp8 / modelopt_fp8 | **flashinfer_trtllm** | L1467-1474 |
+| 7 | `NemotronHForCausalLM` (+ similar) | sm100 | NVFP4 / modelopt_fp8 | **flashinfer_cutlass** | L1535-1547 |
+| 8 | `Qwen3NextForCausalLM`, `Qwen3_5*` | sm100 | fp8 / modelopt_fp4 / None | **flashinfer_trtllm** | L1565-1580 |
+| 9 | `Glm4MoeForCausalLM` | sm100 + flashinfer-python ≥ 0.6.3 | modelopt_fp4 | **flashinfer_trtllm** | L1610-1626 |
+| 10 | (any model) | (any) | **mxfp8** | **cutlass** (forced override) | L2125-2134 |
+| 11 | (any model) | (any) | manual `--moe-runner-backend=cutlass` + fp8 / mxfp8 | **cutlass** | L2161-2174 |
+| **12** | **ALL OTHER MoE models** | **any GPU** | **bf16 / fp16 / others** | **`triton` (the catch-all default)** | implicit fall-through |
+
+**Plain reading**: the auto-mode dispatcher hard-codes about **9-10 (model, GPU, quant) tuples** that get non-Triton backends. Everything else falls through to **triton**.
+
+### 10.2 So when does it matter?
+
+#### By GPU generation
+
+| GPU | sm arch | What changes? |
+|---|---|---|
+| **A100** (Ampere) | sm_80 | **Nothing** — none of the special tuples target sm_80. **Triton for all MoE models** regardless of dtype/quant |
+| **H100 / H200** (Hopper) | sm_90 | **Nothing** for MoE — same as A100. Only attention path differs (fa3 on Hopper). **Triton for all MoE** |
+| **B100 / B200** (Blackwell) | sm_100 | **Opens flashinfer_trtllm/mxfp4/cutlass paths**, but ONLY for specific (model, quant) tuples in rows 1, 2, 6, 7, 8, 9 |
+| **GB200** (Blackwell server) | sm_100 / sm_103 | Same as B100/B200 |
+| **MI300X / MI355X** (AMD) | gfx9x | AITER kernels (if `SGLANG_USE_AITER=1`); otherwise triton-ROCm |
+| **Intel Gaudi / XPU** | — | `intel_xpu` attention path; MoE still Triton |
+
+#### By dtype / quantization
+
+| Quantization | Triton fallback? | Special backends? |
+|---|---|---|
+| **bf16 / fp16** | ✅ Triton (~99% of cases) | only specific Blackwell models (Qwen3Next bf16, GptOss bf16 with triton_kernels) |
+| **fp8 / modelopt_fp8** | ✅ Triton | flashinfer_trtllm on Blackwell for DeepSeek/Llama4/Qwen3Next |
+| **modelopt_fp4 (NVFP4)** | ✅ Triton | flashinfer_trtllm on Blackwell for DeepSeek/Llama4/Qwen3Next/Glm4Moe |
+| **MXFP4** | ✅ Triton | flashinfer_mxfp4 on Blackwell for GPT-OSS; AITER for AMD GPT-OSS |
+| **MXFP8** | ❌ overridden | **forced to cutlass** regardless of model/GPU |
+| **W4A8** | ✅ Triton | sgl-kernel cutlass_moe/w4a8 if manually opted in |
+| **INT4 / AWQ** | ✅ Triton | sgl-kernel marlin_moe_wna16 if manually opted in |
+
+### 10.3 What this means: who actually does NOT use Triton?
+
+Counting through sglang's 13 MoE model files and crossing with the auto-mode matrix:
+
+| Real-world deployment | Likely auto-picked backend |
+|---|---|
+| Qwen3-30B-A3B bf16 on H100/H200/A100 (ours) | **triton** |
+| Qwen3-30B-A3B bf16 on B200 | **triton** (Qwen3-MoE isn't in any special path) |
+| Qwen3-30B-A3B fp8 on B200 | **triton** (fp8 path requires `Qwen3Next`, not `Qwen3Moe`) |
+| Qwen3Next-* on B200 fp8/fp4/bf16 | **flashinfer_trtllm** ✅ |
+| DeepSeek-V3 bf16 on H200 | **triton** |
+| **DeepSeek-V3 fp8 on B200** | **flashinfer_trtllm** ✅ (very common production setup) |
+| Llama-4-Scout bf16 on H100 | **triton** |
+| **Llama-4-Scout fp8 on B200** | **flashinfer_trtllm** ✅ |
+| GPT-OSS MXFP4 on B200 | **flashinfer_mxfp4** ✅ |
+| GPT-OSS MXFP4 on MI300X + AITER | **AITER MXFP4** ✅ |
+| GPT-OSS bf16 on H200 | **triton_kernel** (if triton_kernels installed) or triton |
+| Mixtral / Grok / Phi-MoE / OLMoE / Hunyuan / Granite / Exaone | **triton** (never in special path) |
+
+**Most "long-tail" MoE models (Mixtral, Grok, Phi, OLMoE, Hunyuan, etc.) get Triton regardless of GPU or dtype.** The non-Triton paths target a **small number of high-profile models on Blackwell + quantization** combinations.
+
+### 10.4 So is our setup representative or atypical?
+
+| Aspect | Our setup | What % of likely deployments |
+|---|---|---|
+| H200 (Hopper) | Yes | very common (H100/H200 dominate today) |
+| bf16 (unquantized) | Yes | extremely common for research / cold-start production |
+| Qwen3-30B-A3B (Qwen3Moe, not Qwen3Next) | Yes | common; new Qwen MoE flagship |
+| Default `moe_runner_backend=auto` | Yes | universal default |
+| → Resulting backend: `triton` | Yes | **probably 70-80 % of real sglang deployments** |
+
+Sub-conclusion: **our Triton-baseline finding generalizes broadly**. Any MoE model that isn't DeepSeek-V3, GPT-OSS, Llama-4, Nemotron, Qwen3Next, or Glm4Moe at FP8/FP4 will land on Triton just like ours.
+
+### 10.5 Where the non-Triton paths actually matter
+
+The empirically-impactful cases:
+
+1. **DeepSeek-V3 FP8 on B200** — flashinfer_trtllm. This is THE production setup that sglang core team optimizes for. If you're benchmarking sglang against vLLM head-to-head, this is the cell.
+2. **Llama-4 FP8 on B200** — same flashinfer_trtllm path.
+3. **GPT-OSS MXFP4 on B200** — flashinfer_mxfp4, very specialized.
+4. **Anything MXFP8** — forced to cutlass.
+
+Everywhere else, **Triton's `fused_moe_kernel` carries the load**.
+
+### 10.6 What this changes about our project
+
+Two updates to plans from §6.7 / §9.6:
+
+1. **The autotune bot (Phase 1) helps the long tail** — every Mixtral / Phi-MoE / OLMoE / Hunyuan / Qwen-MoE deployment is using Triton. Closing config gaps in `triton_3_5_1/` benefits a **wide** user base, not just our specific Qwen3 case.
+
+2. **The CUTLASS-DSL rewrite (Phase 3a Option A) has a clearer audience** — it's specifically valuable for the long tail (non-DeepSeek/Llama-4/Qwen3Next bf16 MoE) on H100/H200 that has NO other choice. Less valuable for Blackwell users who already have flashinfer paths.
+
+A precise framing for the agent project pitch: **"sglang's MoE optimization investment is concentrated on a small set of high-profile (model, GPU, quant) tuples — the long tail (Mixtral, Phi-MoE, Granite, OLMoE, Hunyuan, Exaone, etc.) all run Triton. We're building tooling to close that gap automatically."**
+
+
+---
+
 <a id="中文版"></a>
 
 # 中文版
@@ -2732,5 +2839,110 @@ ptxas info : (C7511) Potential Performance Loss: wgmma.mma_async instructions ar
 | `flashinfer.trtllm_fp4_*_moe` | TRT-LLM FP4 MoE | 要 fp4 权重 |
 
 所以**任何 sglang 跑出来的 trace 看到 "flashinfer kernel" 是正常的** (RMSNorm/RoPE/SiLU)。**不**意味着用了 flashinfer MoE。要验证,具体看 `cutlass_fused_moe` 或 `trtllm_*_moe` 这种名字。
+---
+
+## 10. (模型 × GPU × dtype) → MoE backend 完整 matrix
+
+> Follow-up: "H200 bf16 → Triton" 是普适规律,还是不同 GPU/dtype 差异很大? 答案: **主要由 (模型架构 + 量化) 决定,GPU 是次要门控**。下面是 sglang auto-mode 派发器每个条件的完整枚举。
+
+### 10.1 来自 `server_args.py:1290-1640` 的实际决策 matrix
+
+我把每个设 `moe_runner_backend = ...` 的分支都跟踪了一遍,简化成这张表:
+
+| # | 模型架构 | GPU | 量化 | → Auto backend | 来源 |
+|---|---|---|---|---|---|
+| 1 | `DeepseekV3ForCausalLM` | sm100 (Blackwell) | None→fp8 / fp8 / modelopt_fp8 / modelopt_fp4 | **flashinfer_trtllm** | L1295-1310 |
+| 2 | `GptOssForCausalLM` | Blackwell | MXFP4 | **flashinfer_mxfp4** | L1370-1374 |
+| 3 | `GptOssForCausalLM` | AMD ROCm + AITER | MXFP4 | auto → **AITER MXFP4** | L1376-1383 |
+| 4 | `GptOssForCausalLM` | AMD ROCm + AITER | bf16 | **triton** (强制;CK 不覆盖所有 GEMM 维度) | L1384-1392 |
+| 5 | `GptOssForCausalLM` | 任何 | None + triton_kernels 可用 + ep=1 | **triton_kernel** (外部库) | L1392-1399 |
+| 6 | `Llama4ForCausalLM` | sm100 | fp8 / modelopt_fp8 | **flashinfer_trtllm** | L1467-1474 |
+| 7 | `NemotronHForCausalLM` (+ 类似) | sm100 | NVFP4 / modelopt_fp8 | **flashinfer_cutlass** | L1535-1547 |
+| 8 | `Qwen3NextForCausalLM`, `Qwen3_5*` | sm100 | fp8 / modelopt_fp4 / None | **flashinfer_trtllm** | L1565-1580 |
+| 9 | `Glm4MoeForCausalLM` | sm100 + flashinfer-python ≥ 0.6.3 | modelopt_fp4 | **flashinfer_trtllm** | L1610-1626 |
+| 10 | (任何) | (任何) | **mxfp8** | **cutlass** (强制覆盖) | L2125-2134 |
+| 11 | (任何) | (任何) | 手动 `--moe-runner-backend=cutlass` + fp8 / mxfp8 | **cutlass** | L2161-2174 |
+| **12** | **所有其他 MoE 模型** | **任何 GPU** | **bf16 / fp16 / 其他** | **`triton` (兜底默认)** | 隐式 fall-through |
+
+**直读**: auto-mode 派发器硬编码了大约 **9-10 个 (模型, GPU, 量化) 三元组**会拿非-Triton backend。其他都 fall through 到 **triton**。
+
+### 10.2 那什么时候有显著区别?
+
+#### 按 GPU 代
+
+| GPU | sm 架构 | 变什么? |
+|---|---|---|
+| **A100** (Ampere) | sm_80 | **什么都不变** —— 没有特殊三元组针对 sm_80。**所有 MoE 模型都 Triton**,不管 dtype/量化 |
+| **H100 / H200** (Hopper) | sm_90 | **MoE 什么都不变** —— 同 A100。只有 attention 路径不同 (Hopper 用 fa3)。**所有 MoE 都 Triton** |
+| **B100 / B200** (Blackwell) | sm_100 | **开启 flashinfer_trtllm/mxfp4/cutlass 路径**,但**只对** 第 1, 2, 6, 7, 8, 9 行的 (模型, 量化) 三元组 |
+| **GB200** (Blackwell 服务器) | sm_100 / sm_103 | 同 B100/B200 |
+| **MI300X / MI355X** (AMD) | gfx9x | AITER kernel (如果 `SGLANG_USE_AITER=1`);否则 triton-ROCm |
+| **Intel Gaudi / XPU** | — | `intel_xpu` attention 路径;MoE 仍 Triton |
+
+#### 按 dtype / 量化
+
+| 量化 | Triton fallback? | 特殊 backend? |
+|---|---|---|
+| **bf16 / fp16** | ✅ Triton (~99% 情况) | 只 Blackwell 特定模型 (Qwen3Next bf16, GptOss bf16 带 triton_kernels) |
+| **fp8 / modelopt_fp8** | ✅ Triton | Blackwell 上 DeepSeek/Llama4/Qwen3Next 走 flashinfer_trtllm |
+| **modelopt_fp4 (NVFP4)** | ✅ Triton | Blackwell 上 DeepSeek/Llama4/Qwen3Next/Glm4Moe 走 flashinfer_trtllm |
+| **MXFP4** | ✅ Triton | Blackwell 上 GPT-OSS 走 flashinfer_mxfp4;AMD GPT-OSS 走 AITER |
+| **MXFP8** | ❌ 被覆盖 | **强制 cutlass**,不管模型/GPU |
+| **W4A8** | ✅ Triton | 手动 opt-in 走 sgl-kernel cutlass_moe/w4a8 |
+| **INT4 / AWQ** | ✅ Triton | 手动 opt-in 走 sgl-kernel marlin_moe_wna16 |
+
+### 10.3 这意味着: 谁实际**不**走 Triton?
+
+清点 sglang 13 个 MoE 模型文件,和 auto-mode matrix 交叉:
+
+| 真实部署 | 最可能 auto-pick 的 backend |
+|---|---|
+| Qwen3-30B-A3B bf16 在 H100/H200/A100 (我们) | **triton** |
+| Qwen3-30B-A3B bf16 在 B200 | **triton** (Qwen3-MoE 不在任何特殊路径里) |
+| Qwen3-30B-A3B fp8 在 B200 | **triton** (fp8 路径要求 `Qwen3Next`,不是 `Qwen3Moe`) |
+| Qwen3Next-* 在 B200 fp8/fp4/bf16 | **flashinfer_trtllm** ✅ |
+| DeepSeek-V3 bf16 在 H200 | **triton** |
+| **DeepSeek-V3 fp8 在 B200** | **flashinfer_trtllm** ✅ (很常见的生产设置) |
+| Llama-4-Scout bf16 在 H100 | **triton** |
+| **Llama-4-Scout fp8 在 B200** | **flashinfer_trtllm** ✅ |
+| GPT-OSS MXFP4 在 B200 | **flashinfer_mxfp4** ✅ |
+| GPT-OSS MXFP4 在 MI300X + AITER | **AITER MXFP4** ✅ |
+| GPT-OSS bf16 在 H200 | **triton_kernel** (装了 triton_kernels 的话) 否则 triton |
+| Mixtral / Grok / Phi-MoE / OLMoE / Hunyuan / Granite / Exaone | **triton** (从来不在特殊路径) |
+
+**大部分"长尾"MoE 模型 (Mixtral, Grok, Phi, OLMoE, Hunyuan 等) 不管 GPU 或 dtype 都走 Triton**。非-Triton 路径针对**少数高优先级模型 + Blackwell + 量化**的组合。
+
+### 10.4 那我们设置是有代表性还是非典型?
+
+| 方面 | 我们设置 | 占可能部署比例 |
+|---|---|---|
+| H200 (Hopper) | 是 | 非常常见 (H100/H200 今天主导) |
+| bf16 (未量化) | 是 | 研究 / 冷启动生产非常常见 |
+| Qwen3-30B-A3B (Qwen3Moe, 不是 Qwen3Next) | 是 | 常见;新 Qwen MoE 旗舰 |
+| 默认 `moe_runner_backend=auto` | 是 | 普适默认 |
+| → 结果 backend: `triton` | 是 | **可能 70-80% 的真实 sglang 部署** |
+
+子结论: **我们 Triton-baseline 发现普适推广**。任何 MoE 模型,如果不是 DeepSeek-V3 / GPT-OSS / Llama-4 / Nemotron / Qwen3Next / Glm4Moe 在 FP8/FP4 下,都和我们一样落到 Triton。
+
+### 10.5 非-Triton 路径实际重要的地方
+
+经验上有影响的情况:
+
+1. **DeepSeek-V3 FP8 在 B200** —— flashinfer_trtllm。这是 sglang 核心团队优化的**那个**生产设置。如果你做 sglang vs vLLM 头对头 benchmark,这是关键 cell。
+2. **Llama-4 FP8 在 B200** —— 同样 flashinfer_trtllm 路径。
+3. **GPT-OSS MXFP4 在 B200** —— flashinfer_mxfp4,非常特殊。
+4. **任何 MXFP8** —— 强制 cutlass。
+
+**其他地方,Triton `fused_moe_kernel` 扛大旗**。
+
+### 10.6 这对我们项目的改变
+
+§6.7 / §9.6 计划的两个更新:
+
+1. **Autotune bot (Phase 1) 帮的是长尾** —— 每个 Mixtral / Phi-MoE / OLMoE / Hunyuan / Qwen-MoE 部署都在用 Triton。补 `triton_3_5_1/` 的 config 缺口惠及**广大**用户群,不只我们 Qwen3。
+
+2. **CUTLASS-DSL 重写 (Phase 3a 选项 A) 有更清晰的受众** —— 它特别有价值给长尾 (非-DeepSeek/Llama-4/Qwen3Next 的 bf16 MoE) 在 H100/H200 上,这些**没别的选择**。对 Blackwell 用户价值小,因为他们已经有 flashinfer 路径。
+
+精确的项目 pitch: **"sglang 的 MoE 优化投入集中在少数高优先级 (模型, GPU, 量化) 三元组 —— 长尾 (Mixtral, Phi-MoE, Granite, OLMoE, Hunyuan, Exaone 等) 全跑 Triton。我们在搭工具自动闭合这个缺口。"**
 
 
