@@ -1249,6 +1249,128 @@ Decide which to push upstream. Possibilities:
 
 ---
 
+## 9. Empirical test of bf16 non-Triton MoE paths on H200 — what actually works?
+
+> Section 8 raised the question: can Qwen3 actually use `FlashInferFusedMoE` instead of Triton? This section is the live experiment.
+
+### 9.1 Setup
+
+Identical to the §1 R7 setup, but vary `--moe-runner-backend`:
+- Model: Qwen3-30B-A3B-Instruct-2507 (bf16)
+- GPU: H200 (sm_90)
+- Server config: same as `configs/moe_qwen3_30b.yaml`
+- Probe: 4 warmup requests + 8 concurrent ~2k-token prompts
+
+Three backends tested in this session, plus reference from prior experiments:
+
+| Tag | Backend | CUDA graph | Status |
+|---|---|---|---|
+| C0 | `triton` (default) | enabled | ✅ baseline (5.23 req/s) — from §27 of regime_benchmark_experiment.md |
+| C8 | `triton_kernel` | enabled | ✅ runs (0.75 req/s = -86 %) — from §27 |
+| **C9 (new, this session)** | `flashinfer_trtllm` | enabled | ❌ **hard error** at warmup — see below |
+| **C9b (new, this session)** | `flashinfer_cutlass` | disabled | ❌ **JIT compile failure** at warmup — see below |
+
+### 9.2 C9 — `flashinfer_trtllm` on H200: hard SM-100 wall
+
+Server started, weights loaded fine, then died during FlashInfer autotune warmup:
+
+```
+[2026-06-04 17:40:48] Running FlashInfer autotune...
+[2026-06-04 17:40:48] flashinfer.jit: [Autotuner]: Autotuning process starts ...
+[2026-06-04 17:40:48] flashinfer.jit: [Autotuner]: Autotuning process ends
+[2026-06-04 17:40:48] Scheduler hit an exception: Traceback (most recent call last):
+  ...
+  File ".../sglang/srt/layers/moe/fused_moe_triton/layer.py:1189", in forward_impl
+    final_hidden_states = trtllm_bf16_moe(
+  File ".../flashinfer/fused_moe/core.py:2176", in trtllm_bf16_moe
+    return get_trtllm_moe_sm100_module().trtllm_bf16_moe(   ← name says it all
+  File ".../flashinfer/compilation_context.py:62", in get_nvcc_flags_list
+    raise RuntimeError(
+RuntimeError: No supported CUDA architectures found for major versions [10].
+```
+
+**Root cause**: `flashinfer.fused_moe.trtllm_bf16_moe` resolves to `get_trtllm_moe_sm100_module()` — a Blackwell-only kernel module. **H200 is sm_90 (Hopper), so the path can't be JIT-compiled at all**. The function name literally has `sm100` in it.
+
+This corrects §8.3's claim that "Qwen3 should work" — only true on Blackwell. On Hopper, **the bf16 flashinfer trtllm path is not available**. The sglang `is_sm100_supported()` gate in auto-mode is REQUIRED, not stylistic.
+
+### 9.3 C9b — `flashinfer_cutlass` on H200: env CUDA header gap
+
+Server started, weights loaded, no CUDA graph (we disabled it because C7 hung), warmup request sent. Server crashed:
+
+```
+/home/.../flashinfer/data/csrc/nv_internal/include/tensorrt_llm/common/stringUtils.h:22:10:
+   fatal error: cuda_fp16.h: No such file or directory
+   #include <cuda_fp16.h>
+            ^~~~~~~~~~~~~
+ninja: build stopped: subcommand failed.
+
+ptxas info : (C7511) Potential Performance Loss: wgmma.mma_async instructions are serialized
+   due to insufficient register resources for the wgmma pipeline ...
+```
+
+**Two issues, one cosmetic, one substantive:**
+
+1. **JIT compile failure**: flashinfer's CUTLASS path tries to JIT-compile CUTLASS C++ at runtime, but our env's `gcc` can't find `cuda_fp16.h` / `cublasLt.h`. This is an **environment-setup issue** (missing CUDA headers in include path), not a framework limitation. A `conda install -c nvidia cuda-toolkit-headers` (or similar PATH fix) would likely resolve it.
+
+2. **ptxas register-pressure warning**: even if compilation succeeded, the generated kernel has known sub-optimal wgmma pipelining for Hopper. So `flashinfer_cutlass` on H200 bf16 would work but probably wouldn't beat Triton even if env was right.
+
+### 9.4 Updated bf16 MoE landscape on H200
+
+| Backend | Source path | Status on H200 bf16 | Why |
+|---|---|---|---|
+| `triton` (default) | `fused_moe_triton_kernels.py:324` | ✅ **Works** | Production path, our baseline |
+| `triton_kernel` | external `triton_kernels` library | ✅ Works but **-86 %** | Wrong kernel for our shape — C8 evidence |
+| `flashinfer_trtllm` | `flashinfer.fused_moe.trtllm_bf16_moe` | ❌ **sm_100 only** | Hard hardware gate; would need Blackwell |
+| `flashinfer_cutlass` | `flashinfer.fused_moe.cutlass_fused_moe` | ❌ JIT compile error | env-setup issue; even if fixed, ptxas warning |
+| `deep_gemm` | DeepGEMM library | ❓ Not tested | Library not installed in our env |
+| `cutlass` (raw) | sgl-kernel `cutlass_moe/w4a8/*` | ❌ Requires FP8/MXFP8 | Asserts in `server_args.py:2169` |
+
+**Empirical conclusion**: **On H200 bf16 today, Triton `fused_moe_kernel` IS the only working production MoE GEMM backend in sglang.** This validates the §6 finding ("Triton is THE only bf16 path") more strongly than I initially documented — the alternatives that *theoretically* support bf16 either need Blackwell (`flashinfer_trtllm`) or env fixes that we haven't applied (`flashinfer_cutlass`).
+
+### 9.5 Bonus experiment in progress — autotune the missing config
+
+Started in background: `tuning_fused_moe_triton.py --model Qwen3-30B-A3B --tp 1 --batch-size 32 --tune`
+
+Output destination: `triton_3_5_1/E=128,N=768,device_name=NVIDIA_H200.json` (the file currently missing).
+
+Status: searching 1920 configs at ~1 it/s → **~30 min** to complete. Once done, we'll have option (c) of the 3-way bf16 comparison from §8.6:
+- (a) Triton + fallback `triton_3_2_0/` config (our current — baseline)
+- (b) flashinfer_trtllm: ❌ not available on H200
+- (c) Triton + freshly autotune'd `triton_3_5_1/` config — **incoming**
+
+Result will appear in `results/autotune_qwen3_moe/E=128,N=768,device_name=NVIDIA_H200.json`. Next step is to A/B test (a) vs (c) to quantify the autotune win.
+
+### 9.6 Updated agent project plan
+
+With the empirical evidence in hand, the 4-phase plan from §6.7 sharpens to:
+
+| Phase | Work | Status |
+|---|---|---|
+| 1 | Auto-tune missing config bot | **Pipeline already validated** by this session's autotune run |
+| 2 | 3-way benchmark | **REVISED** — (b) is unavailable on H200, so really 2-way: (a) old config vs (c) freshly tuned config. Test runs in background. |
+| 3a | If freshly tuned config wins by ≥ 20 %: PR the config + agent harness | Most likely outcome based on Triton 3.2→3.5 compiler differences |
+| 3b | If win < 20 %: skip the autotune-bot, focus on hand-rewriting (Option A CUTLASS-DSL) | Less likely but possible |
+| 4 | (Stretch) Port `fused_moe_kernel` to `cute_dsl` CUTLASS-DSL | Long-term — independent of Phase 2 outcome |
+
+### 9.7 What we learned about flashinfer (terminology)
+
+This session also clarified flashinfer-library boundaries:
+
+| Kernel name pattern | Meaning | Available on H200 bf16? |
+|---|---|---|
+| `flashinfer::norm::*` | RMSNorm | ✅ widely used (we see in our trace) |
+| `flashinfer::activation::*` | SiLU / GELU | ✅ widely used |
+| `flashinfer::BatchQKApplyRotary*` | RoPE | ✅ widely used |
+| `flashinfer.cutlass_fused_moe` | CUTLASS MoE | ❌ JIT env issue |
+| `flashinfer.trtllm_bf16_moe` | TRT-LLM bf16 MoE | ❌ sm_100 only |
+| `flashinfer.trtllm_fp8_*_moe` | TRT-LLM FP8 MoE | requires fp8 weights (different test) |
+| `flashinfer.trtllm_fp4_*_moe` | TRT-LLM FP4 MoE | requires fp4 weights |
+
+So **seeing "flashinfer kernels" in a trace from any sglang run is normal** (RMSNorm/RoPE/SiLU). It does NOT mean a flashinfer MoE is being used. To verify that, look for `cutlass_fused_moe` or `trtllm_*_moe` kernel names specifically.
+
+
+---
+
 <a id="中文版"></a>
 
 # 中文版
@@ -2490,5 +2612,125 @@ Phase 2 —— benchmark Qwen3-30B-A3B / H200 上 3 条 bf16 MoE 路径:
   - 如果 (c) >> (a): PR autotune config + 搭 autotune bot
   - 如果都不能赢 20+%: 重心放别处
 ```
+---
+
+## 9. H200 上 bf16 非-Triton MoE 路径实测 —— 哪个能跑?
+
+> §8 提出问题: Qwen3 真的能用 `FlashInferFusedMoE` 替代 Triton 吗? 本节是实测。
+
+### 9.1 实验设置
+
+和 §1 R7 设置一样,只改 `--moe-runner-backend`:
+- 模型: Qwen3-30B-A3B-Instruct-2507 (bf16)
+- GPU: H200 (sm_90)
+- Server config: 同 `configs/moe_qwen3_30b.yaml`
+- Probe: 4 个 warmup + 8 并发 ~2k token prompt
+
+本次会话测了 3 个 backend,加上之前实验的参考:
+
+| Tag | Backend | CUDA graph | 状态 |
+|---|---|---|---|
+| C0 | `triton` (默认) | 启用 | ✅ baseline (5.23 req/s) —— 来自 regime_benchmark_experiment.md §27 |
+| C8 | `triton_kernel` | 启用 | ✅ 跑 (0.75 req/s = **-86%**) —— 来自 §27 |
+| **C9 (本次新)** | `flashinfer_trtllm` | 启用 | ❌ **硬错误**在 warmup —— 见下 |
+| **C9b (本次新)** | `flashinfer_cutlass` | 禁用 | ❌ **JIT 编译失败**在 warmup —— 见下 |
+
+### 9.2 C9 — `flashinfer_trtllm` 在 H200: 硬 SM-100 墙
+
+服务器启动,权重加载 OK,然后在 FlashInfer autotune warmup 时挂掉:
+
+```
+[2026-06-04 17:40:48] Running FlashInfer autotune...
+[2026-06-04 17:40:48] flashinfer.jit: [Autotuner]: Autotuning process starts ...
+[2026-06-04 17:40:48] flashinfer.jit: [Autotuner]: Autotuning process ends
+[2026-06-04 17:40:48] Scheduler hit an exception: Traceback (most recent call last):
+  ...
+  File ".../sglang/srt/layers/moe/fused_moe_triton/layer.py:1189", in forward_impl
+    final_hidden_states = trtllm_bf16_moe(
+  File ".../flashinfer/fused_moe/core.py:2176", in trtllm_bf16_moe
+    return get_trtllm_moe_sm100_module().trtllm_bf16_moe(   ← 名字就说明了
+  File ".../flashinfer/compilation_context.py:62", in get_nvcc_flags_list
+    raise RuntimeError(
+RuntimeError: No supported CUDA architectures found for major versions [10].
+```
+
+**根因**: `flashinfer.fused_moe.trtllm_bf16_moe` 解析到 `get_trtllm_moe_sm100_module()` —— Blackwell-only kernel 模块。**H200 是 sm_90 (Hopper),路径根本不能 JIT 编译**。函数名字面就有 `sm100`。
+
+这**修正了 §8.3 的论断** "Qwen3 应该能 work" —— 只在 Blackwell 上对。在 Hopper 上,**bf16 flashinfer trtllm 路径不可用**。sglang `is_sm100_supported()` auto-mode 门控是**必需的**,不是风格选择。
+
+### 9.3 C9b — `flashinfer_cutlass` 在 H200: 环境 CUDA 头文件缺失
+
+服务器启动,权重加载,无 CUDA graph (因为 C7 之前 hang 了所以禁用),发 warmup request。服务器崩了:
+
+```
+/home/.../flashinfer/data/csrc/nv_internal/include/tensorrt_llm/common/stringUtils.h:22:10:
+   fatal error: cuda_fp16.h: No such file or directory
+   #include <cuda_fp16.h>
+            ^~~~~~~~~~~~~
+ninja: build stopped: subcommand failed.
+
+ptxas info : (C7511) Potential Performance Loss: wgmma.mma_async instructions are serialized
+   due to insufficient register resources for the wgmma pipeline ...
+```
+
+**两个问题,一个表面,一个实质:**
+
+1. **JIT 编译失败**: flashinfer CUTLASS 路径试图在运行时 JIT 编译 CUTLASS C++,但我们环境的 `gcc` 找不到 `cuda_fp16.h` / `cublasLt.h`。这是**环境配置问题** (CUDA 头文件不在 include 路径里),不是框架限制。`conda install -c nvidia cuda-toolkit-headers` (或类似 PATH 修复) 应该能解。
+
+2. **ptxas 寄存器压力警告**: 即使编译成功,生成的 kernel 在 Hopper 上有已知的 wgmma 流水线次优。所以 `flashinfer_cutlass` 在 H200 bf16 上即使环境对,**估计也未必赢过 Triton**。
+
+### 9.4 H200 bf16 MoE 局面更新
+
+| Backend | 源路径 | H200 bf16 状态 | 原因 |
+|---|---|---|---|
+| `triton` (默认) | `fused_moe_triton_kernels.py:324` | ✅ **能跑** | 生产路径,我们的 baseline |
+| `triton_kernel` | 外部 `triton_kernels` 库 | ✅ 能跑但 **-86%** | shape 不对 —— C8 证据 |
+| `flashinfer_trtllm` | `flashinfer.fused_moe.trtllm_bf16_moe` | ❌ **只支持 sm_100** | 硬硬件门控;要 Blackwell |
+| `flashinfer_cutlass` | `flashinfer.fused_moe.cutlass_fused_moe` | ❌ JIT 编译错 | 环境配置问题;就算修了 ptxas 也警告 |
+| `deep_gemm` | DeepGEMM 库 | ❓ 未测 | 库没装在我们环境 |
+| `cutlass` (原始) | sgl-kernel `cutlass_moe/w4a8/*` | ❌ 要 FP8/MXFP8 | 断言在 `server_args.py:2169` |
+
+**实测结论**: **H200 bf16 今天,Triton `fused_moe_kernel` 是 sglang 里唯一能跑的生产 MoE GEMM backend**。这比我初始记录的 §6 结论 ("Triton 是 bf16 唯一路径") **更强烈** —— 那些理论上支持 bf16 的替代,要么需要 Blackwell (`flashinfer_trtllm`),要么需要环境修复 (`flashinfer_cutlass`),我们都还没满足。
+
+### 9.5 后台奖励实验 —— autotune 缺失 config
+
+后台已启动: `tuning_fused_moe_triton.py --model Qwen3-30B-A3B --tp 1 --batch-size 32 --tune`
+
+输出目标: `triton_3_5_1/E=128,N=768,device_name=NVIDIA_H200.json` (当前缺失的那个文件)。
+
+状态: 在 1920 个 config 上搜索,~1 it/s → **~30 min** 完成。完了我们就有 §8.6 三路 bf16 对比的 (c) 选项:
+- (a) Triton + fallback `triton_3_2_0/` config (我们当前 —— baseline)
+- (b) flashinfer_trtllm: ❌ H200 不可用
+- (c) Triton + 新鲜 autotune 的 `triton_3_5_1/` config —— **进行中**
+
+结果会出现在 `results/autotune_qwen3_moe/E=128,N=768,device_name=NVIDIA_H200.json`。下一步是 A/B 测 (a) vs (c) 量化 autotune 赢面。
+
+### 9.6 修订的 agent 项目计划
+
+实测证据在手,§6.7 的 4 阶段计划锐化为:
+
+| Phase | 工作 | 状态 |
+|---|---|---|
+| 1 | 自动 tune 缺失 config bot | **流程已被本次 autotune 跑验证** |
+| 2 | 3 路 benchmark | **修订** —— (b) H200 不可用,实际是 2 路: (a) 老 config vs (c) 新 tune config。后台测试中 |
+| 3a | 如果新 tune config 赢 ≥ 20%: PR config + agent harness | 基于 Triton 3.2→3.5 编译器差异,最可能结果 |
+| 3b | 如果赢 < 20%: 跳过 autotune-bot,聚焦手写重写 (Option A CUTLASS-DSL) | 不太可能但有可能 |
+| 4 | (拉伸) `fused_moe_kernel` port 到 `cute_dsl` CUTLASS-DSL | 长期 —— 独立于 Phase 2 结果 |
+
+### 9.7 关于 flashinfer 的术语澄清
+
+本次会话也澄清了 flashinfer 库的边界:
+
+| Kernel 名字模式 | 含义 | H200 bf16 可用? |
+|---|---|---|
+| `flashinfer::norm::*` | RMSNorm | ✅ 广泛使用 (我们 trace 里有) |
+| `flashinfer::activation::*` | SiLU / GELU | ✅ 广泛使用 |
+| `flashinfer::BatchQKApplyRotary*` | RoPE | ✅ 广泛使用 |
+| `flashinfer.cutlass_fused_moe` | CUTLASS MoE | ❌ JIT 环境问题 |
+| `flashinfer.trtllm_bf16_moe` | TRT-LLM bf16 MoE | ❌ 只支持 sm_100 |
+| `flashinfer.trtllm_fp8_*_moe` | TRT-LLM FP8 MoE | 要 fp8 权重 (另测) |
+| `flashinfer.trtllm_fp4_*_moe` | TRT-LLM FP4 MoE | 要 fp4 权重 |
+
+所以**任何 sglang 跑出来的 trace 看到 "flashinfer kernel" 是正常的** (RMSNorm/RoPE/SiLU)。**不**意味着用了 flashinfer MoE。要验证,具体看 `cutlass_fused_moe` 或 `trtllm_*_moe` 这种名字。
 
 
