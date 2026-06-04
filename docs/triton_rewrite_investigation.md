@@ -325,6 +325,125 @@ conda activate sglang-dev && python -c "from triton.experimental import gluon; p
 
 > This section is the follow-up investigation: what does the tuning script actually do, does sglang have any runtime tuning, who does it, and how are tuning PRs tested? Every claim has a `grep`-able pointer.
 
+### 5.0 First, clear up the terminology (E, N, backend, config, version)
+
+These four concepts get confused all the time. They are NOT the same thing.
+
+#### What `E=128, N=768` actually are — they're **model architecture**, not anything we tune
+
+Look at `config.json` of any HuggingFace MoE model:
+
+```json
+// /data/hf/models/Qwen3-30B-A3B-Instruct-2507/config.json
+{
+    "num_experts": 128,              ← this is E
+    "moe_intermediate_size": 768,    ← this is N
+    "num_experts_per_tok": 8,        ← top-k routing
+    "hidden_size": 2048,
+    ...
+}
+```
+
+- **E = num_experts = 128** — the model has 128 expert FFN sub-networks
+- **N = moe_intermediate_size = 768** — each expert's FFN intermediate hidden dim
+- Top-k = 8 — each token activates only 8 of the 128 experts
+
+**These are fixed by the model author at pre-training time. We cannot change them.** Different model → different (E, N). The MoE kernel still has to run; it just operates on different shapes.
+
+#### Four layers of decisions, in order
+
+```
+Layer 1 — pick BACKEND (which implementation runs the MoE?)
+    ├── triton                  ← sglang default (calls fused_moe_kernel)
+    ├── triton_kernel           ← uses external triton_kernels library
+    ├── flashinfer_cutlass      ← uses flashinfer CUTLASS
+    ├── flashinfer_trtllm       ← uses TensorRT-LLM
+    ├── deep_gemm               ← uses DeepGEMM
+    └── ... (~10 choices)
+              │
+              ▼  assume triton was chosen
+              
+Layer 2 — TRITON path needs a KERNEL function
+    └── fused_moe_kernel (1148 lines of Triton source — ONE file, ONE function)
+              │
+              ▼  needs hyperparams to JIT-compile
+              
+Layer 3 — CONFIG (how to compile the kernel? what grid shape?)
+    └── look up JSON: configs/triton_3_5_1/E=128,N=768,device_name=NVIDIA_H200.json
+        ├── BLOCK_SIZE_M = 64    ← thread block handles this many tokens
+        ├── BLOCK_SIZE_N = 128   ← this many output dims
+        ├── BLOCK_SIZE_K = 32    ← inner-product dim tile
+        ├── num_warps = 4
+        └── num_stages = 4
+              │
+              ▼  compiled by Triton X.Y.Z compiler
+              
+Layer 4 — TRITON COMPILER VERSION (which compiler turns the source into SASS?)
+    └── Triton 3.5.1 (whatever happens to be installed)
+```
+
+**Sequence of decisions:**
+- **Backend**: chosen by user at deploy time via `--moe-runner-backend=triton` CLI flag
+- **E, N**: determined by the model architecture (fixed at pre-training)
+- **Config**: looked up automatically by sglang based on `(backend=triton, E, N, GPU, dtype)`
+- **Triton version**: determined by your env's `pip install triton`
+
+#### "3.5.1 doesn't have it but 3.2.0 does" — what does that mean?
+
+The **kernel source code** (`fused_moe_kernel`, 1148 lines) is the same file across all Triton versions. **What changes between Triton versions is the COMPILER**, not the kernel.
+
+But the same Triton source, compiled by different Triton compilers, **produces different SASS machine code**:
+
+```
+fused_moe_kernel.py source (one file, same code)
+        │
+        ├─────────────────────┬─────────────────────┐
+        ▼                     ▼                     ▼
+Triton 3.2 compiler     Triton 3.4 compiler    Triton 3.5 compiler
+   (older)                  (middle)              (newer)
+        │                     │                     │
+        ▼                     ▼                     ▼
+   SASS v1                SASS v2                SASS v3
+   (this gen's opts)      (added opts)         (more added opts)
+```
+
+Different compilers handle **register allocation, shared memory usage, instruction scheduling** differently, which means **the same `(BLOCK_SIZE_M, BLOCK_SIZE_N, ...)` parameters can perform differently across Triton versions**.
+
+So sglang maintainers must **re-tune for each Triton major version**, because the optimal BLOCK_SIZE on the new compiler might be different.
+
+#### Our situation, mapped to this framework
+
+| Layer | Our value | Comes from |
+|---|---|---|
+| Layer 4: Triton compiler version | **3.5.1** | `pip install triton` (sglang-dev env) |
+| Layer 1: Backend | **triton** (default) | `--moe-runner-backend` default |
+| Layer 2: Kernel function | `fused_moe_kernel` (1148 lines) | source unchanged |
+| Layer 3: Config | sglang looks up `configs/triton_3_5_1/E=128,N=768,H200.json` → **NOT FOUND** → falls back to `configs/triton_3_2_0/E=128,N=768,H200.json` (exists, tuned for older compiler) | maintenance lag |
+
+#### Could the older Triton be faster? Almost always NO
+
+| Combination | Speed |
+|---|---|
+| Triton 3.5 compiler + config tuned FOR 3.5 (ideal) | **fastest** |
+| Triton 3.5 compiler + config tuned for 3.2 (our case) | ~1.1-1.5× slower than ideal |
+| Roll back to Triton 3.2 + config for 3.2 | usually slower than 3.5+ideal |
+
+Triton compiler upgrades are **monotonically improving** — each version adds optimisations, doesn't deliberately regress. Rare exceptions exist (e.g. PR #17965 fixed a Triton-3.5 regression on a specific MoE shape), but it's not the norm.
+
+**Bottom line**: our current "3.5.1 + 3.2 config" is not the worst case, but it's likely **10-30 % slower** than re-tuning for 3.5 would give. Since MoE kernel is 50 % of GPU time, that's **5-15 % end-to-end loss**.
+
+#### One-line analogy
+
+If you imagine cooking the dish "fish-flavoured pork shreds":
+- Model arch (E, N) = the dish itself (固定的菜谱)
+- Backend = which type of pan (中式炒锅 vs 平底不粘锅)
+- Triton compiler version = which stove (老式煤气灶 vs 新式电磁炉)
+- Config (BLOCK_SIZE etc) = the heat setting + stir-fry timing
+
+**Tuning** = with a fixed dish + fixed pan + fixed stove, try every heat/timing combination, pick the tastiest. **Our situation** = fish-pork (E=128, N=768) on a Chinese wok (Triton backend) on a **new induction stove** (Triton 3.5.1), but our recipe-book only has the heat settings for the **old gas stove** (Triton 3.2.0). The notebook gives an OK result, just not optimal for the new stove.
+
+---
+
 ### 5.1 The tuning script — what it does in concrete terms
 
 The script is `benchmark/kernels/fused_moe_triton/tuning_fused_moe_triton.py` (458 lines). Reading it line by line, here's the **exact procedure**:
@@ -901,6 +1020,126 @@ conda activate sglang-dev && python -c "from triton.experimental import gluon; p
 ## 5. "对模型 tune" 到底是干什么? (流程详解)
 
 > 本节是 follow-up 调研: tuning 脚本具体做什么、sglang 有没有运行时 tuning、谁来 tune、tuning PR 合并前怎么测试? 每个论断都有 `grep` 可定位的指针。
+
+### 5.0 先把术语理清楚 (E、N、backend、config、版本)
+
+这 4 个概念总被混在一起。它们**不是同一件事**。
+
+#### `E=128, N=768` 是什么 — 是**模型架构**,不是 tuning 选的
+
+打开任何 HuggingFace MoE 模型的 `config.json`:
+
+```json
+// /data/hf/models/Qwen3-30B-A3B-Instruct-2507/config.json
+{
+    "num_experts": 128,              ← 这就是 E
+    "moe_intermediate_size": 768,    ← 这就是 N
+    "num_experts_per_tok": 8,        ← top-k 路由
+    "hidden_size": 2048,
+    ...
+}
+```
+
+- **E = num_experts = 128** —— 模型有 128 个专家 FFN 子网络
+- **N = moe_intermediate_size = 768** —— 每个专家的 FFN 中间隐藏维度
+- top-k = 8 —— 每个 token 只激活 128 个专家里的 8 个
+
+**这些是模型作者预训练时定的,我们换不了**。换个模型 → (E, N) 就不同。MoE kernel 该跑还是跑,只是 shape 不一样。
+
+#### 4 层决策,按顺序
+
+```
+第 1 层 — 选 BACKEND (用谁实现 MoE?)
+    ├── triton                  ← sglang 默认 (调 fused_moe_kernel)
+    ├── triton_kernel           ← 用外部 triton_kernels 库
+    ├── flashinfer_cutlass      ← 用 flashinfer CUTLASS
+    ├── flashinfer_trtllm       ← 用 TensorRT-LLM
+    ├── deep_gemm               ← 用 DeepGEMM
+    └── ... (~10 种选择)
+              │
+              ▼  假设选了 triton
+              
+第 2 层 — TRITON 这条路径需要一个 KERNEL 函数
+    └── fused_moe_kernel (1148 行 Triton 源码 —— 一份文件,一个函数)
+              │
+              ▼  需要超参才能 JIT 编译
+              
+第 3 层 — CONFIG (kernel 怎么编译? grid 怎么切?)
+    └── 查 JSON: configs/triton_3_5_1/E=128,N=768,device_name=NVIDIA_H200.json
+        ├── BLOCK_SIZE_M = 64    ← 一个 thread block 处理多少 token
+        ├── BLOCK_SIZE_N = 128   ← 处理多少输出维
+        ├── BLOCK_SIZE_K = 32    ← 内积维度的切片大小
+        ├── num_warps = 4
+        └── num_stages = 4
+              │
+              ▼  由 Triton X.Y.Z 编译器编译
+              
+第 4 层 — TRITON 编译器版本 (用哪个编译器把源码变成 SASS?)
+    └── Triton 3.5.1 (恰好装的是这个版本)
+```
+
+**决策顺序:**
+- **Backend**: 部署时用户通过 `--moe-runner-backend=triton` CLI flag 选
+- **E, N**: 模型架构决定 (预训练时定死)
+- **Config**: sglang 根据 `(backend=triton, E, N, GPU, dtype)` 自动查
+- **Triton 版本**: 由环境的 `pip install triton` 决定
+
+#### "3.5.1 没有但 3.2.0 有" —— 这是啥意思?
+
+**kernel 源代码** (`fused_moe_kernel`,1148 行) 在所有 Triton 版本里**都是同一份文件**。**Triton 版本之间变的是编译器**,不是 kernel。
+
+但同一份 Triton 源码,被不同 Triton 编译器编出来,**产生的 SASS 机器码不同**:
+
+```
+fused_moe_kernel.py 源码 (同一份,同一份代码)
+        │
+        ├─────────────────────┬─────────────────────┐
+        ▼                     ▼                     ▼
+Triton 3.2 编译器        Triton 3.4 编译器       Triton 3.5 编译器
+   (旧)                     (中)                    (新)
+        │                     │                     │
+        ▼                     ▼                     ▼
+   SASS v1                SASS v2                SASS v3
+   (这代的优化)            (加了新优化)            (再加)
+```
+
+不同编译器对**寄存器分配、shared memory 使用、指令调度**的处理不同,意味着**同一组 `(BLOCK_SIZE_M, BLOCK_SIZE_N, ...)` 参数在不同 Triton 版本上跑出的性能可能不同**。
+
+所以 sglang 维护者**对每个 Triton 大版本必须重新 tune 一次**,因为最优 BLOCK_SIZE 在新编译器下可能变了。
+
+#### 我们的情况,按这个框架映射
+
+| 层 | 我们的值 | 来自 |
+|---|---|---|
+| 第 4 层: Triton 编译器版本 | **3.5.1** | `pip install triton` (sglang-dev env) |
+| 第 1 层: Backend | **triton** (默认) | `--moe-runner-backend` 默认值 |
+| 第 2 层: Kernel 函数 | `fused_moe_kernel` (1148 行) | 源码不变 |
+| 第 3 层: Config | sglang 查 `configs/triton_3_5_1/E=128,N=768,H200.json` → **找不到** → fallback 到 `configs/triton_3_2_0/E=128,N=768,H200.json` (存在,但是给老编译器 tune 的) | 维护滞后 |
+
+#### "老版本 Triton 反而可能更快?" —— 几乎不会
+
+| 组合 | 速度 |
+|---|---|
+| Triton 3.5 编译器 + 专为 3.5 tune 的 config (理想) | **最快** |
+| Triton 3.5 编译器 + 为 3.2 tune 的 config (我们当前) | 比理想慢 ~1.1-1.5× |
+| 退回 Triton 3.2 + 给 3.2 的 config | 一般比 3.5 理想还慢 |
+
+Triton 编译器升级是**单调改进** —— 每个新版本加优化,不故意倒退。罕见例外存在 (例如 PR #17965 修了 Triton-3.5 在某个 MoE shape 上的回归),但不是常态。
+
+**结论**: 我们当前 "3.5.1 + 3.2 config" 不是最差情况,但比专为 3.5 重新 tune 的版本**慢 10-30%**。由于 MoE kernel 占 50% GPU 时间,**端到端损失 5-15%**。
+
+#### 一行类比
+
+想象做"鱼香肉丝":
+- 模型架构 (E, N) = 菜本身 (菜谱固定)
+- Backend = 用啥锅 (中式炒锅 vs 不粘锅)
+- Triton 编译器版本 = 用啥灶 (老煤气灶 vs 新电磁炉)
+- Config (BLOCK_SIZE 等) = 灶火大小 + 炒菜时间
+
+**Tuning** = 在固定菜 + 固定锅 + 固定灶下,试不同灶火/时间组合,挑最好吃 (最快) 的。
+**我们的情况** = 鱼香肉丝 (E=128, N=768) 用中式炒锅 (Triton backend) 在**新电磁炉** (Triton 3.5.1),但调参笔记本上只有**老煤气灶** (Triton 3.2.0) 的火力数。笔记本给的火不错,只是对新电磁炉不是最优。
+
+---
 
 ### 5.1 Tuning 脚本 — 具体在干什么
 
