@@ -350,6 +350,76 @@ Collecting all hand-tuned fallbacks found in §1.3 + §2.3, ranked by investigat
 - Fix the underlying bug (e.g. Qwen3.5 + DEP crash)
 - Re-tune the crossover point (e.g. EP-size threshold for Hopper FP8)
 
+
+## 4.5 ⚠️ Clarification — 'FlashInfer is slower' refers to which kernel exactly?
+
+> Apparent contradiction noticed during review: §9 of `triton_rewrite_investigation.md` showed `--moe-runner-backend=flashinfer_trtllm` errors out with "sm_100 only" on H200. So how can §4 Finding F1 say "Hopper FlashInfer is slower" — slower than what, if it doesn't even run?
+
+### 4.5.1 The resolution
+
+There are **TWO different FlashInfer MoE functions** for unquantized bf16. They have very different hardware support:
+
+| flashinfer function | Hardware support | sglang wrapper | vLLM wrapper | Works on H200? |
+|---|---|---|---|---|
+| **`flashinfer.fused_moe.trtllm_bf16_moe`** | sm_100 (Blackwell) ONLY | `FlashInferFusedMoE` (`layer.py:1132+`) | `TrtLlmBf16Experts` | ❌ no |
+| **`flashinfer.fused_moe.cutlass_fused_moe`** | sm_90 + sm_100 + sm_120 | `UnquantizedFusedMoEMethod` (`unquant.py:60+373`) | `FlashInferExperts` | ✅ yes |
+
+vLLM `unquantized.py:71-75` demotes BOTH:
+```python
+if current_platform.is_device_capability_family(90):
+    _move_to_back(_AVAILABLE_BACKENDS, UnquantizedMoeBackend.FLASHINFER_TRTLLM)
+    _move_to_back(_AVAILABLE_BACKENDS, UnquantizedMoeBackend.FLASHINFER_CUTLASS)
+```
+
+The `FLASHINFER_TRTLLM` demotion is essentially **vestigial** (the underlying kernel doesn't even run on Hopper). But the `FLASHINFER_CUTLASS` demotion is **meaningful** — the kernel runs but is empirically slower than Triton.
+
+So when vLLM's comment says "FlashInfer unquantized MoE kernels are slower than Triton on Hopper", it's specifically about **`cutlass_fused_moe`**, not `trtllm_bf16_moe`.
+
+### 4.5.2 Why we couldn't measure this in §9
+
+In §9.3 we tried `--moe-runner-backend=flashinfer_cutlass` and got:
+```
+fatal error: cuda_fp16.h: No such file or directory
+ninja: build stopped: subcommand failed.
+```
+
+This was an **environment issue** — our `gcc` couldn't find CUDA headers for JIT compilation. Not a sglang limitation. The path **does exist** in sglang at `srt/layers/quantization/unquant.py:60`:
+```python
+try:
+    from flashinfer.fused_moe import cutlass_fused_moe as flashinfer_cutlass_fused_moe
+except ImportError:
+    flashinfer_cutlass_fused_moe = None
+```
+
+And it's called at `unquant.py:373` for the bf16 path. We just couldn't get past the JIT build error.
+
+### 4.5.3 sglang also has this kernel — symmetry restored
+
+Both frameworks wrap the same underlying `flashinfer.cutlass_fused_moe` for bf16:
+
+| Framework | Wrapper class | File:line |
+|---|---|---|
+| sglang | `UnquantizedFusedMoEMethod.forward_cuda` | `layers/quantization/unquant.py:373` |
+| vLLM | `FlashInferExperts` | `layers/fused_moe/experts/flashinfer_cutlass_moe.py` |
+
+**The Hopper-slower verdict from vLLM applies symmetrically to sglang** — if we fixed the JIT env issue, sglang's `flashinfer_cutlass` path would also be slower than Triton on H200 bf16, matching vLLM's measurement.
+
+### 4.5.4 Corrected mental model
+
+| Backend name on H200 bf16 | sglang | vLLM | Status |
+|---|---|---|---|
+| Triton `fused_moe_kernel` | ✅ default | ✅ default (after Hopper demotion) | **Production path** |
+| FlashInfer `trtllm_bf16_moe` | available but errors (sm_100 only) | available but errors (sm_100 only) | **Hardware-unsupported** |
+| FlashInfer `cutlass_fused_moe` | wrapped but env-broken in our test | wrapped (slower than Triton per vLLM benchmark) | **Available but slow on Hopper** |
+
+So **the agent project's claim that "Hopper bf16 → Triton is best" is correct**, and now we have evidence from THREE sources:
+1. sglang's auto-mode falls through to Triton (passively)
+2. vLLM's auto-mode explicitly demotes both FlashInfer paths (actively)
+3. Our §14 measurement showed Triton at 30% peak (the best available on H200)
+
+The next step would be to actually run `flashinfer_cutlass` on H200 by fixing the env JIT issue, to quantify HOW much slower it is than Triton. That would close the loop on Finding F1.
+
+
 ---
 
 ## 5. Coverage delta — what vLLM has that sglang doesn't (and vice versa)
@@ -754,6 +824,76 @@ def select_unquantized_moe_backend(
 - 验证实证 claim (例: "FlashInfer 在 Hopper bf16 上真的比 Triton 慢吗?" —— 我们可以重测)
 - 修底层 bug (例: Qwen3.5 + DEP 崩溃)
 - 重 tune crossover 点 (例: Hopper FP8 的 EP-size 阈值)
+
+
+## 4.5 ⚠️ 澄清 —— "FlashInfer 慢"具体指的是哪个 kernel?
+
+> Review 时发现表面矛盾: `triton_rewrite_investigation.md §9` 显示 `--moe-runner-backend=flashinfer_trtllm` 在 H200 上报错 "sm_100 only"。那 §4 Finding F1 怎么能说 "Hopper FlashInfer 更慢" —— 如果它根本跑不起来,慢什么?
+
+### 4.5.1 解释
+
+未量化 bf16 有**两个不同的 FlashInfer MoE 函数**。硬件支持差异很大:
+
+| flashinfer 函数 | 硬件支持 | sglang wrapper | vLLM wrapper | H200 上跑得了? |
+|---|---|---|---|---|
+| **`flashinfer.fused_moe.trtllm_bf16_moe`** | **只** sm_100 (Blackwell) | `FlashInferFusedMoE` (`layer.py:1132+`) | `TrtLlmBf16Experts` | ❌ 不能 |
+| **`flashinfer.fused_moe.cutlass_fused_moe`** | sm_90 + sm_100 + sm_120 | `UnquantizedFusedMoEMethod` (`unquant.py:60+373`) | `FlashInferExperts` | ✅ 能 |
+
+vLLM `unquantized.py:71-75` 把**两个都**降级:
+```python
+if current_platform.is_device_capability_family(90):
+    _move_to_back(_AVAILABLE_BACKENDS, UnquantizedMoeBackend.FLASHINFER_TRTLLM)
+    _move_to_back(_AVAILABLE_BACKENDS, UnquantizedMoeBackend.FLASHINFER_CUTLASS)
+```
+
+`FLASHINFER_TRTLLM` 降级基本是**虚的** (底层 kernel 在 Hopper 上根本跑不起来)。但 `FLASHINFER_CUTLASS` 降级**有意义** —— kernel 能跑但实测比 Triton 慢。
+
+所以 vLLM 注释 "FlashInfer 未量化 MoE kernel 在 Hopper 上比 Triton 慢" **特指 `cutlass_fused_moe`**,不是 `trtllm_bf16_moe`。
+
+### 4.5.2 为啥 §9 没测出这个
+
+§9.3 我们试 `--moe-runner-backend=flashinfer_cutlass` 报错:
+```
+fatal error: cuda_fp16.h: No such file or directory
+ninja: build stopped: subcommand failed.
+```
+
+这是**环境问题** —— 我们 `gcc` 找不到 CUDA 头文件做 JIT 编译。**不是** sglang 限制。路径**确实存在** at `srt/layers/quantization/unquant.py:60`:
+```python
+try:
+    from flashinfer.fused_moe import cutlass_fused_moe as flashinfer_cutlass_fused_moe
+except ImportError:
+    flashinfer_cutlass_fused_moe = None
+```
+
+bf16 路径在 `unquant.py:373` 调它。我们就是没绕过 JIT build 错误。
+
+### 4.5.3 sglang 也有这个 kernel —— 对称性恢复
+
+两个框架都包装同一个底层 `flashinfer.cutlass_fused_moe` for bf16:
+
+| 框架 | Wrapper class | File:line |
+|---|---|---|
+| sglang | `UnquantizedFusedMoEMethod.forward_cuda` | `layers/quantization/unquant.py:373` |
+| vLLM | `FlashInferExperts` | `layers/fused_moe/experts/flashinfer_cutlass_moe.py` |
+
+**vLLM 的 "Hopper 更慢" 判定对 sglang 也对称适用** —— 如果我们修了 JIT 环境问题,sglang 的 `flashinfer_cutlass` 路径在 H200 bf16 上也会比 Triton 慢,匹配 vLLM 测的。
+
+### 4.5.4 修订后的心智模型
+
+| Backend 名 H200 bf16 | sglang | vLLM | 状态 |
+|---|---|---|---|
+| Triton `fused_moe_kernel` | ✅ 默认 | ✅ 默认 (Hopper 降级后) | **生产路径** |
+| FlashInfer `trtllm_bf16_moe` | 包了但报错 (sm_100 only) | 包了但报错 (sm_100 only) | **硬件不支持** |
+| FlashInfer `cutlass_fused_moe` | 包了但环境坏 (我们测试) | 包了 (vLLM benchmark 显示比 Triton 慢) | **可用但 Hopper 上慢** |
+
+所以 **agent 项目说 "Hopper bf16 → Triton 最优" 是对的**,现在有**三个来源**的证据:
+1. sglang auto-mode 被动 fall through 到 Triton
+2. vLLM auto-mode 显式降级两个 FlashInfer path (主动)
+3. 我们 §14 测 Triton 在 30% 峰值 (H200 上能用的最优)
+
+下一步是修 env JIT 问题后实际跑 `flashinfer_cutlass` on H200,量化它比 Triton 慢多少。那样 Finding F1 就闭环了。
+
 
 ---
 
