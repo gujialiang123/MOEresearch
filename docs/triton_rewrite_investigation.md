@@ -1478,6 +1478,123 @@ A precise framing for the agent project pitch: **"sglang's MoE optimization inve
 
 ---
 
+## 11. Why doesn't anyone write flashinfer/CUDA bf16 MoE for H200? + Triton on non-MoE models
+
+> Two follow-ups: (a) given the gap from §10 (H200 bf16 MoE has no CUDA alternative), why hasn't anyone filled it? (b) for non-MoE (dense) models, how much Triton is on the critical path?
+
+### 11.1 Q2 (easier first): For dense models, Triton is ~0 % of GPU time
+
+Confirmed by grepping the 6 most-used dense model files:
+
+| Model file | `FusedMoE` imports | `@triton.jit` declarations | Notes |
+|---|---|---|---|
+| `llama.py` | 0 | 0 | dense, pure cuBLAS + flash-attn |
+| `qwen.py` | 0 | 0 | dense |
+| `qwen2.py` | 0 | 0 | dense |
+| `qwen3.py` | 0 | 0 | dense |
+| `gemma3.py` | 0 | 0 | dense |
+| `mistral.py` | 0 | 0 | dense |
+
+To approximate "what a dense-model trace looks like", I took our R7 MoE trace (`results/kernel_inventory_R7/all_kernels_resolved.json`) and removed every MoE-specific kernel (`fused_moe_kernel`, `moe_align`, `moe_sum_reduce`, `topkGatingSoftmax`, etc.). Re-normalising the remaining time:
+
+| Library | Estimated dense-model time% | What it does |
+|---|---:|---|
+| cuBLAS / cuDNN (closed-source) | **38.3 %** | Dense GEMM (Q/K/V projections, attn output, FFN gate/up/down) |
+| flash-attn / cutlass | **29.3 %** | Self-attention forward |
+| flashinfer (CUDA) | **18.0 %** | RMSNorm + RoPE + SiLU activation |
+| PyTorch ATen | 7.9 % | scattered small ops (copy, fill, cumsum, etc.) |
+| sgl-kernel (CUDA) | 2.2 % | auxiliary (moe_align doesn't apply, just leftovers) |
+| **sglang Triton (`@triton.jit`)** | **~0 %** | almost nothing in main path |
+| torch.inductor-generated Triton | ~0.2 % | tiny inductor-fused helpers |
+
+**Bottom line for dense models on H200 bf16**: **Triton is essentially absent**. The hot path is **cuBLAS + flash-attn + flashinfer** — all hand-tuned CUDA. Optimising dense models doesn't benefit from "better Triton" much; it requires either better cuBLAS (impossible — closed-source) or quantization (FP8 → smaller GEMMs → flashinfer paths).
+
+**This is the asymmetry**: MoE models are 50 % Triton, dense models are 0 % Triton. The agent project's Triton-focused work (§5-§9) is **MoE-specific**.
+
+### 11.2 Q1: Why hasn't anyone filled the H200 bf16 MoE CUDA gap?
+
+Three layers of explanation, increasing in specificity.
+
+#### 11.2.1 Economic — who has the budget to write this?
+
+| Entity | Capacity to write hand-CUDA bf16 MoE | Incentive |
+|---|---|---|
+| **NVIDIA TRT-LLM team** | Highest (writes most CUTLASS templates) | Low — they focus on **Blackwell (sm_100)** as the new flagship; Hopper is "yesterday's hardware" |
+| **sglang core team** (BBuf, zhyncs) | High (~10 people) | Limited — they upstream from vLLM + flashinfer; writing new CUDA from scratch is huge cost |
+| **vLLM core team** | High (similar) | Same as sglang — they prefer to keep CUDA hand-written code minimal |
+| **flashinfer team** | High (NVIDIA-funded) | Same as TRT-LLM — Blackwell focus |
+| **Model authors** (Qwen, Mistral, DeepSeek, Meta) | Low — they're ML researchers, not CUDA engineers | Lowest — they pass the buck to inference engine teams |
+| **Random academic / community** | Low — needs deep CUDA expertise | Modest — perf research papers |
+
+**Result**: nobody with both the capacity AND incentive prioritises this gap.
+
+#### 11.2.2 Technical — is it actually easy?
+
+Hand-writing a competitive bf16 grouped-GEMM kernel for Hopper requires:
+
+| Hopper feature | Difficulty | Why it matters |
+|---|---|---|
+| **TMA (Tensor Memory Accelerator)** descriptors | Hard — new programming model | 1.3-1.5× speedup vs naive loads |
+| **wgmma async** instructions | Hard — 64×N×K matrix-mul in one instr, requires careful scheduling | 2× over `mma.sync` for big tiles |
+| **Ping-pong scheduling** across SMs | Hard — manual prefetch + compute overlap | 1.2× peak utilization |
+| Per-expert weight layout permutation | Medium — needed for grouped GEMM efficiency | Avoids gather overhead |
+| Autotune over (block_M, block_N, block_K, stages, warps) | Medium | Triton does this automatically; CUDA you do by hand |
+| Numerical equivalence verification | Medium | Need ≤ 5e-2 logit drift vs reference |
+
+**Triton 3.5+ already gives you 4 of these 6 features automatically** via `tl.constexpr` block sizes + Triton's TMA descriptor support + wgmma codegen. **The marginal win of hand-CUDA over autotuned Triton is shrinking every Triton release.**
+
+CUTLASS templates exist for grouped GEMM but **need expert-level tuning per (E, N, dtype, GPU)**.
+
+#### 11.2.3 Strategic — what does "good enough" look like?
+
+In practice, **autotuned Triton fused_moe_kernel reaches 70-90 % of theoretical Hopper peak** on big MoE workloads. The remaining 10-30 % is recoverable in principle by hand-CUDA, but:
+
+- Each new architecture (sm_90 → sm_100 → sm_120) requires rewriting
+- Each new model shape (E, N) requires re-tuning
+- Each Triton version potentially changes the optimal kernel
+- Whereas writing JSON configs for autotuned Triton is **a few lines per (E, N, GPU, dtype) cell**
+
+So the math is:
+- **Hand-CUDA**: 10-30 % perf win, but 50-100× more engineering cost per cell
+- **Autotuned Triton**: baseline, but covers 100+ cells with low marginal cost
+
+**For a small core team, autotuned Triton dominates the cost-effectiveness frontier**. Hand-CUDA only wins when (a) the workload is extremely high-volume (DeepSeek-V3 FP8 production), justifying the engineering cost, OR (b) Triton has a known bug/limitation on a specific path.
+
+#### 11.2.4 So is "agent fills the gap" actually viable?
+
+YES — IF the agent reframes the problem from "write hand-CUDA" to **"close the autotune coverage gap"** + **"automate the porting of vLLM's `cutlass_fused_moe`/CUTLASS-DSL paths to bf16 for H200"**.
+
+Two valid paths for the agent:
+
+| Path | Description | Effort |
+|---|---|---|
+| **Path A — Autotune coverage bot** | Continuously detect missing `triton_3_X_Y/E=*,N=*,device=*.json` configs, run autotune, PR. | 1-2 weeks initial, ongoing maintenance |
+| **Path B — CUTLASS-DSL bf16 MoE port** | Adapt `flashinfer_cutedsl_moe.py` (which currently does FP4) to bf16; merge as opt-in backend. **Fixes the env-setup issue from §9.3 in the process** | 2-4 weeks |
+
+**Why this is plausibly impactful**:
+- Path A: zero risk to existing users, immediate benefit to long-tail MoE models (which represents most of the deployment volume per §10.3)
+- Path B: medium risk, but gives Hopper bf16 MoE a real alternative for the first time, AND validates the agent's ability to do non-trivial CUDA-adjacent work
+
+### 11.3 Updated meta-answer to "why doesn't anyone fill this gap?"
+
+A precise one-paragraph version:
+
+> **No one fills the H200-bf16-MoE CUDA gap because:** (a) NVIDIA TRT-LLM and flashinfer teams are economically incentivised to target Blackwell sm_100 (next-gen, larger market in coming years); (b) sglang/vLLM core teams prefer to maintain less hand-written CUDA and rely on shared Triton + flashinfer infrastructure; (c) hand-CUDA's 10-30 % perf win over autotuned Triton fails the cost-effectiveness test for any small team (50-100× more engineering per (E, N, GPU) cell); (d) model authors (Qwen, Mistral, DeepSeek) defer kernel work to inference engine teams; (e) for production-volume models (DeepSeek-V3, Llama-4), FP8/FP4 quantization is the more attractive route — and FP8/FP4 paths DO have CUDA kernels (because they're already on Blackwell). **The gap exists for the long tail (Mixtral, Phi-MoE, OLMoE, Hunyuan, Qwen3-30B-A3B, etc.) on Hopper at bf16 — but each individual deployment is too small to justify the engineering investment, AND collectively the work is too unglamorous for an academic paper or NVIDIA roadmap**. This is exactly the niche an agent project can fill — automate the long tail.
+
+### 11.4 What the dense-vs-MoE asymmetry means for the agent
+
+Two clarifications added to the project pitch:
+
+1. **The agent's Triton-focused work is MoE-specific.** Dense LLMs (Llama / Qwen / Mistral / Gemma / Mixtral-dense versions) don't need autotuned Triton — they're cuBLAS + flash-attn + flashinfer all the way down.
+2. **MoE serving on Hopper at bf16 is the precise niche where Triton matters most** — and where the autotune coverage gap is the cleanest opportunity.
+
+Updated agent-project framing:
+
+> *"sglang's MoE optimisation investment is concentrated on a small set of high-profile (model × GPU × quantization) tuples — mostly DeepSeek-V3 / Llama-4 / GPT-OSS / Qwen3Next on Blackwell with FP8/FP4. **The long tail (Mixtral, Phi-MoE, OLMoE, Hunyuan, Granite, Exaone, Qwen3-30B-A3B, etc.) on Hopper (H100/H200) at bf16 — collectively the majority of deployment volume — runs Triton with mostly hand-tuned, incomplete autotune coverage**. We're building an agent that closes this coverage gap automatically: detect missing configs, run autotune, PR. Stretch goal: adapt the existing CUTLASS-DSL FP4 MoE wrapper to bf16, opening a non-Triton bf16 path for Hopper users for the first time."*
+
+
+---
+
 <a id="中文版"></a>
 
 # 中文版
@@ -2944,5 +3061,120 @@ ptxas info : (C7511) Potential Performance Loss: wgmma.mma_async instructions ar
 2. **CUTLASS-DSL 重写 (Phase 3a 选项 A) 有更清晰的受众** —— 它特别有价值给长尾 (非-DeepSeek/Llama-4/Qwen3Next 的 bf16 MoE) 在 H100/H200 上,这些**没别的选择**。对 Blackwell 用户价值小,因为他们已经有 flashinfer 路径。
 
 精确的项目 pitch: **"sglang 的 MoE 优化投入集中在少数高优先级 (模型, GPU, 量化) 三元组 —— 长尾 (Mixtral, Phi-MoE, Granite, OLMoE, Hunyuan, Exaone 等) 全跑 Triton。我们在搭工具自动闭合这个缺口。"**
+---
+
+## 11. 为啥没人给 H200 bf16 写 flashinfer/CUDA MoE? + 非-MoE 模型还要多少 Triton?
+
+> 两个 follow-up: (a) 既然 §10 暴露了缺口 (H200 bf16 MoE 没 CUDA 替代),为啥没人补? (b) 非-MoE (dense) 模型里,Triton 在关键路径上占多少?
+
+### 11.1 Q2 (简单先) —— dense 模型里 Triton 占 GPU 时间 ~0%
+
+通过 grep 最常用的 6 个 dense 模型文件确认:
+
+| 模型文件 | `FusedMoE` 引用 | `@triton.jit` 声明 | 备注 |
+|---|---|---|---|
+| `llama.py` | 0 | 0 | dense,纯 cuBLAS + flash-attn |
+| `qwen.py` | 0 | 0 | dense |
+| `qwen2.py` | 0 | 0 | dense |
+| `qwen3.py` | 0 | 0 | dense |
+| `gemma3.py` | 0 | 0 | dense |
+| `mistral.py` | 0 | 0 | dense |
+
+为了估算"dense 模型 trace 长啥样",我拿 R7 MoE trace (`results/kernel_inventory_R7/all_kernels_resolved.json`),把所有 MoE 特定 kernel 移除 (`fused_moe_kernel`, `moe_align`, `moe_sum_reduce`, `topkGatingSoftmax` 等)。把剩下的时间重新归一化:
+
+| Library | 估算 dense 模型时间% | 做什么 |
+|---|---:|---|
+| cuBLAS / cuDNN (闭源) | **38.3%** | Dense GEMM (Q/K/V 投影、attn 输出、FFN gate/up/down) |
+| flash-attn / cutlass | **29.3%** | Self-attention forward |
+| flashinfer (CUDA) | **18.0%** | RMSNorm + RoPE + SiLU 激活 |
+| PyTorch ATen | 7.9% | 散乱小 op (copy, fill, cumsum 等) |
+| sgl-kernel (CUDA) | 2.2% | 辅助 (moe_align 不适用,只是残留) |
+| **sglang Triton (`@triton.jit`)** | **~0%** | 主路径几乎没有 |
+| torch.inductor 自动生成 Triton | ~0.2% | 微小 inductor-fused helper |
+
+**dense 模型在 H200 bf16 上的结论**: **Triton 基本不存在**。热路径是 **cuBLAS + flash-attn + flashinfer** —— 全是手 tune 的 CUDA。优化 dense 模型用"更好的 Triton"没啥用;要么需要更好的 cuBLAS (不可能 —— 闭源),要么需要量化 (FP8 → 更小 GEMM → flashinfer 路径)。
+
+**这就是不对称**: MoE 模型 50% Triton,dense 模型 0% Triton。agent 项目的 Triton-focused 工作 (§5-§9) **是 MoE 特定的**。
+
+### 11.2 Q1: 为啥没人补 H200 bf16 MoE CUDA 缺口?
+
+三层解释,越来越具体。
+
+#### 11.2.1 经济 —— 谁有预算写这个?
+
+| 实体 | 写手-CUDA bf16 MoE 的能力 | 动机 |
+|---|---|---|
+| **NVIDIA TRT-LLM 团队** | 最高 (写大部分 CUTLASS 模板) | 低 —— 他们聚焦 **Blackwell (sm_100)** 新旗舰;Hopper 是"昨天的硬件" |
+| **sglang 核心团队** (BBuf, zhyncs) | 高 (~10 人) | 有限 —— 他们从 vLLM + flashinfer 上游 import;从头写新 CUDA 成本巨大 |
+| **vLLM 核心团队** | 高 (类似) | 同 sglang —— 他们偏好少维护手写 CUDA 代码 |
+| **flashinfer 团队** | 高 (NVIDIA 资助) | 同 TRT-LLM —— Blackwell focus |
+| **模型作者** (Qwen, Mistral, DeepSeek, Meta) | 低 —— 是 ML 研究员,不是 CUDA 工程师 | 最低 —— 把锅甩给推理引擎团队 |
+| **学术 / 社区随机贡献** | 低 —— 需要深 CUDA 专业 | 一般 —— 性能研究论文 |
+
+**结果**: 没人同时具备能力**和**动机优先做这个缺口。
+
+#### 11.2.2 技术 —— 真的容易吗?
+
+写一个有竞争力的 bf16 grouped-GEMM kernel 给 Hopper 需要:
+
+| Hopper 特性 | 难度 | 重要性 |
+|---|---|---|
+| **TMA (Tensor Memory Accelerator)** descriptor | 难 —— 新编程模型 | 1.3-1.5× 加速 vs 朴素 load |
+| **wgmma async** 指令 | 难 —— 一条指令做 64×N×K 矩阵乘,要小心调度 | 比 `mma.sync` 大 tile 上 2× |
+| **Ping-pong scheduling** 跨 SM | 难 —— 手动 prefetch + 计算重叠 | 1.2× 峰值利用率 |
+| Per-expert 权重 layout 排列 | 中 —— grouped GEMM 效率需要 | 避免 gather 开销 |
+| 在 (block_M, block_N, block_K, stages, warps) 上 autotune | 中 | Triton 自动做;CUDA 你手做 |
+| 数值等价验证 | 中 | 对参考要 ≤ 5e-2 logit drift |
+
+**Triton 3.5+ 已经自动给你 6 个特性中的 4 个** —— 通过 `tl.constexpr` block size + Triton 的 TMA descriptor 支持 + wgmma 代码生成。**手-CUDA 相对自动 tune Triton 的边际赢面,每个 Triton release 都在缩小**。
+
+CUTLASS 模板 grouped GEMM 是有的,但**每个 (E, N, dtype, GPU) 需要专家级 tuning**。
+
+#### 11.2.3 战略 —— "够好"是什么样?
+
+实际上,**autotune 的 Triton fused_moe_kernel 在大 MoE 负载上达到 Hopper 理论峰值的 70-90%**。剩下 10-30% 原则上可以靠手-CUDA 拿回来,但:
+
+- 每个新架构 (sm_90 → sm_100 → sm_120) 都要重写
+- 每个新模型 shape (E, N) 都要重 tune
+- 每个 Triton 版本可能改变最优 kernel
+- 而给 autotune Triton 写 JSON config **每个 (E, N, GPU, dtype) cell 几行**
+
+所以数学是:
+- **手-CUDA**: 10-30% perf 赢,但每个 cell 50-100× 多工程成本
+- **autotune Triton**: baseline,但覆盖 100+ cell 边际成本低
+
+**对小核心团队,autotune Triton 主导成本效益前沿**。手-CUDA 只在以下情况赢: (a) workload 极高量 (DeepSeek-V3 FP8 生产),工程成本能摊;(b) Triton 在特定路径有已知 bug/限制。
+
+#### 11.2.4 那"agent 补缺口"实际可行吗?
+
+**可行 —— 如果 agent 把问题重新定义为 "闭合 autotune 覆盖缺口" + "自动把 vLLM 的 `cutlass_fused_moe` / CUTLASS-DSL 路径 port 到 bf16 给 H200"**。
+
+agent 两条有效路径:
+
+| 路径 | 描述 | 工作量 |
+|---|---|---|
+| **路径 A —— Autotune 覆盖 bot** | 持续检测缺失的 `triton_3_X_Y/E=*,N=*,device=*.json` config,跑 autotune,PR | 1-2 周初始,持续维护 |
+| **路径 B —— CUTLASS-DSL bf16 MoE port** | 把 `flashinfer_cutedsl_moe.py` (目前 FP4) 适配到 bf16;合并作为 opt-in backend。**顺便修 §9.3 的环境问题** | 2-4 周 |
+
+**为啥这有可能影响力**:
+- 路径 A: 对现有用户零风险,对长尾 MoE 模型立刻有益 (按 §10.3 是大部分部署量)
+- 路径 B: 中风险,但**第一次给 Hopper bf16 MoE 一个真正替代**,而且验证 agent 做非平凡 CUDA-邻接工作的能力
+
+### 11.3 修订的 meta 答案 "为啥没人补这个缺口?"
+
+精炼一段:
+
+> **没人补 H200-bf16-MoE CUDA 缺口,因为:** (a) NVIDIA TRT-LLM 和 flashinfer 团队在经济上被激励瞄 Blackwell sm_100 (新一代,未来几年更大市场);(b) sglang/vLLM 核心团队偏好少维护手写 CUDA,依赖共享的 Triton + flashinfer 基础设施;(c) 手-CUDA 相对 autotune Triton 10-30% 的赢面在任何小团队的成本效益测试上失败 (每个 (E, N, GPU) cell 多 50-100× 工程);(d) 模型作者 (Qwen, Mistral, DeepSeek) 把 kernel 工作推给推理引擎团队;(e) 对生产量级模型 (DeepSeek-V3, Llama-4),FP8/FP4 量化是更有吸引力的路径 —— 而 FP8/FP4 路径**有** CUDA kernel (因为在 Blackwell 上)。**缺口存在于长尾 (Mixtral, Phi-MoE, OLMoE, Hunyuan, Qwen3-30B-A3B 等) 在 Hopper bf16 上 —— 但每个单独部署太小不能 justify 工程投入,而且这工作整体上对学术论文或 NVIDIA roadmap 太不炫目**。**这正是 agent 项目能填的小生境 —— 自动化长尾**。
+
+### 11.4 dense-vs-MoE 不对称对 agent 的含义
+
+给项目 pitch 加两个澄清:
+
+1. **agent 的 Triton-focused 工作是 MoE 特定的**。Dense LLM (Llama / Qwen / Mistral / Gemma / Mixtral-dense 版本) 不需要 autotune Triton —— 它们是 cuBLAS + flash-attn + flashinfer 一路到底。
+2. **Hopper 上 bf16 MoE serving 正是 Triton 最重要的小生境** —— 而 autotune 覆盖缺口是最干净的机会。
+
+修订的 agent 项目定位:
+
+> *"sglang 的 MoE 优化投入集中在少数高优先级 (模型 × GPU × 量化) 三元组 —— 主要是 DeepSeek-V3 / Llama-4 / GPT-OSS / Qwen3Next 在 Blackwell 上加 FP8/FP4。**长尾 (Mixtral, Phi-MoE, OLMoE, Hunyuan, Granite, Exaone, Qwen3-30B-A3B 等) 在 Hopper (H100/H200) bf16 上 —— 整体上是大部分部署量 —— 跑 Triton,而且 autotune 覆盖大部分是手 tune 的、不全的**。我们在搭一个 agent 自动闭合这个覆盖缺口: 检测缺失 config、跑 autotune、PR。拉伸目标: 把现有 CUTLASS-DSL FP4 MoE wrapper 适配到 bf16,**第一次给 Hopper 用户打开非-Triton bf16 路径**。"*
 
 
