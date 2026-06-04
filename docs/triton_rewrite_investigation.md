@@ -1097,6 +1097,158 @@ Three concrete takeaways:
 
 ---
 
+## 8. "Qwen1.5-MoE shows flashinfer kernels" — what's actually happening + a §6 correction
+
+> Follow-up: a colleague ran Qwen1.5-MoE and saw "flashinfer kernels" in their trace. Is there a Qwen-1.5-specific flashinfer fused MoE? Why does Qwen3 only get Triton? Important: this question revealed a CORRECTION to §6 — there IS a bf16 flashinfer MoE path we missed.
+
+### 8.1 The most likely explanation — terminology confusion
+
+Look at our own Qwen3-30B-A3B R7 trace (from `results/kernel_inventory_R7/all_kernels_resolved.json`):
+
+```
+flashinfer kernels in our Qwen3 trace: 5
+   3.15%  flashinfer::activation::act_and_mul_kernel<__nv_bfloat16, silu>     ← SiLU activation
+   2.87%  flashinfer::norm::FusedAddRMSNormKernel<8u, __nv_bfloat16>          ← RMSNorm (fused with residual add)
+   1.70%  flashinfer::BatchQKApplyRotaryPosIdsCosSinCacheEnhancedKernel       ← RoPE
+   0.46%  flashinfer::BatchQKApplyRotaryPosIdsCosSinCacheEnhancedHeadParallel ← RoPE variant
+   0.02%  flashinfer::norm::RMSNormKernel<8u, __nv_bfloat16>                  ← RMSNorm (standalone)
+```
+
+**We see flashinfer kernels too.** They account for ~8 % of GPU time in our run. **None of them are MoE kernels** — they're RMSNorm, SiLU activation, and RoPE.
+
+`flashinfer` is a **library with dozens of CUDA kernels** for different purposes: attention, normalization, activation, RoPE, sampling, AND MoE. **Seeing "flashinfer kernels" in a trace ≠ using a flashinfer fused MoE.**
+
+So the most likely interpretation of the colleague's observation: they saw `flashinfer::norm`, `flashinfer::activation`, `flashinfer::BatchQKApplyRotary…` (the auxiliary kernels) and read it as "flashinfer is doing the MoE". **It's almost certainly the same setup we have** — flashinfer for RMSNorm/RoPE/SiLU + Triton `fused_moe_kernel` for the MoE GEMM.
+
+To confirm, we'd want to know **the exact kernel name they saw**. If they actually saw something like `trtllm_bf16_moe` or `cutlass_fused_moe` — then it IS a flashinfer MoE. Otherwise it's auxiliary.
+
+### 8.2 Why both Qwen1.5-MoE and Qwen3-MoE go through the same dispatcher
+
+Qwen1.5-MoE-A2.7B (released 2024) uses **`Qwen2MoeForCausalLM`** architecture, which maps to `sglang/srt/models/qwen2_moe.py`. Qwen3-30B-A3B uses `Qwen3MoeForCausalLM` → `qwen3_moe.py`. **But `qwen3_moe.py` inherits much of its MoE structure from `qwen2_moe.py`**. Both files call the SAME dispatcher:
+
+```python
+# qwen2_moe.py:170 and qwen3_moe.py:237 are IDENTICAL:
+self.experts = get_moe_impl_class(quant_config)(...)
+```
+
+So they go through the same `get_moe_impl_class` (`ep_moe/layer.py:686`) logic — backend selection is **NOT** model-specific. Both models will default to `FusedMoE` (Triton path) for the bf16 + auto + non-Blackwell + non-EP case.
+
+| Field | Qwen1.5-MoE-A2.7B | Qwen3-30B-A3B (our model) |
+|---|---|---|
+| architectures in config.json | `["Qwen2MoeForCausalLM"]` | `["Qwen3MoeForCausalLM"]` |
+| sglang model file | `qwen2_moe.py` | `qwen3_moe.py` |
+| num_experts (E) | 60 | 128 |
+| num_experts_per_tok (top-k) | 4 | 8 |
+| moe_intermediate_size (N) | 1408 | 768 |
+| shared_expert_intermediate_size | **5632** (has shared expert) | **0** (no shared expert) |
+| default dtype | bf16 | bf16 |
+| MoE backend dispatcher used | `get_moe_impl_class` (same!) | `get_moe_impl_class` (same!) |
+
+The biggest functional difference is the **shared expert** — Qwen1.5-MoE has one (a dense FFN that runs alongside the routed experts every token), Qwen3-30B-A3B doesn't. The shared expert is NOT routed through `FusedMoE` — it's a regular `ColumnParallelLinear`/`RowParallelLinear` pair. **So part of Qwen1.5's compute does NOT touch `fused_moe_kernel` at all** — it's plain dense linear layers.
+
+This might be a second source of the confusion: the colleague might be looking at the dense path and seeing `flashinfer` kernels (RMSNorm/RoPE/SiLU in the shared expert region).
+
+### 8.3 ⚠️ CORRECTION to §6: there IS a bf16 flashinfer MoE option
+
+While investigating this, we found `flashinfer.fused_moe.trtllm_bf16_moe` — a **bf16 grouped-GEMM MoE** that lives outside the Triton path. In `sglang/srt/layers/moe/fused_moe_triton/layer.py:1132+`:
+
+```python
+class FlashInferFusedMoE(FusedMoE):
+    def forward_impl(self, hidden_states, topk_output):
+        # Asserts: silu activation, renormalize=True, no shared expert, is_gated=True
+        ...
+        if isinstance(self.quant_method, UnquantizedFusedMoEMethod):
+            from flashinfer.fused_moe import trtllm_bf16_moe   # ← bf16 PATH EXISTS!
+            final_hidden_states = trtllm_bf16_moe(
+                routing_logits=router_logits,
+                hidden_states=hidden_states,
+                gemm1_weights=self.w13_weight,
+                gemm2_weights=self.w2_weight,
+                num_experts=self.num_experts,
+                ...
+            )
+```
+
+This means **§6.5's claim that "Triton is the ONLY mature bf16 path" was incomplete** — flashinfer's `trtllm_bf16_moe` is available too, you just need to opt in.
+
+#### Why doesn't Qwen3 auto-pick it?
+
+Looking at `server_args.py:1290+` (the auto-mode logic):
+- `flashinfer_trtllm` is auto-selected ONLY when:
+  - `model_arch in ["DeepseekV3ForCausalLM"]` AND
+  - sm100 (Blackwell) supported AND
+  - `quantization in ["fp8", "modelopt_fp8", "modelopt_fp4"]`
+- Our setup: `Qwen3MoeForCausalLM` + H200 (sm90) + bf16 → **none of the conditions met** → falls through to `triton`
+
+So Qwen3 (and any non-DeepSeek bf16 MoE on non-Blackwell) **never auto-picks** `FlashInferFusedMoE`, **even though the code path supports it**.
+
+#### Would Qwen3 work with explicit `--moe-runner-backend=flashinfer_trtllm`?
+
+Let's check the assertions in `FlashInferFusedMoE.forward_impl`:
+
+```python
+assert moe_runner_config.activation == "silu"               # Qwen3 ✅ uses silu
+assert topk_output.topk_config.renormalize                  # Qwen3 ✅ uses renormalize
+assert num_fused_shared_experts == 0                        # Qwen3 ✅ NO shared expert
+assert moe_runner_config.is_gated                           # Qwen3 ✅ uses gated
+```
+
+**All four assertions pass for Qwen3-30B-A3B**. So Qwen3 SHOULD work with `--moe-runner-backend=flashinfer_trtllm` for bf16, calling `trtllm_bf16_moe` instead of `fused_moe_kernel`.
+
+For Qwen1.5-MoE-A2.7B, the `num_fused_shared_experts == 0` assertion would FAIL (it has shared experts). So Qwen1.5-MoE bf16 CANNOT use `FlashInferFusedMoE` — it would error out.
+
+### 8.4 Direct answers to your sub-questions
+
+> **"是这个模型有针对的 flashinfer fuse moe 实现吗?"** — No special Qwen1.5-MoE implementation. Both go through `get_moe_impl_class`.
+
+> **"为什么 qwen3 反而只有 triton 了?"** — Because (a) auto-mode for `flashinfer_trtllm` requires DeepSeek-V3 architecture, not Qwen, AND (b) the colleague's "flashinfer kernels" are most likely the **auxiliary** kernels (RMSNorm/RoPE/SiLU) that we ALSO use in Qwen3. The MoE kernel for Qwen1.5-MoE bf16 IS still Triton `fused_moe_kernel`, unless they explicitly flagged a non-default backend.
+
+> **"是我们的 regime 只能 triton 还是这个模型就没有 fused moe kernel 实现?"** — Neither. The model has a fused_moe_kernel implementation (Triton). The regime doesn't restrict backend choice — backend is determined by `(model_arch, GPU, quantization)`, not workload.
+
+> **"如果有非 triton 的 fused moe kernel,那 qwen3 为啥不用?是不兼容吗?"** — There IS a non-Triton alternative (`flashinfer.fused_moe.trtllm_bf16_moe`). It's NOT auto-picked because:
+> 1. Auto-mode gates `flashinfer_trtllm` on DeepSeek-V3 (not Qwen)
+> 2. Auto-mode gates on FP8/FP4 quantization (not bf16)
+> 3. Auto-mode gates on sm100 (Blackwell), not sm90 (H200)
+> 
+> Qwen3 IS compatible with `FlashInferFusedMoE` (assertions all pass). With explicit `--moe-runner-backend=flashinfer_trtllm`, Qwen3 should use it. **We have NOT empirically verified this works** — it's a TODO worth testing in next session.
+
+### 8.5 What to actually verify with the colleague
+
+To resolve the ambiguity, ask:
+
+1. **"What was the exact kernel name in the trace?"** If it's `flashinfer::norm::*` / `flashinfer::activation::*` / `flashinfer::BatchQKApply*` — those are auxiliary, NOT MoE. If it's `trtllm_bf16_moe` / `cutlass_fused_moe` / `trtllm_fp8_*_moe` — it IS a flashinfer MoE.
+2. **"What command-line flags did you use?"** Specifically `--moe-runner-backend`. If they passed `flashinfer_trtllm` or similar, that's the trigger.
+3. **"What dtype / quantization?"** If they ran the FP8 variant of Qwen1.5-MoE, FP8 + flashinfer paths kick in differently.
+
+### 8.6 Implications for our agent project (revised)
+
+This investigation strengthens the case for Phase 2 of our 4-phase plan (§6.7) but **adds a new comparison target**:
+
+| Test | Question answered |
+|---|---|
+| Run Qwen3 + `--moe-runner-backend=triton` (our current default) | baseline `fused_moe_kernel` perf (~132 ms in our R7) |
+| Run Qwen3 + `--moe-runner-backend=flashinfer_trtllm` (untested!) | does `trtllm_bf16_moe` work for Qwen3 + what's its perf? |
+| Run Qwen3 with our autotune'd `triton_3_5_1/E=128,N=768,H200.json` | does fresh autotune beat the fallback `triton_3_2_0/` config? |
+
+This 3-way comparison directly answers "which bf16 MoE GEMM is fastest on H200 for Qwen3-30B-A3B" — which **decides whether the CUTLASS-DSL rewrite (§6.6 Option A) is even necessary**. If `trtllm_bf16_moe` already wins by 30%, we should adopt it (and PR a fix to auto-mode to enable it for non-DeepSeek bf16 MoE) rather than write our own.
+
+**Updated Phase 2 (1 week)** in the agent project plan:
+
+```
+Phase 2 — benchmark 3 bf16 MoE paths on Qwen3-30B-A3B / H200:
+  (a) Triton fused_moe_kernel (current default)
+  (b) flashinfer trtllm_bf16_moe (via --moe-runner-backend=flashinfer_trtllm)
+  (c) freshly autotune'd triton_3_5_1 config (via our agent-generated JSON)
+  
+Decide which to push upstream. Possibilities:
+  - If (b) >> (a): PR the auto-mode fix to enable flashinfer_trtllm for more cases
+  - If (c) >> (a): PR the autotune config + build the autotune bot
+  - If neither wins by 20+%: focus elsewhere
+```
+
+
+---
+
 <a id="中文版"></a>
 
 # 中文版
@@ -2188,5 +2340,155 @@ KV cache = token 级别的池 (page_size 通常 = 1 token)
 2. **"按 Triton 编译器版本"的设计选择是 sglang 独有** —— vLLM 完全无视 Triton 版本。我们可以给 sglang 开一个讨论 PR: "我们还相信 Triton 版本重要吗?"。如果我们 autotune 后显示 Triton 3.2-3.5 之间 config 差异 < 5%,sglang 可以废弃版本子目录降低维护负担。这是**流程改进**,不是代码性能赢。
 
 3. **MoE kernel 重写 (§6.6 选项 A/B/C) 会同时惠及两个生态** —— 既然 vLLM 和 sglang 共享 kernel 血统,更快的 CUTLASS-DSL bf16 MoE 是可移植的。**策略**: 在 sglang 原型 (PR 小),上游到两个。**第一个贡献** 可以是: "我做了 agent 检测 sglang 缺失的 config,用现有 autotune 脚本生成,然后 PR。这里是 10 个新 config 和 vs vLLM 的对比。" 立即有用 + 打开和 sglang 维护者的对话。
+---
+
+## 8. "Qwen1.5-MoE 跑出来 flashinfer kernel" —— 真相 + 对 §6 的修正
+
+> Follow-up: 同事跑 Qwen1.5-MoE 看到 trace 里有 "flashinfer kernel"。是 Qwen1.5 有专门的 flashinfer fused MoE 吗? 为啥 Qwen3 只有 Triton? 重要: 这个问题挖出了 §6 的一个**遗漏** —— 其实有一条 bf16 flashinfer MoE 路径。
+
+### 8.1 最可能的解释 —— 术语混淆
+
+看我们自己的 Qwen3-30B-A3B R7 trace (`results/kernel_inventory_R7/all_kernels_resolved.json`):
+
+```
+我们 Qwen3 trace 里的 flashinfer kernel: 5 个
+   3.15%  flashinfer::activation::act_and_mul_kernel<__nv_bfloat16, silu>     ← SiLU 激活
+   2.87%  flashinfer::norm::FusedAddRMSNormKernel<8u, __nv_bfloat16>          ← RMSNorm (融合 residual add)
+   1.70%  flashinfer::BatchQKApplyRotaryPosIdsCosSinCacheEnhancedKernel       ← RoPE
+   0.46%  flashinfer::BatchQKApplyRotaryPosIdsCosSinCacheEnhancedHeadParallel ← RoPE 变体
+   0.02%  flashinfer::norm::RMSNormKernel<8u, __nv_bfloat16>                  ← RMSNorm (单独)
+```
+
+**我们也看到 flashinfer kernel**。它们占我们 GPU 时间 ~8%。**没一个是 MoE kernel** —— 都是 RMSNorm、SiLU 激活、RoPE。
+
+`flashinfer` 是一个**有几十个 CUDA kernel 的库**,做不同事情: attention、normalization、activation、RoPE、sampling、**以及** MoE。**trace 里看到 "flashinfer kernel" ≠ 用了 flashinfer fused MoE**。
+
+所以同事观察最可能的解释: 他们看到 `flashinfer::norm`、`flashinfer::activation`、`flashinfer::BatchQKApplyRotary…` (辅助 kernel) 然后读作 "flashinfer 在做 MoE"。**几乎肯定和我们设置一样** —— flashinfer 做 RMSNorm/RoPE/SiLU + Triton `fused_moe_kernel` 做 MoE GEMM。
+
+要确认,需要知道**他们看到的精确 kernel 名字**。如果他们真看到 `trtllm_bf16_moe` 或 `cutlass_fused_moe` —— 那才是 flashinfer MoE。否则就是辅助 kernel。
+
+### 8.2 为啥 Qwen1.5-MoE 和 Qwen3-MoE 走同一个 dispatcher
+
+Qwen1.5-MoE-A2.7B (2024 发布) 用 **`Qwen2MoeForCausalLM`** 架构,映射到 `sglang/srt/models/qwen2_moe.py`。Qwen3-30B-A3B 用 `Qwen3MoeForCausalLM` → `qwen3_moe.py`。**但 `qwen3_moe.py` 的 MoE 结构大量继承自 `qwen2_moe.py`**。两个文件调同一个 dispatcher:
+
+```python
+# qwen2_moe.py:170 和 qwen3_moe.py:237 完全一样:
+self.experts = get_moe_impl_class(quant_config)(...)
+```
+
+所以它们走同样的 `get_moe_impl_class` (`ep_moe/layer.py:686`) 逻辑 —— backend 选择**不**是模型特定的。bf16 + auto + 非-Blackwell + 非-EP 情况下,**两个模型都默认到 `FusedMoE` (Triton 路径)**。
+
+| 字段 | Qwen1.5-MoE-A2.7B | Qwen3-30B-A3B (我们) |
+|---|---|---|
+| config.json 里 architectures | `["Qwen2MoeForCausalLM"]` | `["Qwen3MoeForCausalLM"]` |
+| sglang 模型文件 | `qwen2_moe.py` | `qwen3_moe.py` |
+| num_experts (E) | 60 | 128 |
+| num_experts_per_tok (top-k) | 4 | 8 |
+| moe_intermediate_size (N) | 1408 | 768 |
+| shared_expert_intermediate_size | **5632** (有共享专家) | **0** (无共享专家) |
+| 默认 dtype | bf16 | bf16 |
+| 用的 MoE backend dispatcher | `get_moe_impl_class` (同!) | `get_moe_impl_class` (同!) |
+
+最大功能差异是**共享专家** —— Qwen1.5-MoE 有 (每个 token 都跑的 dense FFN,和路由专家并行),Qwen3-30B-A3B 没有。共享专家**不**走 `FusedMoE` —— 它是普通的 `ColumnParallelLinear`/`RowParallelLinear`。**所以 Qwen1.5 一部分计算根本不碰 `fused_moe_kernel`** —— 是普通 dense linear。
+
+这可能是混淆的第二个来源: 同事可能看的是 dense 路径,看到 `flashinfer` kernel (在 shared expert 区域的 RMSNorm/RoPE/SiLU)。
+
+### 8.3 ⚠️ 对 §6 的修正: 其实**有** bf16 flashinfer MoE 路径
+
+调研中我们发现 `flashinfer.fused_moe.trtllm_bf16_moe` —— 一个**在 Triton 路径之外的 bf16 grouped-GEMM MoE**。在 `sglang/srt/layers/moe/fused_moe_triton/layer.py:1132+`:
+
+```python
+class FlashInferFusedMoE(FusedMoE):
+    def forward_impl(self, hidden_states, topk_output):
+        # 断言: silu 激活, renormalize=True, 无共享专家, is_gated=True
+        ...
+        if isinstance(self.quant_method, UnquantizedFusedMoEMethod):
+            from flashinfer.fused_moe import trtllm_bf16_moe   # ← bf16 路径存在!
+            final_hidden_states = trtllm_bf16_moe(
+                routing_logits=router_logits,
+                hidden_states=hidden_states,
+                gemm1_weights=self.w13_weight,
+                gemm2_weights=self.w2_weight,
+                num_experts=self.num_experts,
+                ...
+            )
+```
+
+意思是**§6.5 说"Triton 是唯一成熟 bf16 路径"是不完整的** —— flashinfer 的 `trtllm_bf16_moe` 也可用,只是需要 opt-in。
+
+#### 为啥 Qwen3 不会自动选?
+
+看 `server_args.py:1290+` (auto-mode 逻辑):
+- `flashinfer_trtllm` 只在以下条件被自动选:
+  - `model_arch in ["DeepseekV3ForCausalLM"]` 且
+  - sm100 (Blackwell) 支持 且
+  - `quantization in ["fp8", "modelopt_fp8", "modelopt_fp4"]`
+- 我们的设置: `Qwen3MoeForCausalLM` + H200 (sm90) + bf16 → **一个条件都不满足** → fall through 到 `triton`
+
+所以 Qwen3 (和任何非-DeepSeek bf16 MoE 在非-Blackwell 上) **永远不会自动选** `FlashInferFusedMoE`,**即使代码路径支持它**。
+
+#### Qwen3 显式 `--moe-runner-backend=flashinfer_trtllm` 能跑吗?
+
+看 `FlashInferFusedMoE.forward_impl` 的断言:
+
+```python
+assert moe_runner_config.activation == "silu"               # Qwen3 ✅ 用 silu
+assert topk_output.topk_config.renormalize                  # Qwen3 ✅ 用 renormalize
+assert num_fused_shared_experts == 0                        # Qwen3 ✅ 无共享专家
+assert moe_runner_config.is_gated                           # Qwen3 ✅ 用 gated
+```
+
+**Qwen3-30B-A3B 的所有 4 个断言都过**。所以 Qwen3 用 `--moe-runner-backend=flashinfer_trtllm` 跑 bf16 应该能 work,调 `trtllm_bf16_moe` 而不是 `fused_moe_kernel`。
+
+对 Qwen1.5-MoE-A2.7B,`num_fused_shared_experts == 0` 断言会**失败** (它有共享专家)。所以 Qwen1.5-MoE bf16 **不能**用 `FlashInferFusedMoE` —— 会 error。
+
+### 8.4 直接回答你的子问题
+
+> **"是这个模型有针对的 flashinfer fuse moe 实现吗?"** —— 没有 Qwen1.5-MoE 专门实现。两个都走 `get_moe_impl_class`。
+
+> **"为什么 qwen3 反而只有 triton 了?"** —— 因为 (a) `flashinfer_trtllm` auto-mode 要求 DeepSeek-V3 架构,不是 Qwen,而且 (b) 同事的 "flashinfer kernel" 最可能是**辅助** kernel (RMSNorm/RoPE/SiLU),Qwen3 我们**也用了**。Qwen1.5-MoE bf16 的 MoE kernel **仍是** Triton `fused_moe_kernel`,除非他们显式 flag 了非默认 backend。
+
+> **"是我们的 regime 只能 triton 还是这个模型就没有 fused moe kernel 实现?"** —— 都不是。模型有 fused_moe_kernel 实现 (Triton)。Regime 不限制 backend 选择 —— backend 由 `(model_arch, GPU, quantization)` 决定,不是 workload。
+
+> **"如果有非 triton 的 fused moe kernel,那 qwen3 为啥不用?是不兼容吗?"** —— **有**非-Triton 替代 (`flashinfer.fused_moe.trtllm_bf16_moe`)。**不自动选**的原因:
+> 1. Auto-mode 把 `flashinfer_trtllm` 门控在 DeepSeek-V3 (不是 Qwen)
+> 2. Auto-mode 门控在 FP8/FP4 量化 (不是 bf16)
+> 3. Auto-mode 门控在 sm100 (Blackwell),不是 sm90 (H200)
+> 
+> Qwen3 **兼容** `FlashInferFusedMoE` (断言全过)。显式 `--moe-runner-backend=flashinfer_trtllm` 后,Qwen3 应该能用。**我们还没实测验证** —— 是下个 session 值得测的 TODO。
+
+### 8.5 跟同事确认这几件事
+
+要消除歧义,问:
+
+1. **"trace 里精确的 kernel 名字是什么?"** 如果是 `flashinfer::norm::*` / `flashinfer::activation::*` / `flashinfer::BatchQKApply*` —— 那是辅助的,**不是** MoE。如果是 `trtllm_bf16_moe` / `cutlass_fused_moe` / `trtllm_fp8_*_moe` —— **是** flashinfer MoE。
+2. **"用了什么命令行 flag?"** 特别是 `--moe-runner-backend`。如果他们传了 `flashinfer_trtllm` 之类,那就是触发器。
+3. **"什么 dtype / 量化?"** 如果他们跑 Qwen1.5-MoE 的 FP8 版本,FP8 + flashinfer 路径触发方式不一样。
+
+### 8.6 对 agent 项目的影响 (修订)
+
+这次调研加强了我们 4 阶段计划 (§6.7) 的 Phase 2,但**加了一个新对比目标**:
+
+| 测试 | 回答什么问题 |
+|---|---|
+| Qwen3 + `--moe-runner-backend=triton` (我们当前默认) | baseline `fused_moe_kernel` 性能 (~132 ms 在我们 R7) |
+| Qwen3 + `--moe-runner-backend=flashinfer_trtllm` (未测!) | `trtllm_bf16_moe` 对 Qwen3 work 吗 + 性能多少? |
+| Qwen3 用我们自己 autotune 的 `triton_3_5_1/E=128,N=768,H200.json` | 新 autotune 比 fallback `triton_3_2_0/` config 快吗? |
+
+这个 3 路对比直接回答 "Qwen3-30B-A3B 在 H200 上哪个 bf16 MoE GEMM 最快" —— 这**决定 §6.6 的 CUTLASS-DSL 重写选项 A 是否必要**。如果 `trtllm_bf16_moe` 已经赢 30%,我们应该**采用**它 (并 PR auto-mode 修复让非-DeepSeek bf16 MoE 启用),而不是自己写。
+
+**修订后的 Phase 2 (1 周)** 加入 agent 项目计划:
+
+```
+Phase 2 —— benchmark Qwen3-30B-A3B / H200 上 3 条 bf16 MoE 路径:
+  (a) Triton fused_moe_kernel (当前默认)
+  (b) flashinfer trtllm_bf16_moe (通过 --moe-runner-backend=flashinfer_trtllm)
+  (c) 新鲜 autotune 的 triton_3_5_1 config (通过 agent 生成的 JSON)
+  
+决定推哪个上游。可能:
+  - 如果 (b) >> (a): PR auto-mode 修复,让更多场景启用 flashinfer_trtllm
+  - 如果 (c) >> (a): PR autotune config + 搭 autotune bot
+  - 如果都不能赢 20+%: 重心放别处
+```
 
 
