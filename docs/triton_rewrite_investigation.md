@@ -319,6 +319,259 @@ conda activate sglang-dev && python -c "from triton.experimental import gluon; p
 ```
 
 ---
+---
+
+## 5. What does "tuning a model" actually mean? (the workflow)
+
+> This section is the follow-up investigation: what does the tuning script actually do, does sglang have any runtime tuning, who does it, and how are tuning PRs tested? Every claim has a `grep`-able pointer.
+
+### 5.1 The tuning script — what it does in concrete terms
+
+The script is `benchmark/kernels/fused_moe_triton/tuning_fused_moe_triton.py` (458 lines). Reading it line by line, here's the **exact procedure**:
+
+**Step 1 — Build a search space of candidate configs** (`common_utils.py: get_configs_compute_bound`):
+
+```python
+for num_stages in [2, 3, 4, 5]:
+    for block_m in [16, 32, 64, 128, 256]:
+        for block_k in [64, 128, 256]:
+            for block_n in [32, 64, 128, 256]:
+                for num_warps in [4, 8]:
+                    for group_size in [1, 16, 32, 64]:
+                        configs.append({
+                            "BLOCK_SIZE_M": block_m, "BLOCK_SIZE_N": block_n,
+                            "BLOCK_SIZE_K": block_k, "GROUP_SIZE_M": group_size,
+                            "num_warps": num_warps, "num_stages": num_stages,
+                        })
+```
+
+That's `4 × 5 × 3 × 4 × 2 × 4 = 1920` candidates per (model, GPU) cell.
+
+**Step 2 — For each batch size in `[1, 2, 4, ..., 4096]`, time every candidate** by:
+1. Generating random `(x, w1, w2, gating)` tensors matching the model's shape
+2. Calling `fused_moe(...)` with each candidate config
+3. Running 100 iterations, taking median latency
+
+**Step 3 — For each batch size, save the winning config** to JSON:
+
+```python
+# common_utils.py: save_configs
+def save_configs(configs: Dict[int, BenchmarkConfig], filename: str):
+    with open(filename, "w") as f:
+        json.dump(configs, f, indent=4)
+```
+
+The output JSON looks like:
+```json
+{
+    "1":  {"BLOCK_SIZE_M": 16, "BLOCK_SIZE_N": 64, "BLOCK_SIZE_K": 128, "GROUP_SIZE_M": 1, "num_warps": 4, "num_stages": 4},
+    "8":  {"BLOCK_SIZE_M": 32, ...},
+    "64": {"BLOCK_SIZE_M": 64, ...},
+    ...
+}
+```
+
+The filename encodes the model shape: `E=128,N=768,device_name=NVIDIA_H200.json`.
+
+**Step 4 — Drop the JSON into `configs/triton_{version}/`** and open a PR.
+
+### 5.2 What "tuning" does NOT do
+
+| Operation | Done by tuning? |
+|---|---|
+| Modify the kernel itself (`fused_moe_kernel @ fused_moe_triton_kernels.py:324`) | ❌ No — same kernel, just different `tl.constexpr` parameter values |
+| Modify model implementation files (`models/qwen3_moe.py`, etc.) | ❌ No — model code is untouched |
+| Change backend selection (which of `fused_moe_kernel` vs `_p_matmul_ogs_*` vs `cutlass_moe` to use) | ❌ No — that's `--moe-runner-backend` CLI flag, separate concern |
+| Add new kernels | ❌ No |
+| Change kernel algorithm / fused ops | ❌ No |
+
+**Tuning = pure hyperparameter search over Triton meta-params.** No code change. Output is one JSON file per (model, dtype, GPU, TP-size) cell.
+
+### 5.3 Does sglang have runtime / startup tuning?
+
+**Yes — three different mechanisms exist, but the big `fused_moe_kernel` uses NONE of them.**
+
+#### Mechanism 1 — `@triton.autotune` decorator on smaller kernels
+
+Found in:
+- `layers/quantization/fp8_kernel.py:1662` (`fp8_autotune` wrapping per-token group quant FP8 kernel)
+- `layers/attention/fla/cumsum.py:71`, `fla/kda.py` (8 kernels), `fla/l2norm.py` (commented out)
+
+How it works: at first call, Triton compiles all configs in the autotune list, benchmarks them on the actual input shape, picks the best. **Cached for subsequent calls.** Result: first call is slow (compiles everything), then fast.
+
+**Why isn't this used for `fused_moe_kernel`?** Two reasons:
+1. The search space is large (1920 configs) — first-call latency would be intolerable (~minutes)
+2. Different `(E, N, dtype, H200)` cells need different best configs; autotune doesn't know which cell it's in until the call
+
+#### Mechanism 2 — `flashinfer.autotuner.autotune()` (runtime, at warmup)
+
+Source: `model_executor/model_runner.py:1859-1874`
+
+```python
+def _flashinfer_autotune(self):
+    from flashinfer.autotuner import autotune
+    logger.info("Running FlashInfer autotune...")
+    with torch.inference_mode(), autotune():
+        self._dummy_run(batch_size=self.req_to_token_pool.size, run_ctx=autotune())
+    logger.info("FlashInfer autotune completed.")
+```
+
+This runs **at server warmup** (after weight load, before serving requests). **But only when** `--moe-runner-backend = flashinfer_trtllm` or `flashinfer_mxfp4` (`model_runner.py:1837-1842`):
+
+```python
+if backend_str not in ["flashinfer_trtllm", "flashinfer_mxfp4"]:
+    return False
+```
+
+CLI: `--disable-flashinfer-autotune` to skip (`server_args.py:463`).
+
+#### Mechanism 3 — `torch.compile(mode="max-autotune-no-cudagraphs")` (Inductor autotune)
+
+Source: `model_executor/cuda_graph_runner.py:162`
+
+```python
+yield torch.compile(
+    torch.no_grad()(model.forward),
+    mode=os.environ.get("SGLANG_TORCH_COMPILE_MODE", "max-autotune-no-cudagraphs"),
+    ...
+)
+```
+
+When `enable_compile` is True, torch.compile compiles the forward pass; Inductor autotunes the Triton kernels it generates. **Only triggered for `@torch.compile`-decorated functions**, which means small support functions like `overlap_utils._resolve_future_token_ids` and `sampler.py:545` helpers — not the main forward.
+
+#### Summary table
+
+| Mechanism | Covers | When | Cost |
+|---|---|---|---|
+| Static JSON lookup | `fused_moe_kernel` (the big one) | At every launch | None (instant lookup) |
+| `@triton.autotune` decorator | ~9 smaller kernels (FP8 quant, linear attention) | First call after server start | Seconds — minutes |
+| `flashinfer.autotuner` | flashinfer_trtllm / flashinfer_mxfp4 MoE backends only | Server warmup phase | 30s — few minutes |
+| `torch.compile max-autotune` | Inductor-generated kernels (~32 `@torch.compile`-decorated fns) | Compile time at first forward | Tens of seconds |
+
+**So our `fused_moe_kernel` (50 % of GPU time) is the ONLY major path with NO runtime tuning** — it relies purely on the hand-PR'd JSON files in `triton_3_5_1/`.
+
+### 5.4 Who does the tuning? (PR author analysis)
+
+Top 15 authors who've committed to `fused_moe_triton/configs/`:
+
+```
+11  Xiaoyu Zhang (BBuf)      ← sglang core maintainer
+ 7  Yineng Zhang (zhyncs)    ← sglang core maintainer (LMSYS)
+ 5  zixuanzhang226            ← Bytedance
+ 5  lambert0312               ← community
+ 5  Qiaolin Yu                ← community
+ 4  Yi Zhang                  ← community
+ 4  Baizhou Zhang             ← community
+ 3  yigex (AMD)               ← AMD employee (ROCm configs)
+ 3  roikoren755               ← community
+ 3  Wen-Heng (Jack) Chung (AMD)
+ 3  Ximingwang-09
+ 2  kkHuang-amd (AMD)
+ 2  jackey hua (Bytedance)
+ ...
+```
+
+**Pattern**: **Mix of sglang core team (BBuf, zhyncs) and downstream deployers** (Bytedance has many — they run sglang in production; AMD employees contribute ROCm configs).
+
+**It's NOT model authors** — Qwen, MiniMax, DeepSeek companies don't typically submit these. It's whoever's deploying that model on a specific (GPU, TP-size, dtype) combination and notices the missing config.
+
+### 5.5 How are tuning PRs tested before merge?
+
+#### What CI actually runs for tuning PRs
+
+Pre-merge CI for MoE: `test/registered/moe/test_fused_moe.py` (244 lines) + `test_triton_fused_moe.py` (195 lines).
+
+These tests check **numerical correctness** — they compare `fused_moe(...)` output against `torch_naive_moe(...)` (Python loop reference) with tolerance:
+
+```python
+def get_tolerance(self, dtype):
+    if dtype == torch.float32:
+        return 1e-3, 1e-5       # rtol, atol
+    elif dtype in [torch.float16, torch.bfloat16]:
+        return 1e-1, 1e-2       # 10% rtol on bf16
+    else:
+        return 1e-2, 1e-2
+```
+
+Tests run across `NUM_EXPERTS = [8, 64]` × `TOP_KS = [2, 6]` — but **NOT** at the specific `(E=128, N=768)` shapes the PR is tuning. CI is generic, the PR is specific.
+
+#### What CI does NOT do for tuning PRs
+
+| Test | Done? |
+|---|---|
+| Numerical correctness on the PR's specific shape | ❌ No — only generic shapes |
+| Perf regression check (did the new JSON actually make it faster?) | ❌ No — perf is trusted to the PR author's local measurement |
+| Comparison vs the fallback config it would have used | ❌ No |
+| Multi-GPU tests | ❌ No (CI runs single GPU) |
+
+#### The `.github/workflows/auto-tune.yml` — is it a real auto-tuner?
+
+Spoiler: **no**. The file exists but is a stub:
+
+```yaml
+name: Auto tune
+on:
+  workflow_dispatch:
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+```
+
+That's literally the whole file. No tuning step, no GPU runner, just a `workflow_dispatch` trigger with a checkout. **There is no automated tuning in sglang's CI today.**
+
+### 5.6 So is performance ever verified before merge?
+
+Based on the data above, **no rigorous pre-merge perf verification**. The trust model is:
+
+1. **Author tunes locally** on their own GPU (sometimes a different GPU than the config claims to target! — e.g. someone tunes on a borrowed H200 to add an H200 config)
+2. **Author runs the local benchmark** (`tuning_fused_moe_triton.py --tune`), measures latency, records the best config
+3. **Author opens PR** with one JSON file
+4. **CI runs the generic numerical-correctness test** (which passes regardless of which config you pick)
+5. **Reviewer (a core maintainer) eyeballs** the JSON values for sanity, occasionally re-runs the script themselves
+6. **Merge**
+
+Periodically, after merging, someone notices a regression in real workloads and reverts/re-tunes. This DID happen — there's a `[Fix] Triton TP MoE Dpsk V3/Qwen3 Coder with SwapAB (#17965)` PR from 2026-01-31 fixing a previously-bad config.
+
+### 5.7 Direct answers to your sub-questions
+
+> **"具体是做什么? 修改模型实现里的后端选择路径吗?"**
+> No — tuning does not touch model files at all. It generates one JSON file (~146 lines) that maps batch_size → optimal Triton meta-params.
+
+> **"需不需要加入新的 kernel?"**
+> No — the kernel (`fused_moe_kernel`, 1148 lines) is the same. Only the JIT compile-time constants (BLOCK_SIZE_*, num_warps, num_stages) change.
+
+> **"或者对 kernel 进行优化?"**
+> No — the kernel source is untouched. Tuning ONLY searches the existing kernel's hyperparameter space.
+
+> **"sglang 没有任何运行/部署时 tuning 是吗?"**
+> Partial — sglang has runtime tuning for (a) some smaller kernels via `@triton.autotune`, (b) flashinfer backends via `flashinfer.autotuner.autotune()` at warmup, (c) Inductor-generated kernels via `torch.compile(mode="max-autotune-no-cudagraphs")`. **But the dominant `fused_moe_kernel` (50 % of GPU time) has NO runtime tuning** — it uses static JSON lookup.
+
+> **"都需要人工 tuning 然后交 PR 吗?"**
+> For `fused_moe_kernel`: yes. Someone runs `tuning_fused_moe_triton.py --tune --model ... --tp-size ...` locally, gets a JSON, opens a PR.
+
+> **"合并 PR 前又是如何对这些 tuning 进行测试的?"**
+> Only generic numerical correctness (test_fused_moe.py, 244 lines, tests E=8/64 and topk=2/6 — NOT the PR's specific shape). No perf regression check, no on-PR autotune. The `auto-tune.yml` workflow is a stub.
+
+> **"是模型开发者负责 tuning 还是 sglang 的人负责?"**
+> Mix. Top 2 contributors are sglang core maintainers (BBuf, zhyncs). Many contributions from downstream deployers (Bytedance especially). AMD employees contribute ROCm-specific configs. **NOT typically model authors** — Qwen / DeepSeek / MiniMax companies rarely submit these. The implicit assumption is: "if you deploy this (model × GPU × dtype × TP) combo and care about perf, you tune it yourself."
+
+### 5.8 What this means for the agent project
+
+This is **the most under-served niche** in sglang right now:
+
+| Gap in current process | Where an agent helps |
+|---|---|
+| No automated tuning — humans do it sporadically | Agent runs tuning continuously across (model, GPU, dtype, TP) matrix |
+| Only generic CI tests, no perf regression check | Agent gates PRs by running its own benchmark before merge |
+| Tuning lag — new Triton version means weeks of stale configs | Agent re-tunes immediately on Triton bump |
+| Author trust model — no double-check on perf claims | Agent re-runs author's tuning on its own hardware to verify |
+| Coverage is incomplete (hundreds of (model, GPU, dtype, TP) cells, only ~64 H200 configs in 3.5.1) | Agent enumerates the gap matrix and prioritises high-traffic deployments |
+
+**The cleanest first PR is literally just**: "I built a bot that detects `Config file not found` warnings, runs autotune, and opens a PR. Here are 10 generated configs that close 10 known gaps." Low-risk, high-visibility, immediately useful to the sglang community.
+
+
 
 ---
 
@@ -643,3 +896,256 @@ grep -rn "@torch.compile" sglang/python/sglang/srt | wc -l
 # 验证 Gluon 可用
 conda activate sglang-dev && python -c "from triton.experimental import gluon; print(dir(gluon))"
 ```
+---
+
+## 5. "对模型 tune" 到底是干什么? (流程详解)
+
+> 本节是 follow-up 调研: tuning 脚本具体做什么、sglang 有没有运行时 tuning、谁来 tune、tuning PR 合并前怎么测试? 每个论断都有 `grep` 可定位的指针。
+
+### 5.1 Tuning 脚本 — 具体在干什么
+
+脚本是 `benchmark/kernels/fused_moe_triton/tuning_fused_moe_triton.py` (458 行)。逐行读完,这是**精确流程**:
+
+**第 1 步 — 构建候选配置搜索空间** (`common_utils.py: get_configs_compute_bound`):
+
+```python
+for num_stages in [2, 3, 4, 5]:
+    for block_m in [16, 32, 64, 128, 256]:
+        for block_k in [64, 128, 256]:
+            for block_n in [32, 64, 128, 256]:
+                for num_warps in [4, 8]:
+                    for group_size in [1, 16, 32, 64]:
+                        configs.append({
+                            "BLOCK_SIZE_M": block_m, "BLOCK_SIZE_N": block_n,
+                            "BLOCK_SIZE_K": block_k, "GROUP_SIZE_M": group_size,
+                            "num_warps": num_warps, "num_stages": num_stages,
+                        })
+```
+
+也就是 `4 × 5 × 3 × 4 × 2 × 4 = 1920` 个候选,per (model, GPU) cell。
+
+**第 2 步 — 对 `[1, 2, 4, ..., 4096]` 每个 batch size,计时每个候选**:
+1. 按模型 shape 生成随机 `(x, w1, w2, gating)` tensor
+2. 用每个候选 config 调 `fused_moe(...)`
+3. 跑 100 次迭代,取中位数延迟
+
+**第 3 步 — 每个 batch size 存赢家配置** 到 JSON:
+
+```python
+# common_utils.py: save_configs
+def save_configs(configs: Dict[int, BenchmarkConfig], filename: str):
+    with open(filename, "w") as f:
+        json.dump(configs, f, indent=4)
+```
+
+输出 JSON 长这样:
+```json
+{
+    "1":  {"BLOCK_SIZE_M": 16, "BLOCK_SIZE_N": 64, "BLOCK_SIZE_K": 128, "GROUP_SIZE_M": 1, "num_warps": 4, "num_stages": 4},
+    "8":  {"BLOCK_SIZE_M": 32, ...},
+    "64": {"BLOCK_SIZE_M": 64, ...},
+    ...
+}
+```
+
+文件名编码模型 shape: `E=128,N=768,device_name=NVIDIA_H200.json`。
+
+**第 4 步 — 把 JSON 放进 `configs/triton_{version}/`** 然后开 PR。
+
+### 5.2 "tuning" **不**做什么
+
+| 操作 | 在 tune 时做吗? |
+|---|---|
+| 改 kernel 本身 (`fused_moe_kernel @ fused_moe_triton_kernels.py:324`) | ❌ 不 —— 同一个 kernel,只是 `tl.constexpr` 参数值不同 |
+| 改模型实现文件 (`models/qwen3_moe.py` 等) | ❌ 不 —— 模型代码动都不动 |
+| 改 backend 选择 (`fused_moe_kernel` vs `_p_matmul_ogs_*` vs `cutlass_moe` 哪个) | ❌ 不 —— 那是 `--moe-runner-backend` CLI flag,完全独立 |
+| 加新 kernel | ❌ 不 |
+| 改 kernel 算法 / fused op | ❌ 不 |
+
+**Tuning = 纯粹的 Triton meta-param 超参搜索**。无代码改动。输出是一个 JSON 文件,per (model, dtype, GPU, TP-size) cell。
+
+### 5.3 sglang 有没有运行时 / 启动时 tuning?
+
+**有 —— 存在 3 种机制,但大块头 `fused_moe_kernel` 一个都不用**。
+
+#### 机制 1 —— `@triton.autotune` 装饰器,用在小 kernel 上
+
+在这些地方:
+- `layers/quantization/fp8_kernel.py:1662` (`fp8_autotune` 包裹 per-token group quant FP8 kernel)
+- `layers/attention/fla/cumsum.py:71`, `fla/kda.py` (8 个 kernel), `fla/l2norm.py` (注释掉了)
+
+工作原理: 第一次调用时,Triton 把 autotune 列表里所有 config 编译一遍,在实际输入 shape 上跑 benchmark,挑最优。**缓存供后续调用使用**。结果: 第一次慢 (编译所有 config),之后快。
+
+**为啥 `fused_moe_kernel` 不用这个?** 两个原因:
+1. 搜索空间太大 (1920 个 config) —— 第一次调用延迟会无法接受 (~分钟级)
+2. 不同 `(E, N, dtype, H200)` cell 的最优 config 不同;autotune 在调用之前不知道是哪个 cell
+
+#### 机制 2 —— `flashinfer.autotuner.autotune()` (运行时,在 warmup)
+
+来源: `model_executor/model_runner.py:1859-1874`
+
+```python
+def _flashinfer_autotune(self):
+    from flashinfer.autotuner import autotune
+    logger.info("Running FlashInfer autotune...")
+    with torch.inference_mode(), autotune():
+        self._dummy_run(batch_size=self.req_to_token_pool.size, run_ctx=autotune())
+    logger.info("FlashInfer autotune completed.")
+```
+
+这个在**服务器 warmup 时**跑 (权重加载之后,服务请求之前)。**但只在** `--moe-runner-backend = flashinfer_trtllm` 或 `flashinfer_mxfp4` 时 (`model_runner.py:1837-1842`):
+
+```python
+if backend_str not in ["flashinfer_trtllm", "flashinfer_mxfp4"]:
+    return False
+```
+
+CLI: `--disable-flashinfer-autotune` 可禁用 (`server_args.py:463`)。
+
+#### 机制 3 —— `torch.compile(mode="max-autotune-no-cudagraphs")` (Inductor autotune)
+
+来源: `model_executor/cuda_graph_runner.py:162`
+
+```python
+yield torch.compile(
+    torch.no_grad()(model.forward),
+    mode=os.environ.get("SGLANG_TORCH_COMPILE_MODE", "max-autotune-no-cudagraphs"),
+    ...
+)
+```
+
+`enable_compile=True` 时,torch.compile 编译 forward;Inductor 给它生成的 Triton kernel 跑 autotune。**只对 `@torch.compile`-装饰的函数触发**,意味着是 `overlap_utils._resolve_future_token_ids`、`sampler.py:545` 这种小支援函数 —— **不是主 forward**。
+
+#### 汇总表
+
+| 机制 | 覆盖范围 | 何时跑 | 代价 |
+|---|---|---|---|
+| 静态 JSON 查找 | `fused_moe_kernel` (大块头) | 每次 launch | 无 (瞬时查表) |
+| `@triton.autotune` 装饰器 | ~9 个小 kernel (FP8 quant, linear attention) | 服务器启动后第一次调用 | 几秒 — 几分钟 |
+| `flashinfer.autotuner` | 仅 flashinfer_trtllm / flashinfer_mxfp4 MoE backend | 服务器 warmup 阶段 | 30 秒 — 几分钟 |
+| `torch.compile max-autotune` | Inductor 生成的 kernel (~32 个 `@torch.compile`-装饰函数) | 第一次 forward 编译时 | 几十秒 |
+
+**所以我们的 `fused_moe_kernel` (50% GPU 时间) 是唯一没有运行时 tuning 的主要路径** —— 它纯靠 `triton_3_5_1/` 里手动 PR 的 JSON 文件。
+
+### 5.4 谁来 tune? (PR 作者分析)
+
+提交过 `fused_moe_triton/configs/` 的 top 15 作者:
+
+```
+11  Xiaoyu Zhang (BBuf)      ← sglang 核心维护者
+ 7  Yineng Zhang (zhyncs)    ← sglang 核心维护者 (LMSYS)
+ 5  zixuanzhang226            ← 字节跳动
+ 5  lambert0312               ← 社区
+ 5  Qiaolin Yu                ← 社区
+ 4  Yi Zhang                  ← 社区
+ 4  Baizhou Zhang             ← 社区
+ 3  yigex (AMD)               ← AMD 员工 (ROCm config)
+ 3  roikoren755               ← 社区
+ 3  Wen-Heng (Jack) Chung (AMD)
+ 3  Ximingwang-09
+ 2  kkHuang-amd (AMD)
+ 2  jackey hua (字节跳动)
+ ...
+```
+
+**模式**: **sglang 核心团队 (BBuf, zhyncs) + 下游部署方** 的混合 (字节跳动很多 —— 他们生产环境跑 sglang;AMD 员工贡献 ROCm config)。
+
+**不是模型作者** —— Qwen、MiniMax、DeepSeek 公司一般不交这个。是部署该模型到特定 (GPU, TP-size, dtype) 组合的人发现 config 缺失了。
+
+### 5.5 Tuning PR 合并前怎么测?
+
+#### CI 实际跑什么 (对 tuning PR)
+
+MoE pre-merge CI: `test/registered/moe/test_fused_moe.py` (244 行) + `test_triton_fused_moe.py` (195 行)。
+
+测试做的是**数值正确性** —— 对比 `fused_moe(...)` 输出和 `torch_naive_moe(...)` (Python 循环参考) 在容差内:
+
+```python
+def get_tolerance(self, dtype):
+    if dtype == torch.float32:
+        return 1e-3, 1e-5       # rtol, atol
+    elif dtype in [torch.float16, torch.bfloat16]:
+        return 1e-1, 1e-2       # bf16 10% rtol
+    else:
+        return 1e-2, 1e-2
+```
+
+测试覆盖 `NUM_EXPERTS = [8, 64]` × `TOP_KS = [2, 6]` —— **但不是** PR 实际调的那个 `(E=128, N=768)` shape。**CI 是通用的,PR 是具体的**。
+
+#### CI **不**做的事
+
+| 测试 | 做吗? |
+|---|---|
+| 在 PR 的具体 shape 上跑数值正确性 | ❌ 不 —— 只在通用 shape 上 |
+| 性能回归检查 (新 JSON 真的更快吗?) | ❌ 不 —— 性能信任 PR 作者本地测的数 |
+| 对比 fallback 配置 (本来会用的旧配置) | ❌ 不 |
+| 多 GPU 测试 | ❌ 不 (CI 单 GPU) |
+
+#### `.github/workflows/auto-tune.yml` —— 真的是自动 tuner 吗?
+
+剧透: **不是**。文件存在但只是个 stub:
+
+```yaml
+name: Auto tune
+on:
+  workflow_dispatch:
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+```
+
+整个文件就这么多。没有 tuning 步骤,没有 GPU runner,只有 `workflow_dispatch` 触发加一个 checkout。**sglang CI 今天没有自动 tuning**。
+
+### 5.6 那性能合并前到底有没有人验证?
+
+根据上面数据,**没有严格的 pre-merge 性能验证**。信任模型是:
+
+1. **作者本地 tune** (在自己的 GPU 上跑,有时和 config 声称的目标 GPU 还不一样! 比如有人借了台 H200 来加 H200 config)
+2. **作者跑本地 benchmark** (`tuning_fused_moe_triton.py --tune`),测延迟,记录最佳 config
+3. **作者开 PR**,带一个 JSON 文件
+4. **CI 跑通用数值正确性测试** (无论选啥 config 都过)
+5. **Reviewer (核心维护者) 大致看一眼** JSON 数值,偶尔自己重跑脚本
+6. **合并**
+
+定期地,合并后会有人在真实 workload 里发现回归,然后 revert / 重 tune。这确实发生过 —— 有个 PR `[Fix] Triton TP MoE Dpsk V3/Qwen3 Coder with SwapAB (#17965)` 2026-01-31,就是修之前一个差的 config。
+
+### 5.7 直接回答你的子问题
+
+> **"具体是做什么? 修改模型实现里的后端选择路径吗?"**
+> 不,tuning 根本不碰模型文件。它生成一个 JSON 文件 (~146 行),映射 batch_size → 最优 Triton meta-param。
+
+> **"需不需要加入新的 kernel?"**
+> 不需要 —— kernel (`fused_moe_kernel`,1148 行) 是同一个。只有 JIT 编译期常量 (BLOCK_SIZE_*、num_warps、num_stages) 变。
+
+> **"或者对 kernel 进行优化?"**
+> 不,kernel 源码动都不动。Tuning **只**在现有 kernel 的超参空间里搜索。
+
+> **"sglang 没有任何运行 / 部署时 tuning 是吗?"**
+> 部分有 —— sglang 有运行时 tuning,(a) 一些小 kernel 通过 `@triton.autotune`,(b) flashinfer backend 通过 warmup 时的 `flashinfer.autotuner.autotune()`,(c) Inductor 生成的 kernel 通过 `torch.compile(mode="max-autotune-no-cudagraphs")`。**但占主导的 `fused_moe_kernel` (50% GPU 时间) 没有运行时 tuning** —— 它用静态 JSON 查表。
+
+> **"都需要人工 tuning 然后交 PR 吗?"**
+> 对 `fused_moe_kernel`: 是。有人本地跑 `tuning_fused_moe_triton.py --tune --model ... --tp-size ...`,拿 JSON,开 PR。
+
+> **"合并 PR 前又是如何对这些 tuning 进行测试的?"**
+> 只有通用数值正确性 (test_fused_moe.py,244 行,测 E=8/64 和 topk=2/6 —— **不是** PR 实际的 shape)。**没有性能回归检查,没有 on-PR autotune**。`auto-tune.yml` workflow 是个 stub。
+
+> **"是模型开发者负责 tuning 还是 sglang 的人负责?"**
+> 混合。top 2 贡献者是 sglang 核心维护者 (BBuf, zhyncs)。下游部署方贡献很多 (字节跳动特别多)。AMD 员工贡献 ROCm 特定 config。**一般不是模型作者** —— Qwen / DeepSeek / MiniMax 公司很少交。隐含假设是: "如果你部署这个 (model × GPU × dtype × TP) 组合且关心性能,你自己 tune"。
+
+### 5.8 这对 agent 项目意味着什么
+
+这是 sglang 当下**最被服务不足的小生境**:
+
+| 现行流程的缺口 | Agent 如何帮 |
+|---|---|
+| 没有自动 tuning —— 人偶尔 tune | Agent 持续在 (model, GPU, dtype, TP) 矩阵上跑 tuning |
+| 只有通用 CI 测试,没性能回归检查 | Agent 合并前在自己 benchmark 上 gate PR |
+| Tuning 滞后 —— Triton 新版意味着几周陈旧 config | Triton 升级后 agent 立刻重新 tune |
+| 作者信任模型 —— 没有性能数字的二次验证 | Agent 在自己硬件上重跑作者的 tuning 来验证 |
+| 覆盖不完整 (几百个 (model, GPU, dtype, TP) cell,3.5.1 里只 ~64 个 H200 config) | Agent 枚举缺口矩阵,按高流量部署排优先级 |
+
+**最干净的第一个 PR 真的就是**: "我搭了个 bot,检测 `Config file not found` 警告,跑 autotune,开 PR。这是 10 个生成的 config,关闭了 10 个已知缺口"。低风险、高曝光、对 sglang 社区立即有用。
+
+
