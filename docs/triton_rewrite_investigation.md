@@ -2163,6 +2163,192 @@ So the 3-conditions rule should be:
 
 ---
 
+## 17. vLLM's MoE backend dispatcher — completely different architecture from sglang
+
+> User question: "How is vLLM's MoE backend selection? Same logic as sglang?" **No, fundamentally different architecture.** sglang has a model-arch hardcoded if/elif chain; vLLM has a generic 'oracle' pattern with priority lists per quantization type. Both have similar coverage but very different code organisation.
+
+### 17.1 vLLM's structure — 'oracle' pattern with priority lists
+
+**Main directory**: `vllm/model_executor/layers/fused_moe/oracle/`
+
+Files:
+| File | Lines | Purpose |
+|---|---|---|
+| `unquantized.py` | **370** | bf16 / fp16 MoE backend dispatch |
+| `fp8.py` | 634 | FP8 quantization |
+| `nvfp4.py` | 560 | NVFP4 quantization |
+| `mxfp4.py` | 1710 | MXFP4 quantization |
+| `mxfp8.py` | 91 | MXFP8 |
+| `int8.py` | 218 | INT8 |
+| `int_wna16.py` | 908 | INT4/INT8 weight-only (Marlin) |
+| `w4a8.py` | 195 | W4A8 |
+| `w4a8_int8.py` | 360 | W4A8 with INT8 act |
+
+Each file exports `select_<dtype>_moe_backend(...)` which returns one of an Enum of backends.
+
+### 17.2 vLLM Enum example — UnquantizedMoeBackend (bf16)
+
+`vllm/model_executor/layers/fused_moe/oracle/unquantized.py:32`:
+
+```python
+class UnquantizedMoeBackend(Enum):
+    FLASHINFER_TRTLLM = "FlashInfer TRTLLM"
+    FLASHINFER_CUTLASS = "FlashInfer CUTLASS"
+    AITER = "ROCm AITER"
+    TRITON = "TRITON"
+    BATCHED_TRITON = "BATCHED_TRITON"
+    CPU = "CPU"
+    XPU = "XPU"
+    TPU = "TPU"
+    OOT = "OOT"
+```
+
+And the priority logic (lines 44-92):
+
+```python
+def _get_priority_backends(moe_config: FusedMoEConfig) -> list[UnquantizedMoeBackend]:
+    if current_platform.is_rocm():
+        _AVAILABLE_BACKENDS = [AITER, TRITON, BATCHED_TRITON]
+    elif current_platform.is_cuda():
+        _AVAILABLE_BACKENDS = [
+            FLASHINFER_TRTLLM,        # 1st priority — try FlashInfer first
+            FLASHINFER_CUTLASS,       # 2nd priority
+            TRITON,                   # 3rd priority — fallback
+            BATCHED_TRITON,
+        ]
+        
+        # On Hopper (SM90), FlashInfer unquantized MoE is SLOWER than Triton,
+        # so demote it.
+        if current_platform.is_device_capability_family(90):
+            _move_to_back(_AVAILABLE_BACKENDS, FLASHINFER_TRTLLM)
+            _move_to_back(_AVAILABLE_BACKENDS, FLASHINFER_CUTLASS)
+
+        # HACK: Qwen3.5 + DEP crashes with FLASHINFER_CUTLASS BF16
+        if moe_config.moe_parallel_config.dp_size > 1:
+            _move_to_back(_AVAILABLE_BACKENDS, FLASHINFER_CUTLASS)
+```
+
+Then `select_unquantized_moe_backend` tries each backend in priority order and returns the first that satisfies `is_supported_config(...)`.
+
+### 17.3 Fp8MoeBackend has 13 candidates
+
+`vllm/model_executor/layers/fused_moe/oracle/fp8.py:~210`:
+
+```python
+class Fp8MoeBackend(Enum):
+    NONE = "NONE"
+    FLASHINFER_TRTLLM = "FLASHINFER_TRTLLM"
+    FLASHINFER_CUTLASS = "FLASHINFER_CUTLASS"
+    DEEPGEMM = "DEEPGEMM"
+    BATCHED_DEEPGEMM = "BATCHED_DEEPGEMM"
+    MARLIN = "MARLIN"
+    TRITON = "TRITON"
+    BATCHED_TRITON = "BATCHED_TRITON"
+    AITER = "AITER"
+    VLLM_CUTLASS = "VLLM_CUTLASS"
+    BATCHED_VLLM_CUTLASS = "BATCHED_VLLM_CUTLASS"
+    XPU = "XPU"
+    CPU = "CPU"
+```
+
+**13 FP8 backends** vs sglang's 9 (in MOE_RUNNER_BACKEND_CHOICES). vLLM has more diversity per quantization.
+
+### 17.4 sglang vs vLLM design comparison
+
+| Aspect | sglang | vLLM |
+|---|---|---|
+| **Where backend chosen** | `server_args.py:1190-1640` (one giant if/elif by model_arch) | `oracle/<dtype>.py` (one file per quantization type) |
+| **Dispatch axis** | Primary: model architecture | Primary: quantization type |
+| **Code style** | Imperative if/elif chain | Declarative priority list + `is_supported_config` |
+| **Model-specific tuning** | Hardcoded list ("DeepseekV3, Llama4, ..." appear in many branches) | Generic — relies on each backend reporting its support matrix |
+| **Hopper special-casing** | None (Hopper always falls back to Triton) | **Explicit demotion**: `if current_platform.is_device_capability_family(90): _move_to_back(FLASHINFER_TRTLLM)` |
+| **Multi-quant handling** | A single dispatch handles all dtypes via if-conditions | One oracle file per dtype with its own Enum + priority |
+| **# files involved** | 1 (server_args.py) | 9 oracle files + each backend's `is_supported_config` |
+
+### 17.5 The most striking difference — vLLM EXPLICITLY says "Hopper bf16 → use Triton"
+
+`unquantized.py:74-78`:
+
+```python
+# On Hopper (SM90), the FlashInfer unquantized MoE kernels are slower
+# than Triton, so prefer Triton by default.
+if current_platform.is_device_capability_family(90):
+    _move_to_back(_AVAILABLE_BACKENDS, UnquantizedMoeBackend.FLASHINFER_TRTLLM)
+    _move_to_back(_AVAILABLE_BACKENDS, UnquantizedMoeBackend.FLASHINFER_CUTLASS)
+```
+
+**vLLM developers explicitly tested this and concluded: on Hopper (= H100/H200), Triton beats FlashInfer for bf16 MoE.** This is direct evidence for our §14 finding that the 30% peak utilization Triton achieves on H200 is actually the BEST available option — even FlashInfer's TRTLLM bf16 path (if it ran on H200) would lose.
+
+Compare to sglang: sglang ALSO defaults to Triton for Hopper bf16, but **not by explicit comparison** — it's because the auto-mode branches gate `flashinfer_trtllm` on `is_sm100_supported()`. Same end result, different reasoning recorded.
+
+### 17.6 Coverage comparison
+
+**For our exact case** (Qwen3-30B-A3B / H200 / bf16):
+
+| Framework | What gets chosen | Why |
+|---|---|---|
+| sglang | TRITON | server_args.py:1558 `Qwen3MoeForCausalLM` branch gated on sm_100, falls through |
+| vLLM | TRITON | unquantized.py: `is_device_capability_family(90)` triggers demotion of FlashInfer → Triton wins by priority |
+
+**Same end result, completely different dispatch path.** Both arrive at Triton, but vLLM's reasoning is "we benchmarked and Triton is faster on Hopper bf16", while sglang's reasoning is "sm_100 not detected so skip the special path".
+
+### 17.7 Quality of coverage by quantization
+
+| Quantization | sglang dispatch logic | vLLM dispatch logic | vLLM has more options? |
+|---|---|---|---|
+| bf16 | Mostly Triton (unless Qwen3MoeForCausalLM + Blackwell branch fires) | UnquantizedMoeBackend with 9 options + Hopper special-casing | ✅ Yes, more nuanced |
+| FP8 | Mostly Triton (unless head model + Blackwell) | Fp8MoeBackend with **13 options** + `_get_priority_backends` selects best | ✅ Yes, dramatically more |
+| MXFP4 | GPT-OSS-only special path | Mxfp4MoeBackend file is **1710 lines** | ✅ Yes, MUCH more |
+| NVFP4 | NemotronH special path | NvFp4MoeBackend with `select_nvfp4_moe_backend` | ✅ Yes |
+| MXFP8 | Forced cutlass | mxfp8.py oracle | Similar |
+| W4A8 | sgl-kernel CUDA + manual opt-in | w4a8.py + w4a8_int8.py oracles | Similar |
+| INT4 / INT8 WNA16 | Marlin special path | int_wna16.py = 908 lines | ✅ Yes |
+
+**vLLM has notably MORE dispatch options per quantization type** — especially for FP8 (13 backends vs ~3 reachable in sglang). This makes sense because vLLM has been doing inference longer (since 2023) and accumulated more backends.
+
+### 17.8 What this means for our agent project
+
+Three observations:
+
+1. **vLLM's design is more agent-friendly**. Each `oracle/*.py` returns a backend choice based on declarative `is_supported_config()` callbacks. An agent could **add a new backend by writing a new `is_supported_config` + registering in the priority list** — much cleaner than sglang's "edit if/elif chain in server_args.py".
+
+2. **sglang's design has more model-specific tuning hardcoded**. We've seen this is both a strength (head models like DeepSeek-V3 get specialized paths) and weakness (long-tail models like Mixtral never enter any special path). vLLM's generic approach gives every model the **same dispatch logic**, just different `is_supported_config` outcomes.
+
+3. **For long-tail MoE on Hopper bf16**: **both frameworks end up at Triton**. vLLM with explicit "Triton is faster on Hopper bf16" comment; sglang via fall-through. Our autotune-bot pitch applies equally to both ecosystems — closing config gaps benefits long-tail users on **both** vLLM and sglang.
+
+4. **Cross-framework PR opportunity**: a generated autotune'd config (sglang's JSON format) can be **adapted to vLLM's flat configs/** directory directly (we verified in §7.2.3 they're already byte-identical for E=128,N=768,H200). One autotune run → potential PRs to both frameworks.
+
+### 17.9 Source file references
+
+For your inspection:
+
+```
+vLLM MoE dispatch infrastructure:
+├── /home/t-jialianggu/work/vllm/vllm/config/kernel.py:171   ← `moe_backend: MoEBackend = "auto"` knob
+├── /home/t-jialianggu/work/vllm/vllm/model_executor/layers/fused_moe/oracle/
+│   ├── unquantized.py:32-152        UnquantizedMoeBackend (bf16/fp16, 370 lines)
+│   ├── fp8.py:223-634               Fp8MoeBackend (13 options, 634 lines)
+│   ├── nvfp4.py:160-560             NvFp4MoeBackend
+│   ├── mxfp4.py                     Mxfp4MoeBackend (1710 lines)
+│   ├── mxfp8.py:58                  Mxfp8MoeBackend
+│   ├── int8.py:69                   Int8MoeBackend
+│   ├── int_wna16.py:87              WNA16MoEBackend (908 lines)
+│   ├── w4a8.py:49                   W4A8MoeBackend
+│   └── w4a8_int8.py                 (360 lines)
+└── /home/t-jialianggu/work/vllm/vllm/model_executor/layers/fused_moe/layer.py:70
+    class FusedMoE (use moe_backend from kernel_config)
+```
+
+vs sglang:
+```
+sglang MoE dispatch:
+└── /home/t-jialianggu/work/sglang/python/sglang/srt/server_args.py:1190-1640
+    (everything in one place, organised by model_arch in if/elif chain)
+```
+
+
+---
+
 <a id="中文版"></a>
 
 # 中文版
@@ -4301,5 +4487,187 @@ elif model_arch in [
 1. ✅ 这个修正已 commit
 2. ⏳ 该测: 如果我们能拿到 Blackwell,flashinfer_trtllm 对 Qwen3-30B-A3B bf16 真能 work 吗?(§9 测不了,因为 trtllm_bf16_moe 要 sm_100 + 我们在 sm_90)
 3. ⏳ Agent 项目 pitch 该强调: **我们帮 Hopper 用户 (今天大多数),以及在 bf16 下跑非-{Qwen3Moe, Qwen3Next} 模型的 Blackwell 用户**
+---
+
+## 17. vLLM 的 MoE backend dispatcher —— 架构和 sglang 完全不同
+
+> 你的问题: "vLLM 那边的 MoE 高性能支持如何? 和 sglang 逻辑差不多吗?" **不,架构完全不同**。sglang 是按 model_arch 硬编码 if/elif 链;vLLM 是 'oracle' 模式 + per-量化类型的优先级列表。覆盖度差不多但代码组织非常不同。
+
+### 17.1 vLLM 的结构 —— 'oracle' 模式 + 优先级列表
+
+**主目录**: `vllm/model_executor/layers/fused_moe/oracle/`
+
+文件:
+| 文件 | 行数 | 用途 |
+|---|---|---|
+| `unquantized.py` | **370** | bf16 / fp16 MoE backend 派发 |
+| `fp8.py` | 634 | FP8 量化 |
+| `nvfp4.py` | 560 | NVFP4 量化 |
+| `mxfp4.py` | 1710 | MXFP4 量化 |
+| `mxfp8.py` | 91 | MXFP8 |
+| `int8.py` | 218 | INT8 |
+| `int_wna16.py` | 908 | INT4/INT8 weight-only (Marlin) |
+| `w4a8.py` | 195 | W4A8 |
+| `w4a8_int8.py` | 360 | W4A8 with INT8 act |
+
+每个文件 export `select_<dtype>_moe_backend(...)`,返回 Enum 里的某个 backend。
+
+### 17.2 vLLM Enum 例子 —— UnquantizedMoeBackend (bf16)
+
+`vllm/model_executor/layers/fused_moe/oracle/unquantized.py:32`:
+
+```python
+class UnquantizedMoeBackend(Enum):
+    FLASHINFER_TRTLLM = "FlashInfer TRTLLM"
+    FLASHINFER_CUTLASS = "FlashInfer CUTLASS"
+    AITER = "ROCm AITER"
+    TRITON = "TRITON"
+    BATCHED_TRITON = "BATCHED_TRITON"
+    CPU = "CPU"
+    XPU = "XPU"
+    TPU = "TPU"
+    OOT = "OOT"
+```
+
+优先级逻辑 (L44-92):
+
+```python
+def _get_priority_backends(moe_config: FusedMoEConfig) -> list[UnquantizedMoeBackend]:
+    if current_platform.is_rocm():
+        _AVAILABLE_BACKENDS = [AITER, TRITON, BATCHED_TRITON]
+    elif current_platform.is_cuda():
+        _AVAILABLE_BACKENDS = [
+            FLASHINFER_TRTLLM,        # 第一优先 —— 先试 FlashInfer
+            FLASHINFER_CUTLASS,       # 第二优先
+            TRITON,                   # 第三优先 —— fallback
+            BATCHED_TRITON,
+        ]
+        
+        # 在 Hopper (SM90) 上,FlashInfer 未量化 MoE 比 Triton 慢,所以降级
+        if current_platform.is_device_capability_family(90):
+            _move_to_back(_AVAILABLE_BACKENDS, FLASHINFER_TRTLLM)
+            _move_to_back(_AVAILABLE_BACKENDS, FLASHINFER_CUTLASS)
+
+        # HACK: Qwen3.5 + DEP 在 FLASHINFER_CUTLASS BF16 上崩
+        if moe_config.moe_parallel_config.dp_size > 1:
+            _move_to_back(_AVAILABLE_BACKENDS, FLASHINFER_CUTLASS)
+```
+
+然后 `select_unquantized_moe_backend` 按优先级试每个 backend,返回第一个满足 `is_supported_config(...)` 的。
+
+### 17.3 Fp8MoeBackend 有 13 个候选
+
+`vllm/model_executor/layers/fused_moe/oracle/fp8.py:~210`:
+
+```python
+class Fp8MoeBackend(Enum):
+    NONE = "NONE"
+    FLASHINFER_TRTLLM = "FLASHINFER_TRTLLM"
+    FLASHINFER_CUTLASS = "FLASHINFER_CUTLASS"
+    DEEPGEMM = "DEEPGEMM"
+    BATCHED_DEEPGEMM = "BATCHED_DEEPGEMM"
+    MARLIN = "MARLIN"
+    TRITON = "TRITON"
+    BATCHED_TRITON = "BATCHED_TRITON"
+    AITER = "AITER"
+    VLLM_CUTLASS = "VLLM_CUTLASS"
+    BATCHED_VLLM_CUTLASS = "BATCHED_VLLM_CUTLASS"
+    XPU = "XPU"
+    CPU = "CPU"
+```
+
+**13 个 FP8 backends** vs sglang 9 个 (在 MOE_RUNNER_BACKEND_CHOICES 里)。vLLM 每个量化类型有更多选择。
+
+### 17.4 sglang vs vLLM 设计对比
+
+| 方面 | sglang | vLLM |
+|---|---|---|
+| **Backend 选择位置** | `server_args.py:1190-1640` (一个巨大 if/elif 按 model_arch) | `oracle/<dtype>.py` (每个量化类型一个文件) |
+| **派发轴** | 主轴: 模型架构 | 主轴: 量化类型 |
+| **代码风格** | 命令式 if/elif 链 | 声明式优先级列表 + `is_supported_config` |
+| **模型特定 tuning** | 硬编码列表 (DeepseekV3, Llama4, ... 在多个分支里出现) | 通用 —— 每个 backend 自报支持矩阵 |
+| **Hopper 特殊处理** | 没有 (Hopper 总是回落到 Triton) | **显式降级**: `if current_platform.is_device_capability_family(90): _move_to_back(FLASHINFER_TRTLLM)` |
+| **多量化处理** | 单一派发用 if-条件覆盖所有 dtype | 每 dtype 一个 oracle 文件,各有 Enum + 优先级 |
+| **涉及文件数** | 1 (server_args.py) | 9 个 oracle 文件 + 每个 backend 的 `is_supported_config` |
+
+### 17.5 最显著的区别 —— vLLM **显式**说 "Hopper bf16 → 用 Triton"
+
+`unquantized.py:74-78`:
+
+```python
+# 在 Hopper (SM90) 上,FlashInfer 未量化 MoE kernel 比 Triton 慢,所以默认用 Triton
+if current_platform.is_device_capability_family(90):
+    _move_to_back(_AVAILABLE_BACKENDS, UnquantizedMoeBackend.FLASHINFER_TRTLLM)
+    _move_to_back(_AVAILABLE_BACKENDS, UnquantizedMoeBackend.FLASHINFER_CUTLASS)
+```
+
+**vLLM 开发者明确测过并得出结论: 在 Hopper (= H100/H200) 上,Triton 在 bf16 MoE 上赢 FlashInfer**。这给我们 §14 发现 (Triton 在 H200 上达 30% 峰值实际上是**最好的**可用选项) 提供直接证据 —— 即使 FlashInfer 的 TRTLLM bf16 路径能在 H200 上跑,也会输。
+
+对比 sglang: sglang **也**默认 Hopper bf16 走 Triton,**但不是显式对比** —— 是因为 auto-mode 分支门控在 `is_sm100_supported()`。同样结果,不同推理过程。
+
+### 17.6 我们具体情况的覆盖对比
+
+**我们 (Qwen3-30B-A3B / H200 / bf16)**:
+
+| 框架 | 选啥 | 为啥 |
+|---|---|---|
+| sglang | TRITON | server_args.py:1558 `Qwen3MoeForCausalLM` 分支门控在 sm_100,fall through |
+| vLLM | TRITON | unquantized.py: `is_device_capability_family(90)` 触发 FlashInfer 降级 → Triton 按优先级赢 |
+
+**同样结果,完全不同派发路径**。都到 Triton,但 vLLM 的理由是"我们 benchmark 过 Hopper bf16 上 Triton 更快",sglang 的理由是"没检测到 sm_100 所以跳过特殊路径"。
+
+### 17.7 按量化类型的覆盖质量对比
+
+| 量化 | sglang 派发逻辑 | vLLM 派发逻辑 | vLLM 选择多? |
+|---|---|---|---|
+| bf16 | 主要 Triton (除非 Qwen3MoeForCausalLM + Blackwell 分支触发) | UnquantizedMoeBackend 9 个选项 + Hopper 特殊处理 | ✅ 是,更细 |
+| FP8 | 主要 Triton (除非头部 + Blackwell) | Fp8MoeBackend **13 个选项** + `_get_priority_backends` 选最优 | ✅ 是,**多得多** |
+| MXFP4 | GPT-OSS-only 特殊路径 | Mxfp4MoeBackend 文件 **1710 行** | ✅ 是,**多得多** |
+| NVFP4 | NemotronH 特殊路径 | NvFp4MoeBackend with `select_nvfp4_moe_backend` | ✅ 是 |
+| MXFP8 | 强制 cutlass | mxfp8.py oracle | 类似 |
+| W4A8 | sgl-kernel CUDA + 手动 opt-in | w4a8.py + w4a8_int8.py oracles | 类似 |
+| INT4 / INT8 WNA16 | Marlin 特殊路径 | int_wna16.py = 908 行 | ✅ 是 |
+
+**vLLM 每个量化类型派发选项明显**更多** —— 特别是 FP8 (13 backends vs sglang ~3 可达)。合理,因为 vLLM 做推理时间更长 (2023 起),积累更多 backend。
+
+### 17.8 这对 agent 项目的意义
+
+3 个观察:
+
+1. **vLLM 设计对 agent 更友好**。每个 `oracle/*.py` 基于声明式 `is_supported_config()` callback 返回 backend 选择。Agent 可以**新写一个 backend 通过加 `is_supported_config` + 在优先级列表注册** —— 比 sglang "编辑 server_args.py 里的 if/elif 链" 干净多了。
+
+2. **sglang 设计有更多模型特定 tuning 硬编码**。我们看到这既是优势 (头部模型如 DeepSeek-V3 有专门路径) 也是劣势 (长尾如 Mixtral 永远进不了任何特殊路径)。vLLM 通用方法给每个模型**同样派发逻辑**,只是 `is_supported_config` 输出不同。
+
+3. **对 Hopper bf16 长尾 MoE**: **两个框架都到 Triton**。vLLM 显式注释 "Hopper bf16 Triton 更快";sglang 通过 fall-through。我们 autotune-bot pitch 对**两个生态都适用** —— 闭合 config 缺口惠及长尾用户在**两个**框架。
+
+4. **跨框架 PR 机会**: autotune 生成的 config (sglang JSON 格式) 可以**直接适配 vLLM 的扁平 configs/** 目录 (我们 §7.2.3 验证过两边 E=128,N=768,H200 已是逐字节相同)。**一次 autotune 跑 → 可能给两个框架都开 PR**。
+
+### 17.9 源文件位置参考
+
+供你检查:
+
+```
+vLLM MoE 派发基础设施:
+├── /home/t-jialianggu/work/vllm/vllm/config/kernel.py:171   ← `moe_backend: MoEBackend = "auto"` 开关
+├── /home/t-jialianggu/work/vllm/vllm/model_executor/layers/fused_moe/oracle/
+│   ├── unquantized.py:32-152        UnquantizedMoeBackend (bf16/fp16, 370 行)
+│   ├── fp8.py:223-634               Fp8MoeBackend (13 选项, 634 行)
+│   ├── nvfp4.py:160-560             NvFp4MoeBackend
+│   ├── mxfp4.py                     Mxfp4MoeBackend (1710 行)
+│   ├── mxfp8.py:58                  Mxfp8MoeBackend
+│   ├── int8.py:69                   Int8MoeBackend
+│   ├── int_wna16.py:87              WNA16MoEBackend (908 行)
+│   ├── w4a8.py:49                   W4A8MoeBackend
+│   └── w4a8_int8.py                 (360 行)
+└── /home/t-jialianggu/work/vllm/vllm/model_executor/layers/fused_moe/layer.py:70
+    class FusedMoE (用 kernel_config 的 moe_backend)
+```
+
+对比 sglang:
+```
+sglang MoE 派发:
+└── /home/t-jialianggu/work/sglang/python/sglang/srt/server_args.py:1190-1640
+    (全在一个地方,按 model_arch 在 if/elif 链组织)
+```
 
 
