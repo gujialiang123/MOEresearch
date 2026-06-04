@@ -1797,6 +1797,101 @@ It does NOT fuse:
 
 ---
 
+## 13. Self-critique — questions a sharp mentor will likely ask + honest answers
+
+> Brainstormed by stepping into the mentor's shoes after reading this report. 15 questions grouped by category. For each: what they would ask, why it matters, where my answer is weakest.
+
+### Category 1 — Quantitative challenges
+
+#### Q1. "Autotuned Triton hits 70-90% of theoretical Hopper peak — show data."
+**Honest**: I made that number up (paragraph 11.2.3). Folklore-level industry estimate, no source. **Action**: when autotune finishes, compute actual TFLOPS vs H200 theoretical 989 TFLOPS bf16 peak.
+
+#### Q2. "Hand-CUDA beats Triton 10-30% — empirical data?"
+**Honest**: Same as Q1 — estimated from PR descriptions, not measured. **Action**: Phase 2 must test this; if Triton vs CUTLASS-DSL gap < 20%, kill Path B.
+
+#### Q3. "Long tail represents most deployment volume — quantify it."
+**Honest**: Didn't quantify. **Action**: query HF Hub API for monthly downloads of Mixtral / Phi-MoE / OLMoE vs DeepSeek-V3 / Llama-4.
+
+---
+
+### Category 2 — Experiment completeness
+
+#### Q4. "Your background autotune is still running — actual win vs fallback?"
+**Most important pending data**. If new config only wins 5%, Path A value drops sharply. **Action**: A/B test (a) old triton_3_2_0 fallback vs (c) new triton_3_5_1 autotune config.
+
+#### Q5. "Did you try just copying vLLM's H200/E=128/N=768 config?"
+**No**. 5-min experiment. If vLLM's already-tuned config beats sglang's fallback, our bot's first step can be "mirror from vLLM" — no 30-min autotune needed.
+
+#### Q6. "Did you verify numerical correctness? What if new config outputs garbage?"
+**Not tested**. Autotune only measures speed. New BLOCK_SIZE could trigger Triton numerical bugs. **Action**: run §34's 4-item validation suite (top-1 / top-5 / relative L-inf / ROUGE-L).
+
+#### Q7. "Your R7 is medium-batch with 2k prompts. What about batch=1 chat?"
+We tested only one regime. **Not tested**: batch=1 latency-sensitive, large-batch 64+. **A config that wins on R7 might lose on batch=1**.
+
+---
+
+### Category 3 — Strategic / scope
+
+#### Q8. "Original goal was end-to-end agent. Now narrowed to 'sglang Triton MoE autotune bot'. Scope drift?"
+**Yes**. Counter: agent's core capabilities — perception + decision + action — get minimally validated on MoE autotune first, then expand.
+
+#### Q9. "Why not PR to vLLM? More users."
+vLLM doesn't version configs by Triton, so "config gap" doesn't directly apply. **But** vLLM may have un-tuned (E, N, GPU) cells. **Action**: enumerate vLLM gaps.
+
+#### Q10. "You call this 'agent' but it looks like a CI bot. Where's the LLM?"
+**Real weakness**. Current flow is rule-based. **LLM value**: prioritising which cells to tune, parsing PR feedback, writing deeper code (Path B is where LLM actually writes code).
+
+#### Q11. "Research or engineering?"
+**Honestly engineering**. Research value would be: LLM auto-fixing Triton bugs, formalising hand-CUDA vs Triton cost curve, predicting regressions on new hardware.
+
+---
+
+### Category 4 — Technical depth
+
+#### Q12. "trtllm_bf16_moe is sm_100 only — but is NVIDIA planning sm_90? Did you check?"
+**No**. **Action**: search flashinfer + TRT-LLM GitHub issues.
+
+#### Q13. "Does flashinfer trtllm fuse router?"
+**Don't know** — didn't read trtllm source carefully. Could be a differentiator worth preserving in Path B.
+
+#### Q14. "MoE expert parallelism (EP) not mentioned. Production uses TP+EP. Valid analysis?"
+We tested only TP=1, EP=1. Production DeepSeek-V3 uses TP=4 + EP=2. **Conclusions may not generalise**.
+
+---
+
+### Category 5 — Tactical / priority
+
+#### Q15. "If you can only do ONE thing next week (~5 days), what?"
+3 things in priority:
+1. (Day 1-2) Wait for autotune → A/B test → quantify Path A win → decide continue
+2. (Day 2-3) Test vLLM-copy vs autotune-new vs fallback (3-way) → decide if bot is needed
+3. (Day 4-5) Run 4-item validation → ensure PR safety → **open first PR even if draft**
+
+**Avoids**: "researched a week, shipped nothing".
+
+---
+
+### Meta-questions
+
+#### "What are you most uncertain about?"
+- (a) Path A autotune bot ROI — not measured yet
+- (b) Path B CUTLASS-DSL port difficulty — "2-4 weeks" is a guess
+- (c) Whether to pivot to vLLM — not explored
+
+#### "1-week deliverables?"
+1. autotune result (real win %)
+2. vLLM-copy vs autotune-new vs fallback comparison
+3. numerical validation passing
+4. one sglang PR (even draft)
+
+---
+
+### How to use this section
+
+Dry-run each question before the next mentor meeting. **For Q1-Q3 specifically, don't show up without real numbers** — those are first-fired and where current answers are weakest.
+
+---
+
 <a id="中文版"></a>
 
 # 中文版
@@ -3578,5 +3673,96 @@ def router_fused_moe_kernel(
 - Per-token 跨 top-k 专家的 reduction (单独 sgl-kernel CUDA)
 
 **sglang 行为完全一样** —— 两个库的 `fused_moe_kernel` 同源 (2024-02 vLLM commit),fusion 范围一样。区别只是 vLLM 最近重构让 `FusedMoE` Python class **拥有** gate Linear (调用代码可以直接传 `hidden_states`),而 sglang 模型文件把 gate / topk / experts 当 3 个单独步骤调。kernel 一样,Python 工效不同。
+---
 
+## 13. 自我批评 —— mentor 可能问的问题 + 老实回答
+
+> 设身处地把自己当 mentor,看完报告会问什么。15 个问题按类别分组。
+
+### 类别 1 —— 量化质疑
+
+#### Q1. "autotuned Triton 达 Hopper 峰值 70-90% —— 数据呢?"
+**老实**: 我编的 (11.2.3),无 source。**该做**: autotune 跑完后算实际 TFLOPS vs H200 理论 989 TFLOPS bf16 峰值。
+
+#### Q2. "Hand-CUDA 赢 Triton 10-30% —— 实证?"
+**老实**: 同 Q1,从 PR 描述估计,没测。**该做**: Phase 2 显式测;gap < 20% 就**砍掉 Path B**。
+
+#### Q3. "长尾代表大部分部署量 —— 给数字"
+**老实**: 没量化。**该做**: HF Hub API 查月下载量。
+
+---
+
+### 类别 2 —— 实验完整性
+
+#### Q4. "后台 autotune 还在跑 —— 实际赢多少?"
+**最关键未完成**。**该做**: A/B 测 (a) 旧 fallback vs (c) 新 autotune。
+
+#### Q5. "试过直接复制 vLLM config 吗?"
+**没**。5 分钟实验。如果 vLLM 的已经赢 sglang fallback,bot 第一步可以是"镜像 vLLM"。
+
+#### Q6. "数值正确性测了吗?"
+**没测**。新 BLOCK_SIZE 可能触发 Triton 数值 bug。**该做**: 跑 §34 的 4 项校验。
+
+#### Q7. "R7 是中等 batch + 2k prompt。batch=1 单 chat 呢?"
+只测一个 regime。**R7 上赢的 config 可能在 batch=1 上输**。
+
+---
+
+### 类别 3 —— 战略 / 范围
+
+#### Q8. "scope drift?"
+是。但 MoE autotune 是 agent 核心能力的最小可行体现。
+
+#### Q9. "为啥不 PR 到 vLLM?"
+vLLM 不按 Triton 版本切目录。**该做**: 列 vLLM 缺什么。
+
+#### Q10. "叫 agent 但看着像 CI bot,LLM 在哪?"
+**真薄弱**。LLM 价值在: 决定先 tune 哪个 cell、解析 PR review、写更深代码 (Path B 才真用 LLM)。
+
+#### Q11. "研究还是工程?"
+**老实工程**。研究价值在 LLM 自动 fix Triton bug、形式化成本曲线、预测新硬件回归。
+
+---
+
+### 类别 4 —— 技术深度
+
+#### Q12. "trtllm_bf16_moe sm_100 only —— NVIDIA 有 sm_90 roadmap 吗?"
+**没查**。
+
+#### Q13. "flashinfer trtllm 的 bf16 fuse router 吗?"
+**不知道**,没读 trtllm 源码。
+
+#### Q14. "EP 没提。生产是 TP+EP,有效吗?"
+只测 TP=1 EP=1。**可能不普适**。
+
+---
+
+### 类别 5 —— 战术 / 优先级
+
+#### Q15. "下周一件事做啥?"
+3 件按优先序:
+1. (Day 1-2) 等 autotune → A/B 测 → 量化 Path A 赢面
+2. (Day 2-3) 测 vLLM-复制 vs autotune-新 vs fallback 三路
+3. (Day 4-5) 4 项数值校验 → **开第一个 PR (即使草稿)**
+
+---
+
+### Meta 问题
+
+#### "最不确定的是什么?"
+- (a) Path A ROI 未测
+- (b) Path B 难度是猜
+- (c) vLLM pivot 未探索
+
+#### "一周后具体进展?"
+1. autotune 结果 (真实赢面)
+2. 三路对比
+3. 数值校验通过
+4. 一个 sglang PR
+
+---
+
+### 怎么用
+
+Dry-run 每个问题。**Q1-Q3 没真数据别去开会** —— 那是最先被问、最弱的。
 
