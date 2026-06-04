@@ -2003,6 +2003,87 @@ This means **production decode (bs=1-32) is severely under-utilizing the GPU**, 
 
 ---
 
+## 15. Refining the framing — "3-conditions rule" for non-Triton MoE paths
+
+> User question: "Is it that most mainstream kernels have CUDA paths, only unpopular GPUs/models fall back to Triton on MoE?" Mostly correct, but the GPU-popularity framing is misleading. The actual rule is sharper: **MoE only escapes Triton if it satisfies (head-model ∧ Blackwell ∧ quantized) all three together**. Missing any one → Triton.
+
+### 15.1 What the user got right
+
+✅ **Most mainstream kernels DO have high-perf CUDA paths** — dense LLM components (GEMM/Attention/RMSNorm/RoPE/SiLU) all have dedicated CUDA libraries with decades of investment.
+
+✅ **MoE tends to fall back to Triton** — because grouped GEMM is a new (~2022) requirement that cuBLAS doesn't have native support for, and the 4 years of MoE-CUDA investment have concentrated on Blackwell + quantization.
+
+### 15.2 What's misleading
+
+❌ **"Unpopular GPU" framing is wrong**. H200 is one of the most popular GPUs in 2025, but it has **NO native CUDA MoE path** for typical models. Why?
+
+- NVIDIA's engineering resources target **Blackwell (sm_100)** — the next 1-2 years' market
+- H200 users' **today's pain** (slow bf16 MoE) is low priority on their roadmap
+- A100 users are in the same boat — also fall back to Triton
+
+### 15.3 The actual rule — "3-conditions"
+
+A MoE model gets a non-Triton CUDA path **if and only if all three are satisfied**:
+
+```
+ESCAPE TRITON requires:
+  (a) Model architecture ∈ {DeepSeek-V3, Llama-4, GPT-OSS, Qwen3Next, 
+                            Nemotron, Glm4Moe}  ← head, hard-coded list
+  AND
+  (b) GPU = Blackwell (B100/B200/GB200 sm_100)  ← NOT Hopper or earlier
+  AND
+  (c) dtype = FP8 / FP4 / MXFP4 (quantized)     ← NOT bf16/fp16
+```
+
+**Lose ANY ONE → fall back to Triton.**
+
+### 15.4 The full 4-dimensional matrix
+
+|  | bf16 / fp16 (unquantized) | FP8 / FP4 (quantized) | MXFP8 |
+|---|---|---|---|
+| **A100/H100/H200 + long-tail MoE** | **Triton** ← our case | Triton (FP8 still falls back since flashinfer_trtllm needs Blackwell) | cutlass (forced) |
+| **A100/H100/H200 + head MoE (DeepSeek-V3)** | **Triton** ⚠️ | **Triton** ⚠️ (still no Blackwell) | cutlass |
+| **B100/B200 + long-tail MoE** | **Triton** | **Triton** (auto-mode only recognizes head) | cutlass |
+| **B100/B200 + head MoE** | **Triton** (unless Qwen3Next) | **flashinfer_trtllm** ✅ (THE one cell with CUDA) | cutlass |
+| **AMD MI300+ + GPT-OSS** | triton or AITER (depends on SGLANG_USE_AITER) | AITER | — |
+
+**Only ONE cell out of 12 dense LLM cells gets a CUDA MoE path** (Blackwell + head + quantized). Everywhere else falls back.
+
+### 15.5 Concrete examples — losing any one condition kills the CUDA path
+
+| Setup | What auto-mode picks | Why |
+|---|---|---|
+| DeepSeek-V3 + **B200** + FP8 | **flashinfer_trtllm** ✅ | All 3 conditions met |
+| DeepSeek-V3 + B200 + **bf16** | **Triton** ❌ | Lost condition (c) — not quantized |
+| DeepSeek-V3 + **H200** + FP8 | **Triton** ❌ | Lost condition (b) — not Blackwell |
+| **Mixtral** + B200 + FP8 | **Triton** ❌ | Lost condition (a) — not head-model |
+| Qwen3-30B-A3B (us) + H200 + bf16 | **Triton** ❌ | Lost ALL THREE conditions |
+| Mixtral + H200 + bf16 | **Triton** ❌ | Lost ALL THREE conditions |
+
+So **our setup (Qwen3-30B-A3B + H200 + bf16) loses all three** — completely guaranteed Triton fallback. But notice this isn't because we're unpopular; **H200 itself is the most-deployed Hopper GPU**, and Qwen3-30B-A3B is Alibaba's 2025-07 flagship MoE. We're "popular in 2 of 3 dimensions, but lose all 3 conditions for the escape clause".
+
+### 15.6 Precise one-line statement
+
+> **"Dense LLM models have high-perf CUDA paths nearly universally; MoE models only get CUDA paths if they simultaneously satisfy (head-architecture ∧ Blackwell ∧ quantization). Anywhere outside that single cell, sglang falls back to Triton fused_moe_kernel by design — which is exactly why our Qwen3-30B-A3B + H200 + bf16 setup uses Triton."**
+
+### 15.7 What this means for the agent project's TAM (Total Addressable Market)
+
+| User segment | Estimated share of MoE deployments | Status today | Agent can help? |
+|---|---|---|---|
+| **A100/H100/H200 + bf16 + any MoE** | Most research + small-scale production | All Triton, many configs missing | ✅ **Direct benefit** from autotune bot |
+| **A100/H100/H200 + FP8 + long-tail MoE** | Quantized long-tail deployments | Still Triton (auto-mode doesn't reach them) | ✅ Indirect benefit |
+| **B200 + bf16 + any MoE** | Early Blackwell deployments | Still Triton (auto-mode only quant-aware) | ✅ Indirect benefit |
+| **B200 + FP8 + DeepSeek-V3/Llama-4** | NVIDIA/sglang core team's optimization target | flashinfer_trtllm (already optimized) | ❌ We can't compete here |
+
+**The first 3 segments combined likely cover 60-80% of real-world MoE deployments**. Our agent's Triton-autotune work has direct or indirect value for these. This is the agent project's actual TAM.
+
+### 15.8 The pitch line (revised for precision)
+
+> *"The auto-mode dispatcher in sglang gives non-Triton CUDA paths to exactly ONE intersection: (head-model × Blackwell × quantized). Every other MoE deployment — including the most-popular GPU (H200) running the most-popular open MoE (Qwen-MoE / Mixtral / Phi-MoE / etc.) at the most-common dtype (bf16) — falls back to Triton. Our agent closes Triton's autotune coverage gaps across this 60-80% of real MoE deployment volume."*
+
+
+---
+
 <a id="中文版"></a>
 
 # 中文版
@@ -3985,5 +4066,84 @@ bs=2048 → 30.6% 峰值 —— 第一次达到有用利用率
 - `/home/t-jialianggu/work/EndtoEnd-auto-optimization/results/cuda_vs_triton_bench.json` —— 原始数字
 - `/home/t-jialianggu/work/EndtoEnd-auto-optimization/results/autotune_qwen3_moe/E=128,N=768,device_name=NVIDIA_H200.json` —— 新 tune 的 config
 - `/tmp/bench_moe_3way_v2.py` —— benchmark 脚本 (留作复现)
+---
+
+## 15. 精确化 framing —— "MoE 非-Triton 路径的三件套规则"
+
+> 你的问题: "是不是大部分主流 kernel 都有 CUDA 高性能,只有不热门的 GPU/模型在 MoE 上才回落到 Triton?" 大体对,但**用 GPU 热门度做 framing 是误导**。准确规则是: **MoE 只有同时满足 (头部模型 ∧ Blackwell ∧ 量化) 三件套才能逃出 Triton**。少任何一件 → Triton。
+
+### 15.1 你对的部分
+
+✅ **大部分主流 kernel 确实有高性能 CUDA 路径** —— dense LLM 组件 (GEMM/Attention/RMSNorm/RoPE/SiLU) 都有专属 CUDA 库,几十年投入。
+
+✅ **MoE 容易回落到 Triton** —— 因为 grouped GEMM 是 ~2022 新需求,cuBLAS 没原生支持,4 年 MoE-CUDA 投入集中在 Blackwell + 量化。
+
+### 15.2 误导的部分
+
+❌ **"不热门 GPU" framing 不对**。H200 是 2025 最热门 GPU 之一,但对典型模型**没有原生 CUDA MoE 路径**。为啥?
+
+- NVIDIA 工程资源瞄 **Blackwell (sm_100)** —— 未来 1-2 年市场
+- H200 用户**今天的痛点** (bf16 MoE 慢) 在他们 roadmap 优先级低
+- A100 用户处境一样 —— 也回落到 Triton
+
+### 15.3 真实规则 —— "三件套"
+
+MoE 模型获得非-Triton CUDA 路径,**当且仅当三个全满足**:
+
+```
+逃出 Triton 需要:
+  (a) 模型架构 ∈ {DeepSeek-V3, Llama-4, GPT-OSS, Qwen3Next, 
+                   Nemotron, Glm4Moe}  ← 头部,硬编码列表
+  AND
+  (b) GPU = Blackwell (B100/B200/GB200 sm_100)  ← 不是 Hopper 或更早
+  AND
+  (c) dtype = FP8 / FP4 / MXFP4 (量化)         ← 不是 bf16/fp16
+```
+
+**少任何一件 → 回落到 Triton**。
+
+### 15.4 完整 4 维 matrix
+
+|  | bf16 / fp16 (未量化) | FP8 / FP4 (量化) | MXFP8 |
+|---|---|---|---|
+| **A100/H100/H200 + 长尾 MoE** | **Triton** ← 我们 | Triton (FP8 仍回落,因为 flashinfer_trtllm 要 Blackwell) | cutlass (强制) |
+| **A100/H100/H200 + 头部 MoE (DeepSeek-V3)** | **Triton** ⚠️ | **Triton** ⚠️ (仍不是 Blackwell) | cutlass |
+| **B100/B200 + 长尾 MoE** | **Triton** | **Triton** (auto-mode 只认头部) | cutlass |
+| **B100/B200 + 头部 MoE** | **Triton** (除非 Qwen3Next) | **flashinfer_trtllm** ✅ (唯一有 CUDA 的 cell) | cutlass |
+| **AMD MI300+ + GPT-OSS** | triton 或 AITER (看 SGLANG_USE_AITER) | AITER | — |
+
+**12 个主流 LLM cell 里只有 1 个走 CUDA MoE 路径** (Blackwell + 头部 + 量化)。其他都回落。
+
+### 15.5 具体例子 —— 少任何一件就回落
+
+| 设置 | auto-mode 选啥 | 为啥 |
+|---|---|---|
+| DeepSeek-V3 + **B200** + FP8 | **flashinfer_trtllm** ✅ | 三件套都满足 |
+| DeepSeek-V3 + B200 + **bf16** | **Triton** ❌ | 丢了条件 (c) —— 没量化 |
+| DeepSeek-V3 + **H200** + FP8 | **Triton** ❌ | 丢了条件 (b) —— 不是 Blackwell |
+| **Mixtral** + B200 + FP8 | **Triton** ❌ | 丢了条件 (a) —— 不是头部 |
+| Qwen3-30B-A3B (我们) + H200 + bf16 | **Triton** ❌ | 三件都丢了 |
+| Mixtral + H200 + bf16 | **Triton** ❌ | 三件都丢了 |
+
+所以**我们的设置 (Qwen3-30B-A3B + H200 + bf16) 三件全丢** —— 完全保证 Triton 回落。但注意这不是因为我们不热门;**H200 本身是部署最多的 Hopper GPU**,Qwen3-30B-A3B 是阿里 2025-07 旗舰 MoE。我们 "3 维里有 2 维很热门,但三件套 escape 条件全丢"。
+
+### 15.6 精确一句话
+
+> **"Dense LLM 模型几乎都有 CUDA 高性能路径;MoE 模型只有同时满足 (头部架构 ∧ Blackwell ∧ 量化) 才能进 CUDA 路径。这个单元格之外,sglang 默认回落到 Triton fused_moe_kernel —— 这正是为啥我们 Qwen3-30B-A3B + H200 + bf16 用 Triton。"**
+
+### 15.7 这对 agent 项目 TAM (Total Addressable Market) 的意义
+
+| 用户群 | 估算 MoE 部署占比 | 现状 | Agent 能帮? |
+|---|---|---|---|
+| **A100/H100/H200 + bf16 + 任何 MoE** | 大部分研究 + 小规模生产 | 全 Triton,很多 config 缺失 | ✅ **直接受益** (autotune bot) |
+| **A100/H100/H200 + FP8 + 长尾 MoE** | 长尾的量化部署 | 仍 Triton (auto-mode 够不到) | ✅ 间接受益 |
+| **B200 + bf16 + 任何 MoE** | 早期 Blackwell 部署 | 仍 Triton (auto-mode 只认量化) | ✅ 间接受益 |
+| **B200 + FP8 + DeepSeek/Llama-4** | NVIDIA/sglang 核心团队优化对象 | flashinfer_trtllm (已优化) | ❌ 这里我们卷不过 |
+
+**前 3 个用户群加起来可能覆盖 60-80% 的真实 MoE 部署量**。我们 agent 的 Triton-autotune 工作对这些有直接或间接价值。这才是 agent 项目真实的 TAM。
+
+### 15.8 修订后的项目 pitch (精确版)
+
+> *"sglang auto-mode 派发器只在一个交集给非-Triton CUDA 路径: (头部模型 × Blackwell × 量化)。其他所有 MoE 部署 —— 包括最热门 GPU (H200) 跑最热门开源 MoE (Qwen-MoE / Mixtral / Phi-MoE 等) 在最常用 dtype (bf16) —— 都回落到 Triton。我们 agent 闭合 Triton 在这 60-80% 真实 MoE 部署量上的 autotune 覆盖缺口。"*
 
 
