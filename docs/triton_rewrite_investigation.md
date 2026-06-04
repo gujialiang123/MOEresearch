@@ -2084,6 +2084,85 @@ So **our setup (Qwen3-30B-A3B + H200 + bf16) loses all three** — completely gu
 
 ---
 
+## 16. ⚠️ Correction to §10 and §15: Qwen3MoeForCausalLM IS in the special path on Blackwell
+
+> User asked me to point to the exact source. While re-checking, I found §10 row 8 and §15's matrix were INCOMPLETE — `Qwen3MoeForCausalLM` (our exact model) IS in the head-list with its own branch.
+
+### 16.1 The complete special-path enumeration with file:line references
+
+All in `sglang/python/sglang/srt/server_args.py`:
+
+| Line range | model_arch list (exact strings) | Trigger conditions | Backend chosen |
+|---|---|---|---|
+| **L1191-1310** | `DeepseekV3ForCausalLM`, `KimiK25ForConditionalGeneration`, `MistralLarge3ForCausalLM`, `PixtralForConditionalGeneration` | sm_100 + (fp8 / modelopt_fp8 / modelopt_fp4) | flashinfer_trtllm |
+| L1333-1399 | `GptOssForCausalLM` | Blackwell+MXFP4 / AMD+AITER / triton_kernels lib | flashinfer_mxfp4 / AITER / triton_kernel |
+| L1467-1474 | `Llama4ForCausalLM` | sm_100 + (fp8 / modelopt_fp8) | flashinfer_trtllm |
+| L1529-1547 | `NemotronHForCausalLM` | NVFP4 / modelopt_fp8 | flashinfer_cutlass |
+| **L1558-1577** | **`Qwen3MoeForCausalLM`, `Qwen3VLMoeForConditionalGeneration`** | **sm_100 + (fp8 / modelopt_fp4 / None ← bf16!)** | **flashinfer_trtllm** |
+| L1579-1604 | `Qwen3NextForCausalLM`, `Qwen3_5MoeForConditionalGeneration`, `Qwen3_5ForConditionalGeneration` | sm_100 + (fp8 / modelopt_fp4 / None) | flashinfer_trtllm |
+| L1607-1626 | `Glm4MoeForCausalLM` | sm_100 + modelopt_fp4 + flashinfer ≥ 0.6.3 | flashinfer_trtllm |
+| L2125-2134 | (any model) | MXFP8 (forced override) | cutlass |
+| L2161-2174 | (any model) | manual `--moe-runner-backend=cutlass` + fp8/mxfp8 | cutlass |
+
+### 16.2 The correction — Qwen3MoeForCausalLM IS head-listed (bf16 included!)
+
+`server_args.py:1558-1577`:
+
+```python
+elif model_arch in [
+    "Qwen3MoeForCausalLM",                     # ← OUR MODEL is here
+    "Qwen3VLMoeForConditionalGeneration",
+]:
+    if is_sm100_supported():                   # ← gated on Blackwell
+        quant_method = get_quantization_config(hf_config)
+        if self.quantization is None and quant_method is not None:
+            self.quantization = quant_method
+        if (
+            (
+                self.quantization in ("fp8", "modelopt_fp4")
+                or self.quantization is None    # ← bf16 ALSO qualifies!
+            )
+            and self.moe_a2a_backend == "none"
+            and self.moe_runner_backend == "auto"
+        ):
+            self.moe_runner_backend = "flashinfer_trtllm"
+```
+
+**So the precise statement for our model**:
+- On **H200** (sm_90): falls back to Triton ✅ (matches our R7 experience)
+- On **B200** (sm_100) at bf16: **would auto-pick `flashinfer_trtllm`** (we never tested this)
+- On B200 at FP8/FP4: also flashinfer_trtllm
+
+### 16.3 What this changes about my earlier sections
+
+| Earlier claim | Reality |
+|---|---|
+| §10 row 8 listed Qwen3Next as flashinfer_trtllm-eligible | **Qwen3MoeForCausalLM (our model) is ALSO eligible on Blackwell** (separate branch L1558) |
+| §15 said "DeepSeek-V3 + B200 + bf16 → Triton" | Actually only DeepSeek-V3 requires quant; Qwen3Moe accepts bf16 too |
+| §15 said our setup "loses all 3 conditions" | We lose condition (b) — GPU — but if we had B200 we'd be auto-eligible |
+
+The framework still holds (we DO fall back to Triton on H200), but the "3-conditions rule" wasn't quite right: **condition (c) "quantized" is required for DeepSeek-V3 / Llama-4 but NOT for Qwen3MoeForCausalLM** — that one accepts bf16 on Blackwell.
+
+### 16.4 Why I made this mistake
+
+I read the auto-mode branches in §10 but didn't track which had `or self.quantization is None` in their condition. Three branches DO accept bf16:
+- `Qwen3MoeForCausalLM` (L1571: `or self.quantization is None`)
+- `Qwen3NextForCausalLM` (L1591: same)
+- `Glm4MoeForCausalLM` (does NOT accept bf16 — only modelopt_fp4)
+
+So the 3-conditions rule should be:
+- **For most head models** (DeepSeek-V3, Llama-4, GPT-OSS, NemotronH, Glm4Moe): need quantization
+- **For Qwen3MoeForCausalLM and Qwen3Next**: bf16 also qualifies, but still need Blackwell
+
+### 16.5 Action items
+
+1. ✅ This correction is committed
+2. ⏳ Should test: if we had Blackwell access, does flashinfer_trtllm actually work for Qwen3-30B-A3B bf16? (we couldn't test in §9 because trtllm_bf16_moe requires sm_100 AND we're on sm_90)
+3. ⏳ The agent project pitch should emphasize: **we're helping Hopper users (the majority TODAY), and Blackwell users running models OTHER than {Qwen3Moe, Qwen3Next} at bf16**
+
+
+---
+
 <a id="中文版"></a>
 
 # 中文版
@@ -4145,5 +4224,82 @@ MoE 模型获得非-Triton CUDA 路径,**当且仅当三个全满足**:
 ### 15.8 修订后的项目 pitch (精确版)
 
 > *"sglang auto-mode 派发器只在一个交集给非-Triton CUDA 路径: (头部模型 × Blackwell × 量化)。其他所有 MoE 部署 —— 包括最热门 GPU (H200) 跑最热门开源 MoE (Qwen-MoE / Mixtral / Phi-MoE 等) 在最常用 dtype (bf16) —— 都回落到 Triton。我们 agent 闭合 Triton 在这 60-80% 真实 MoE 部署量上的 autotune 覆盖缺口。"*
+---
+
+## 16. ⚠️ 修正 §10 和 §15: Qwen3MoeForCausalLM 其实在 Blackwell 特殊路径里
+
+> 你让我指源码位置。我重新检查时发现 §10 第 8 行和 §15 的 matrix **不完整** —— `Qwen3MoeForCausalLM` (我们正用的模型) **在头部列表里有自己的分支**。
+
+### 16.1 所有特殊路径的完整枚举 + 行号
+
+全在 `sglang/python/sglang/srt/server_args.py`:
+
+| 行号范围 | model_arch 名单 (精确字符串) | 触发条件 | 选哪个 backend |
+|---|---|---|---|
+| **L1191-1310** | `DeepseekV3ForCausalLM`, `KimiK25ForConditionalGeneration`, `MistralLarge3ForCausalLM`, `PixtralForConditionalGeneration` | sm_100 + (fp8/modelopt_fp8/modelopt_fp4) | flashinfer_trtllm |
+| L1333-1399 | `GptOssForCausalLM` | Blackwell+MXFP4 / AMD+AITER / triton_kernels lib | flashinfer_mxfp4 / AITER / triton_kernel |
+| L1467-1474 | `Llama4ForCausalLM` | sm_100 + (fp8/modelopt_fp8) | flashinfer_trtllm |
+| L1529-1547 | `NemotronHForCausalLM` | NVFP4 / modelopt_fp8 | flashinfer_cutlass |
+| **L1558-1577** | **`Qwen3MoeForCausalLM`, `Qwen3VLMoeForConditionalGeneration`** | **sm_100 + (fp8 / modelopt_fp4 / None ← bf16 也算!)** | **flashinfer_trtllm** |
+| L1579-1604 | `Qwen3NextForCausalLM`, `Qwen3_5MoeForConditionalGeneration`, `Qwen3_5ForConditionalGeneration` | sm_100 + (fp8 / modelopt_fp4 / None) | flashinfer_trtllm |
+| L1607-1626 | `Glm4MoeForCausalLM` | sm_100 + modelopt_fp4 + flashinfer ≥ 0.6.3 | flashinfer_trtllm |
+| L2125-2134 | (任何) | MXFP8 (强制覆盖) | cutlass |
+| L2161-2174 | (任何) | 手动 `--moe-runner-backend=cutlass` + fp8/mxfp8 | cutlass |
+
+### 16.2 修正 —— Qwen3MoeForCausalLM 其实在头部列表 (bf16 也算!)
+
+`server_args.py:1558-1577`:
+
+```python
+elif model_arch in [
+    "Qwen3MoeForCausalLM",                     # ← 我们的模型在这
+    "Qwen3VLMoeForConditionalGeneration",
+]:
+    if is_sm100_supported():                   # ← 门控在 Blackwell
+        quant_method = get_quantization_config(hf_config)
+        if self.quantization is None and quant_method is not None:
+            self.quantization = quant_method
+        if (
+            (
+                self.quantization in ("fp8", "modelopt_fp4")
+                or self.quantization is None    # ← bf16 也满足!
+            )
+            and self.moe_a2a_backend == "none"
+            and self.moe_runner_backend == "auto"
+        ):
+            self.moe_runner_backend = "flashinfer_trtllm"
+```
+
+**所以对我们模型的精确陈述**:
+- 在 **H200** (sm_90): 回落到 Triton ✅ (符合我们 R7 实测)
+- 在 **B200** (sm_100) + bf16: **会自动选 `flashinfer_trtllm`** (我们没测过)
+- 在 B200 + FP8/FP4: 也 flashinfer_trtllm
+
+### 16.3 这改变了我之前章节什么
+
+| 之前 claim | 实际 |
+|---|---|
+| §10 第 8 行只列了 Qwen3Next | **Qwen3MoeForCausalLM (我们) 在 Blackwell 上也 eligible** (独立分支 L1558) |
+| §15 说 "DeepSeek-V3 + B200 + bf16 → Triton" | 只有 DeepSeek-V3 要求量化;Qwen3Moe bf16 也行 |
+| §15 说我们"三件全丢" | 我们丢条件 (b) —— GPU —— 但如果有 B200 就自动 eligible |
+
+框架还成立 (我们 H200 上**确实**回落 Triton),但"三件套规则"不完全对: **条件 (c) "量化" 是 DeepSeek-V3 / Llama-4 必需的,但 Qwen3MoeForCausalLM 不要** —— 它在 Blackwell 上接受 bf16。
+
+### 16.4 我为啥犯这个错
+
+我读 §10 的 auto-mode 分支时没仔细跟踪哪些条件里有 `or self.quantization is None`。**3 个分支接受 bf16**:
+- `Qwen3MoeForCausalLM` (L1571: `or self.quantization is None`)
+- `Qwen3NextForCausalLM` (L1591: 同)
+- `Glm4MoeForCausalLM` (**不**接受 bf16 —— 只 modelopt_fp4)
+
+所以"三件套"规则应该精修为:
+- **对大多数头部模型** (DeepSeek-V3, Llama-4, GPT-OSS, NemotronH, Glm4Moe): 需要量化
+- **对 Qwen3MoeForCausalLM 和 Qwen3Next**: bf16 也算,但仍要 Blackwell
+
+### 16.5 Action items
+
+1. ✅ 这个修正已 commit
+2. ⏳ 该测: 如果我们能拿到 Blackwell,flashinfer_trtllm 对 Qwen3-30B-A3B bf16 真能 work 吗?(§9 测不了,因为 trtllm_bf16_moe 要 sm_100 + 我们在 sm_90)
+3. ⏳ Agent 项目 pitch 该强调: **我们帮 Hopper 用户 (今天大多数),以及在 bf16 下跑非-{Qwen3Moe, Qwen3Next} 模型的 Blackwell 用户**
 
 
