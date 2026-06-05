@@ -1,0 +1,36 @@
+{
+  "tag": "vllm_triton_run3",
+  "url": "http://127.0.0.1:30001",
+  "results": {
+    "R_short": {
+      "num_prompts": 8,
+      "prompt_words": 200,
+      "max_new": 64,
+      "concurrency": 1,
+      "wall_s": 2.4132747650146484,
+      "req_per_s": 3.314997577555758,
+      "tokens_per_s": 212.1598449635685,
+      "total_out_tokens": 512
+    },
+    "R_medium": {
+      "num_prompts": 16,
+      "prompt_words": 800,
+      "max_new": 256,
+      "concurrency": 8,
+      "wall_s": 3.397538661956787,
+      "req_per_s": 4.709291517166995,
+      "tokens_per_s": 1205.5786283947507,
+      "total_out_tokens": 4096
+    },
+    "R_long": {
+      "num_prompts": 8,
+      "prompt_words": 2000,
+      "max_new": 256,
+      "concurrency": 16,
+      "wall_s": 1.7905497550964355,
+      "req_per_s": 4.467901535396952,
+      "tokens_per_s": 1143.7827930616197,
+      "total_out_tokens": 2048
+    }
+  }
+}

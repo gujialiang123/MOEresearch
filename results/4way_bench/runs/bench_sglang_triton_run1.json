@@ -1,0 +1,36 @@
+{
+  "tag": "sglang_triton_run1",
+  "url": "http://127.0.0.1:30000",
+  "results": {
+    "R_short": {
+      "num_prompts": 8,
+      "prompt_words": 200,
+      "max_new": 64,
+      "concurrency": 1,
+      "wall_s": 2.457918405532837,
+      "req_per_s": 3.2547866446631413,
+      "tokens_per_s": 208.30634525844104,
+      "total_out_tokens": 512
+    },
+    "R_medium": {
+      "num_prompts": 16,
+      "prompt_words": 800,
+      "max_new": 256,
+      "concurrency": 8,
+      "wall_s": 3.524811267852783,
+      "req_per_s": 4.539250128347086,
+      "tokens_per_s": 1162.048032856854,
+      "total_out_tokens": 4096
+    },
+    "R_long": {
+      "num_prompts": 8,
+      "prompt_words": 2000,
+      "max_new": 256,
+      "concurrency": 16,
+      "wall_s": 1.931344747543335,
+      "req_per_s": 4.142191605189067,
+      "tokens_per_s": 1060.4010509284012,
+      "total_out_tokens": 2048
+    }
+  }
+}

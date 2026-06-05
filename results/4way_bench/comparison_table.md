@@ -1,155 +1,43 @@
-# 4-way MoE Backend Benchmark Results
+# 4-way MoE Backend Benchmark — Final Results (3 runs each, mean ± std)
 
-**Setup**: Qwen3-30B-A3B-Instruct-2507 / H200 / bf16 / TP=1 / max-model-len=32768
-Same bench harness (`/tmp/run_bench_4way.py`), same prompts (seed=2026), same `max_new=256, temperature=0, ignore_eos=True`.
+**Setup**: Qwen3-30B-A3B-Instruct-2507 / H200 / bf16 / TP=1 / single-GPU sequential
+**Each backend ran 3 times** to estimate noise. vLLM CUTLASS kernel use was verified via nsys profiling — see `nsys/EVIDENCE.md`.
 
-## Absolute throughput
+## Throughput (req/s), mean ± std over 3 runs
 
 | Regime | sglang_triton | sglang_cutlass | vllm_triton | vllm_cutlass |
 |---|---|---|---|---|
-| R_short | 1.92 req/s (123 tok/s) | 0.71 req/s (45 tok/s) | 3.05 req/s (195 tok/s) | 3.05 req/s (195 tok/s) |
-| R_medium | 3.02 req/s (772 tok/s) | 1.26 req/s (324 tok/s) | 4.32 req/s (1105 tok/s) | 4.37 req/s (1120 tok/s) |
-| R_long | 2.95 req/s (754 tok/s) | 1.20 req/s (306 tok/s) | 3.53 req/s (903 tok/s) | 3.66 req/s (937 tok/s) |
+| R_short | 3.23 ± 0.02 | 0.70 ± 0.01 | 3.22 ± 0.15 | 3.23 ± 0.15 |
+| R_medium | 4.51 ± 0.22 | 1.30 ± 0.03 | 4.57 ± 0.24 | 4.59 ± 0.23 |
+| R_long | 4.38 ± 0.21 | 1.29 ± 0.06 | 4.18 ± 0.46 | 4.26 ± 0.45 |
 
-## Relative speed
+## Per-run raw req/s (transparency)
+
+| Regime | sglang_triton | sglang_cutlass | vllm_triton | vllm_cutlass |
+|---|---|---|---|---|
+| R_short | 3.25, 3.22, 3.22 | 0.69, 0.71, 0.70 | 3.05, 3.31, 3.31 | 3.05, 3.32, 3.32 |
+| R_medium | 4.54, 4.27, 4.71 | 1.27, 1.32, 1.31 | 4.29, 4.70, 4.71 | 4.33, 4.71, 4.72 |
+| R_long | 4.14, 4.51, 4.48 | 1.22, 1.32, 1.33 | 3.64, 4.42, 4.47 | 3.74, 4.49, 4.55 |
+
+## Warm-only throughput (runs 2 + 3, mean) — first run is cold for vLLM
+
+| Regime | sglang_triton | sglang_cutlass | vllm_triton | vllm_cutlass |
+|---|---|---|---|---|
+| R_short | 3.22 | 0.71 | 3.31 | 3.32 |
+| R_medium | 4.49 | 1.31 | 4.71 | 4.72 |
+| R_long | 4.50 | 1.33 | 4.44 | 4.52 |
+
+## Warm relative speed
 
 | Regime | sglang Triton→CUTLASS | vLLM Triton→CUTLASS | sglang→vLLM (Triton) | sglang→vLLM (CUTLASS) |
 |---|---|---|---|---|
-| R_short | 0.37× | 1.00× | 1.59× | 4.29× |
-| R_medium | 0.42× | 1.01× | 1.43× | 3.46× |
-| R_long | 0.41× | 1.04× | 1.20× | 3.06× |
+| R_short | 0.22× | 1.00× | 1.03× | 4.70× |
+| R_medium | 0.29× | 1.00× | 1.05× | 3.59× |
+| R_long | 0.29× | 1.02× | 0.99× | 3.41× |
 
-## Raw data
+## Conclusions (warm)
 
-```json
-{
-  "sglang_triton": {
-    "R_short": {
-      "num_prompts": 8,
-      "prompt_words": 200,
-      "max_new": 64,
-      "concurrency": 1,
-      "wall_s": 4.165067195892334,
-      "req_per_s": 1.9207373191697237,
-      "tokens_per_s": 122.92718842686232,
-      "total_out_tokens": 512
-    },
-    "R_medium": {
-      "num_prompts": 16,
-      "prompt_words": 800,
-      "max_new": 256,
-      "concurrency": 8,
-      "wall_s": 5.303118467330933,
-      "req_per_s": 3.017092697167828,
-      "tokens_per_s": 772.3757304749639,
-      "total_out_tokens": 4096
-    },
-    "R_long": {
-      "num_prompts": 8,
-      "prompt_words": 2000,
-      "max_new": 256,
-      "concurrency": 16,
-      "wall_s": 2.7164483070373535,
-      "req_per_s": 2.9450219903963712,
-      "tokens_per_s": 753.925629541471,
-      "total_out_tokens": 2048
-    }
-  },
-  "sglang_cutlass": {
-    "R_short": {
-      "num_prompts": 8,
-      "prompt_words": 200,
-      "max_new": 64,
-      "concurrency": 1,
-      "wall_s": 11.270219087600708,
-      "req_per_s": 0.7098353579303046,
-      "tokens_per_s": 45.429462907539495,
-      "total_out_tokens": 512
-    },
-    "R_medium": {
-      "num_prompts": 16,
-      "prompt_words": 800,
-      "max_new": 256,
-      "concurrency": 8,
-      "wall_s": 12.658296585083008,
-      "req_per_s": 1.263993136237223,
-      "tokens_per_s": 323.5822428767291,
-      "total_out_tokens": 4096
-    },
-    "R_long": {
-      "num_prompts": 8,
-      "prompt_words": 2000,
-      "max_new": 256,
-      "concurrency": 16,
-      "wall_s": 6.693678140640259,
-      "req_per_s": 1.1951575549216338,
-      "tokens_per_s": 305.96033405993825,
-      "total_out_tokens": 2048
-    }
-  },
-  "vllm_triton": {
-    "R_short": {
-      "num_prompts": 8,
-      "prompt_words": 200,
-      "max_new": 64,
-      "concurrency": 1,
-      "wall_s": 2.6234402656555176,
-      "req_per_s": 3.049430972273746,
-      "tokens_per_s": 195.16358222551975,
-      "total_out_tokens": 512
-    },
-    "R_medium": {
-      "num_prompts": 16,
-      "prompt_words": 800,
-      "max_new": 256,
-      "concurrency": 8,
-      "wall_s": 3.7063517570495605,
-      "req_per_s": 4.316913517333496,
-      "tokens_per_s": 1105.1298604373749,
-      "total_out_tokens": 4096
-    },
-    "R_long": {
-      "num_prompts": 8,
-      "prompt_words": 2000,
-      "max_new": 256,
-      "concurrency": 16,
-      "wall_s": 2.2668545246124268,
-      "req_per_s": 3.529119276574571,
-      "tokens_per_s": 903.4545348030902,
-      "total_out_tokens": 2048
-    }
-  },
-  "vllm_cutlass": {
-    "R_short": {
-      "num_prompts": 8,
-      "prompt_words": 200,
-      "max_new": 64,
-      "concurrency": 1,
-      "wall_s": 2.625805616378784,
-      "req_per_s": 3.0466840157927226,
-      "tokens_per_s": 194.98777701073425,
-      "total_out_tokens": 512
-    },
-    "R_medium": {
-      "num_prompts": 16,
-      "prompt_words": 800,
-      "max_new": 256,
-      "concurrency": 8,
-      "wall_s": 3.6577374935150146,
-      "req_per_s": 4.374288758656737,
-      "tokens_per_s": 1119.8179222161248,
-      "total_out_tokens": 4096
-    },
-    "R_long": {
-      "num_prompts": 8,
-      "prompt_words": 2000,
-      "max_new": 256,
-      "concurrency": 16,
-      "wall_s": 2.186481475830078,
-      "req_per_s": 3.6588464564799805,
-      "tokens_per_s": 936.664692858875,
-      "total_out_tokens": 2048
-    }
-  }
-}
-```
+1. **vLLM CUTLASS ≈ vLLM Triton** (1.00-1.02×) — contradicts vllm/.../unquantized.py:71 comment.
+2. **sglang CUTLASS = 3.4-4.7× SLOWER than sglang Triton** — sglang wrapper overhead AND mandatory `--disable-cuda-graph` (cudagraph capture hangs detokenizer).
+3. **vLLM CUTLASS = 3.4-4.7× faster than sglang CUTLASS** (same `flashinfer.cutlass_fused_moe` kernel).
+4. **sglang Triton ≈ vLLM Triton** (-1% to +5%, within noise) — first-version claim of 20-59% gap was a cold-start methodology error.

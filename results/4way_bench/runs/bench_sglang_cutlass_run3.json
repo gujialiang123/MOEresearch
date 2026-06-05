@@ -1,0 +1,36 @@
+{
+  "tag": "sglang_cutlass_run3",
+  "url": "http://127.0.0.1:30000",
+  "results": {
+    "R_short": {
+      "num_prompts": 8,
+      "prompt_words": 200,
+      "max_new": 64,
+      "concurrency": 1,
+      "wall_s": 11.374271392822266,
+      "req_per_s": 0.7033417547121655,
+      "tokens_per_s": 45.013872301578594,
+      "total_out_tokens": 512
+    },
+    "R_medium": {
+      "num_prompts": 16,
+      "prompt_words": 800,
+      "max_new": 256,
+      "concurrency": 8,
+      "wall_s": 12.173120498657227,
+      "req_per_s": 1.314371282348261,
+      "tokens_per_s": 336.4790482811548,
+      "total_out_tokens": 4096
+    },
+    "R_long": {
+      "num_prompts": 8,
+      "prompt_words": 2000,
+      "max_new": 256,
+      "concurrency": 16,
+      "wall_s": 6.016727685928345,
+      "req_per_s": 1.3296264045172004,
+      "tokens_per_s": 340.3843595564033,
+      "total_out_tokens": 2048
+    }
+  }
+}

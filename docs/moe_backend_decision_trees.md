@@ -1088,6 +1088,8 @@ MOE_RUNNER_BACKEND_CHOICES = [
 
 ## 5.5 ✅ 实测 —— 4-way MoE backend 对比 (sglang/vLLM × Triton/CUTLASS)
 
+> **⚠ Methodology note**: 第一版本只跑了 1 次/backend,后来用户要求 (a) 多跑几次消除噪声、(b) 给 profiling 证据证明 CUTLASS 真的在跑而不是 fallback。**修订后的结论与第一版本有重要差异 —— 见下文 "修订" 段**。
+
 **目标**: §4.5/§4.6 留下两个 open question:
 (a) vLLM 源码注释 "Hopper bf16 上 FlashInfer CUTLASS 比 Triton 慢" 是不是真的?
 (b) sglang 和 vLLM 都包了同一个 `flashinfer.cutlass_fused_moe`,实际跑出来谁更快?
@@ -1096,57 +1098,115 @@ MOE_RUNNER_BACKEND_CHOICES = [
 - 模型 / 硬件 / 精度: Qwen3-30B-A3B-Instruct-2507 / H200 (sm_90a) / bf16 / TP=1
 - 4 个 server 配置:
   1. `sglang_triton` (sglang 默认,sm_90 自动选 Triton)
-  2. `sglang_cutlass` (sglang `--moe-runner-backend flashinfer_cutlass`,需要 `--watchdog-timeout 1800` 等首次 JIT)
-  3. `vllm_triton` (vLLM `--kernel-config '{"moe_backend": "triton"}'` —— **但实测 vLLM 不强加,无 flag 时 oracle 默认也是 Triton**)
+  2. `sglang_cutlass` (sglang `--moe-runner-backend flashinfer_cutlass --disable-cuda-graph --watchdog-timeout 1800`,**`--disable-cuda-graph` 不是为了实验而是必需的** —— 见下面 Caveat 1)
+  3. `vllm_triton` (vLLM `--kernel-config '{"moe_backend": "triton"}'`)
   4. `vllm_cutlass` (vLLM `--kernel-config '{"moe_backend": "flashinfer_cutlass"}'`)
-- 同一份 bench harness (`/tmp/run_bench_4way.py`),同 seed=2026 同 prompt 同 `max_new=256 temperature=0 ignore_eos=True`
+- 同一份 bench harness (`results/4way_bench/scripts/run_bench_4way.py`),同 seed=2026 同 prompt 同 `max_new=256 temperature=0 ignore_eos=True`
 - 3 个 regime: R_short (8 reqs / 200w prompt / conc=1)、R_medium (16 / 800w / conc=8)、R_long (8 / 2000w / conc=16)
+- **每个 backend 独立跑 3 次** (`bench_<backend>_run{1,2,3}.json`,在 `results/4way_bench/runs/` 下),计算 mean ± std
 
-**绝对吞吐**:
+### 修订表 —— 3 runs mean ± std
 
 | Regime | sglang_triton | sglang_cutlass | vllm_triton | vllm_cutlass |
 |---|---|---|---|---|
-| R_short | 1.92 req/s (123 tok/s) | 0.71 req/s (45 tok/s) | 3.05 req/s (195 tok/s) | 3.05 req/s (195 tok/s) |
-| R_medium | 3.02 req/s (772 tok/s) | 1.26 req/s (324 tok/s) | 4.32 req/s (1105 tok/s) | 4.37 req/s (1120 tok/s) |
-| R_long | 2.95 req/s (754 tok/s) | 1.20 req/s (306 tok/s) | 3.53 req/s (903 tok/s) | 3.66 req/s (937 tok/s) |
+| R_short  | 3.23 ± 0.02 req/s | 0.70 ± 0.01 req/s | 3.22 ± 0.15 req/s | 3.23 ± 0.15 req/s |
+| R_medium | 4.51 ± 0.22 req/s | 1.30 ± 0.03 req/s | 4.57 ± 0.24 req/s | 4.59 ± 0.23 req/s |
+| R_long   | 4.38 ± 0.21 req/s | 1.29 ± 0.06 req/s | 4.18 ± 0.46 req/s | 4.26 ± 0.45 req/s |
 
-**相对加速比**:
+### Per-run raw (透明度)
+
+| Regime | sglang_triton | sglang_cutlass | vllm_triton | vllm_cutlass |
+|---|---|---|---|---|
+| R_short  | 3.25, 3.22, 3.22 | 0.69, 0.71, 0.70 | 3.05, **3.31, 3.31** | 3.05, **3.32, 3.32** |
+| R_medium | 4.54, 4.27, 4.71 | 1.27, 1.32, 1.31 | 4.29, **4.70, 4.71** | 4.33, **4.71, 4.72** |
+| R_long   | 4.14, 4.51, 4.48 | 1.22, 1.32, 1.33 | 3.64, **4.42, 4.47** | 3.74, **4.49, 4.55** |
+
+vLLM 三个 run 中 run1 明显比 run2/3 慢 —— 是 CUDA Graph capture 在前几个请求摊销开销的痕迹。sglang 这边 run1 也偏低但幅度小。**这本身就是第一版本结论错的根源** —— 第一版本拿 sglang **run1 (cold)** 跟 vLLM **run1 (cold)** 比,我没意识到 vLLM 的 cudagraph capture 延后到首次推理后才完成,而 sglang 在启动时已经完成 cudagraph capture (从 server.log "Capture cuda graph end. Time elapsed: 1.23 s" 看得到)。
+
+### Warm-only (run 2+3 平均,排除 cold)
+
+| Regime | sglang_triton | sglang_cutlass | vllm_triton | vllm_cutlass |
+|---|---|---|---|---|
+| R_short  | 3.22 | 0.71 | 3.31 | 3.32 |
+| R_medium | 4.49 | 1.31 | 4.71 | 4.72 |
+| R_long   | 4.50 | 1.33 | 4.44 | 4.52 |
+
+### Warm 相对加速 (vs sglang_triton warm)
 
 | Regime | sglang Triton→CUTLASS | vLLM Triton→CUTLASS | sglang→vLLM (Triton) | sglang→vLLM (CUTLASS) |
 |---|---|---|---|---|
-| R_short | **0.37×** (2.7× 慢) | 1.00× | 1.59× | 4.30× |
-| R_medium | **0.42×** (2.4× 慢) | 1.01× | 1.43× | 3.46× |
-| R_long | **0.41×** (2.4× 慢) | 1.04× | 1.20× | 3.05× |
+| R_short  | **0.22×** (4.5× 慢) | 1.00× | 1.03× | 4.70× |
+| R_medium | **0.29×** (3.4× 慢) | 1.00× | 1.05× | 3.59× |
+| R_long   | **0.29×** (3.4× 慢) | 1.02× | 0.99× | 3.41× |
 
-**回答 open question**:
+### 回答 open question (修订版)
 
-**(a) "Hopper bf16 上 FlashInfer CUTLASS 比 Triton 慢" 这个命题在 vLLM 自己的 stack 上不成立**。3 个 regime 上 vLLM CUTLASS 都 ≈ vLLM Triton (-0% ~ +4%,在噪声范围内)。`vllm/.../unquantized.py:71` 那段注释要么过时,要么针对的是别的条件 (不同 model/dtype/quant/sm 组合,或 prefill-heavy 而我们的 regime 是 decode-heavy)。
+**(a) "Hopper bf16 上 FlashInfer CUTLASS 比 Triton 慢" 在 vLLM 自己的 stack 上不成立。** 3 个 regime 上 vLLM CUTLASS / vLLM Triton = 1.00× / 1.00× / 1.02× (在测量噪声范围内)。`vllm/.../unquantized.py:71` 那段注释要么过时,要么针对的是别的条件 (FP8/quant、prefill-heavy 等)。
 
-**(b) sglang 上 CUTLASS 比 Triton 慢 2.4-2.7×,但 vLLM 上几乎打平**。同一个底层 kernel (`flashinfer.cutlass_fused_moe`),包它的 wrapper 不同 —— 说明 sglang 这边的 dispatch / launch / mem-layout / cudagraph 套子有显著开销。
+**(b) sglang 上 CUTLASS 比 Triton **慢 3.4-4.5×**,而 vLLM 上几乎打平。** 同一个底层 kernel (`flashinfer.cutlass_fused_moe`)。
 
-**两条优化路线**:
+**(c) ⚠ 重要修订: sglang Triton ≈ vLLM Triton (warm)。** 第一版本里我说 "sglang Triton 慢 20-59%",那是把 sglang cold (run 1) 跟 vLLM 用了 3 次的 warm state 在比,是 methodology bug。修订后 sglang↔vLLM Triton 的差距是 -1% ~ +5%,完全打平。
 
-1. **修 sglang 的 FlashInfer CUTLASS wrapper** (短平快): 把 sglang_cutlass 拉到 sglang_triton 同水平,~2.4× 提升;再进一步追到 vllm_cutlass 水平,~3.5× 提升。需要 diff `python/sglang/srt/layers/moe/moe_runner/flashinfer_cutlass.py` vs `vllm/model_executor/layers/fused_moe/flashinfer_cutlass_moe.py`,找 H2D copy、shape handle、stream 同步、cudagraph 等差异。
+### Caveat 1 —— sglang flashinfer_cutlass + cudagraph 会挂死
 
-2. **更大的杠杆: sglang Triton 整体比 vLLM Triton 慢 20-59%** (R_long 最小,R_short 最大)。同一个 Triton MoE kernel,kernel 时间应该一样,差距应该在 dispatch/schedule/cudagraph/prefix-caching 等 engine 层。R_short (单 conc) 差距最大说明 per-step overhead 显著。
+复测里我尝试去掉 sglang_cutlass 的 `--disable-cuda-graph` flag 让两边对比公平。结果:**sglang 的 detokenizer 进程在 cudagraph capture 阶段挂死** (heartbeat 停在某个时刻,后续所有 /health 都 503,client 请求挂超时)。server.log 显示 `Capture cuda graph end. Time elapsed: 1.23 s` 是正常完成,但 detokenizer 进程就是不再响应。**这是 sglang flashinfer_cutlass 路径的第二个 bug**,所以 `--disable-cuda-graph` 不是为了对比公平,是**这个配置目前唯一能跑通的方式**。
 
-**bench 工件**:
-- `results/4way_bench/bench_{sglang_triton,sglang_cutlass,vllm_triton,vllm_cutlass}.json`
-- `results/4way_bench/comparison_table.md`
-- `results/4way_bench/{sglang,vllm}_{triton,cutlass}/server.log`
-- Launch scripts: `/tmp/start_{sglang,vllm}_{triton,cutlass}.sh`
+所以"sglang_cutlass 慢 3.4-4.5×"的来源至少有一部分是因为它没法用 cudagraph (而 vLLM_cutlass 用了)。换句话说,要修 sglang flashinfer_cutlass 慢的问题,首先得修这个 cudagraph hang bug,然后才能比较 wrapper 本身的开销。
 
-**caveat**: 三个 regime wall-clock 都 < 13s,各 8-16 reqs,所以有一定噪声。但 4 个 backend 各自跑 3 个 regime,vLLM 的 Triton/CUTLASS 完全打平 + sglang 的 Triton/CUTLASS 一致拉开 2.4×,信号在 3 个 regime 上方向一致,定性结论稳。
+### Caveat 2 —— bench 短,但 std 已经显示了噪声水平
+
+每个 regime 8-16 reqs,wall-clock 1.8-12.7 秒,std 在 0-0.5 req/s 之间。各组核心结论 (vllm cutlass ≈ vllm triton、sglang cutlass << sglang triton) 跨 3 个 run 一致。
+
+### NSys 证据 —— vLLM CUTLASS 真的在跑 CUTLASS,没 fallback
+
+**完整证据在 `results/4way_bench/nsys/EVIDENCE.md`,核心数字:**
+
+| 指标 | vLLM CUTLASS run | vLLM TRITON run |
+|---|---|---|
+| `cutlass::device_kernel<...sm90...gemm...>` (MoE GEMM kernel) | **1924 ms / 58.3% GPU time / 10802 calls** | **0 ms / 0 calls** |
+| `triton_*` kernels (含 MoE forward) | 16.8 ms / 0.5% / 2918 calls (只 inductor 工具 kernel: rms_norm, embedding) | **259 ms / 37.0% / 9096 calls (含 `triton_red_fused_fused_add_rms_norm_moe_forward_0`)** |
+
+两个 run 的 MoE kernel 完全互斥 —— CUTLASS run 里 cutlass-sm90-gemm 占 58% / 10802 次调用,Triton run 里同模板 0 次调用。**这是二进制级别的证据**,确认 `--kernel-config '{"moe_backend":"flashinfer_cutlass"}'` 真的派到 CUTLASS。
+
+CUTLASS kernel 完整签名 (truncated):
+```
+void cutlass::device_kernel<
+  cutlass::gemm::kernel::GemmUniversal<
+    cutlass::gemm::GroupProblemShape<cute::tuple<long, long, long>>,
+    cutlass::gemm::collective::CollectiveMma<
+      cutlass::gemm::MainloopSm90ArrayTmaGmmaWarpSpecialized<(int)12, ...>
+```
+`MainloopSm90ArrayTmaGmmaWarpSpecialized` 是 SM90 专属的 CUTLASS group-GEMM mainloop (TMA + WGMMA + warp specialization),证明跑的是 Hopper 调优过的真 CUTLASS,不是 generic fallback。
+
+测量方法: `nsys profile -t cuda -s none --capture-range=none vllm serve ...`,跑 warmup + 1×R_medium,SIGINT flush profile,`nsys stats --report cuda_gpu_kern_sum --format csv` 抽 kernel 表。
+
+### 两条优化路线 (修订版)
+
+1. **🥇 修 sglang 的 FlashInfer CUTLASS wrapper** (高 ROI): vllm_cutlass / sglang_cutlass = 3.4-4.7×,同一个 kernel。两件事要做:
+   - **修 cudagraph hang bug** (上面 Caveat 1)
+   - **diff wrapper**: `python/sglang/srt/layers/moe/moe_runner/flashinfer_cutlass.py` vs `vllm/model_executor/layers/fused_moe/flashinfer_cutlass_moe.py`,找 H2D copy / shape handle / stream 同步差异
+
+2. **❌ "sglang Triton 比 vLLM Triton 慢" 是第一版本的 methodology 错** —— warm 起来打平,这条路线不存在,删除。
+
+### bench / nsys 工件
+
+- `results/4way_bench/runs/bench_*_run{1,2,3}.json` —— 3 runs/backend 原始数据
+- `results/4way_bench/runs/stats_table.md` —— 自动生成的 mean±std 表
+- `results/4way_bench/nsys/EVIDENCE.md` —— nsys 详细证据
+- `results/4way_bench/nsys/vllm_{cutlass,triton}_kernels.csv` —— 完整 kernel time breakdown
+- `results/4way_bench/scripts/{run_bench_4way.py, start_*.sh}` —— 启动脚本
 
 ---
 
 ## 6. 推荐下一步
 
-1. **🔥 §5.5 发现的高 ROI 路线: 修 sglang 的 FlashInfer CUTLASS wrapper**: 同一个 `flashinfer.cutlass_fused_moe` kernel,vLLM 包了之后 ≈ Triton,sglang 包了之后慢 2.4×。diff 两边的 wrapper (`python/sglang/srt/layers/moe/moe_runner/flashinfer_cutlass.py` vs `vllm/.../flashinfer_cutlass_moe.py`),找差异。
+1. **🔥 §5.5 修订发现: sglang flashinfer_cutlass 慢 3.4-4.7×,且 cudagraph 会挂死**: 同一个 `flashinfer.cutlass_fused_moe` kernel,vLLM 包了之后 ≈ Triton,sglang 包了之后慢 3.4-4.7× **而且** cudagraph 整套挂死。两件事:
+   - 修 cudagraph hang bug (复测时 detokenizer 在 capture 阶段挂死,根因待定)
+   - diff sglang vs vLLM 的 wrapper (`flashinfer_cutlass.py` 两份),找 H2D / stream / shape 差异
 
-2. **🔥 §5.5 发现的更大杠杆: sglang Triton 整体比 vLLM Triton 慢 20-59%**: 同一个 Triton MoE kernel,差距在 engine 层 (dispatch / cudagraph / scheduler / prefix-caching)。R_short (单 conc) gap 最大说明 per-step overhead 显著,值得 profile 一个 decode step 看 launch overhead。
+2. **❌ 撤回**: 第一版本说的 "sglang Triton 比 vLLM Triton 慢 20-59%" 是 cold-start methodology 错。warm 起来两边打平 (差距 -1% ~ +5%)。
 
-3. **复现发现 #1** (Hopper bf16: FlashInfer 比 Triton 慢): **§5.5 已经做了**,结论是这个命题在 vLLM stack 上不成立,在 sglang stack 上 "成立但不是因为 kernel 慢,是因为 wrapper 慢"。源码注释要么过时要么针对其他条件。
+3. **复现发现 #1** (Hopper bf16: FlashInfer 比 Triton 慢): **§5.5 已经做了**,结论是这个命题在 vLLM stack 上不成立,在 sglang stack 上 "成立但根因可能是 cudagraph 挂死被迫禁用,不一定是 kernel 慢"。
 
 4. **调研发现 #3** (Qwen3.5 + DEP 崩溃): 在 H200 上 DP > 1 复现崩溃,捕获精确错误,提 follow-up。
 

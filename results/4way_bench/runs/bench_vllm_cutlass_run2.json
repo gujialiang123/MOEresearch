@@ -1,0 +1,36 @@
+{
+  "tag": "vllm_cutlass_run2",
+  "url": "http://127.0.0.1:30001",
+  "results": {
+    "R_short": {
+      "num_prompts": 8,
+      "prompt_words": 200,
+      "max_new": 64,
+      "concurrency": 1,
+      "wall_s": 2.412735939025879,
+      "req_per_s": 3.3157379017738386,
+      "tokens_per_s": 212.20722571352567,
+      "total_out_tokens": 512
+    },
+    "R_medium": {
+      "num_prompts": 16,
+      "prompt_words": 800,
+      "max_new": 256,
+      "concurrency": 8,
+      "wall_s": 3.3965885639190674,
+      "req_per_s": 4.710608806130704,
+      "tokens_per_s": 1205.9158543694602,
+      "total_out_tokens": 4096
+    },
+    "R_long": {
+      "num_prompts": 8,
+      "prompt_words": 2000,
+      "max_new": 256,
+      "concurrency": 16,
+      "wall_s": 1.7803692817687988,
+      "req_per_s": 4.4934498038811315,
+      "tokens_per_s": 1150.3231497935697,
+      "total_out_tokens": 2048
+    }
+  }
+}
