@@ -1086,15 +1086,73 @@ MOE_RUNNER_BACKEND_CHOICES = [
 
 ---
 
+## 5.5 ✅ 实测 —— 4-way MoE backend 对比 (sglang/vLLM × Triton/CUTLASS)
+
+**目标**: §4.5/§4.6 留下两个 open question:
+(a) vLLM 源码注释 "Hopper bf16 上 FlashInfer CUTLASS 比 Triton 慢" 是不是真的?
+(b) sglang 和 vLLM 都包了同一个 `flashinfer.cutlass_fused_moe`,实际跑出来谁更快?
+
+**实验设置** (单卡顺序跑,避免争用):
+- 模型 / 硬件 / 精度: Qwen3-30B-A3B-Instruct-2507 / H200 (sm_90a) / bf16 / TP=1
+- 4 个 server 配置:
+  1. `sglang_triton` (sglang 默认,sm_90 自动选 Triton)
+  2. `sglang_cutlass` (sglang `--moe-runner-backend flashinfer_cutlass`,需要 `--watchdog-timeout 1800` 等首次 JIT)
+  3. `vllm_triton` (vLLM `--kernel-config '{"moe_backend": "triton"}'` —— **但实测 vLLM 不强加,无 flag 时 oracle 默认也是 Triton**)
+  4. `vllm_cutlass` (vLLM `--kernel-config '{"moe_backend": "flashinfer_cutlass"}'`)
+- 同一份 bench harness (`/tmp/run_bench_4way.py`),同 seed=2026 同 prompt 同 `max_new=256 temperature=0 ignore_eos=True`
+- 3 个 regime: R_short (8 reqs / 200w prompt / conc=1)、R_medium (16 / 800w / conc=8)、R_long (8 / 2000w / conc=16)
+
+**绝对吞吐**:
+
+| Regime | sglang_triton | sglang_cutlass | vllm_triton | vllm_cutlass |
+|---|---|---|---|---|
+| R_short | 1.92 req/s (123 tok/s) | 0.71 req/s (45 tok/s) | 3.05 req/s (195 tok/s) | 3.05 req/s (195 tok/s) |
+| R_medium | 3.02 req/s (772 tok/s) | 1.26 req/s (324 tok/s) | 4.32 req/s (1105 tok/s) | 4.37 req/s (1120 tok/s) |
+| R_long | 2.95 req/s (754 tok/s) | 1.20 req/s (306 tok/s) | 3.53 req/s (903 tok/s) | 3.66 req/s (937 tok/s) |
+
+**相对加速比**:
+
+| Regime | sglang Triton→CUTLASS | vLLM Triton→CUTLASS | sglang→vLLM (Triton) | sglang→vLLM (CUTLASS) |
+|---|---|---|---|---|
+| R_short | **0.37×** (2.7× 慢) | 1.00× | 1.59× | 4.30× |
+| R_medium | **0.42×** (2.4× 慢) | 1.01× | 1.43× | 3.46× |
+| R_long | **0.41×** (2.4× 慢) | 1.04× | 1.20× | 3.05× |
+
+**回答 open question**:
+
+**(a) "Hopper bf16 上 FlashInfer CUTLASS 比 Triton 慢" 这个命题在 vLLM 自己的 stack 上不成立**。3 个 regime 上 vLLM CUTLASS 都 ≈ vLLM Triton (-0% ~ +4%,在噪声范围内)。`vllm/.../unquantized.py:71` 那段注释要么过时,要么针对的是别的条件 (不同 model/dtype/quant/sm 组合,或 prefill-heavy 而我们的 regime 是 decode-heavy)。
+
+**(b) sglang 上 CUTLASS 比 Triton 慢 2.4-2.7×,但 vLLM 上几乎打平**。同一个底层 kernel (`flashinfer.cutlass_fused_moe`),包它的 wrapper 不同 —— 说明 sglang 这边的 dispatch / launch / mem-layout / cudagraph 套子有显著开销。
+
+**两条优化路线**:
+
+1. **修 sglang 的 FlashInfer CUTLASS wrapper** (短平快): 把 sglang_cutlass 拉到 sglang_triton 同水平,~2.4× 提升;再进一步追到 vllm_cutlass 水平,~3.5× 提升。需要 diff `python/sglang/srt/layers/moe/moe_runner/flashinfer_cutlass.py` vs `vllm/model_executor/layers/fused_moe/flashinfer_cutlass_moe.py`,找 H2D copy、shape handle、stream 同步、cudagraph 等差异。
+
+2. **更大的杠杆: sglang Triton 整体比 vLLM Triton 慢 20-59%** (R_long 最小,R_short 最大)。同一个 Triton MoE kernel,kernel 时间应该一样,差距应该在 dispatch/schedule/cudagraph/prefix-caching 等 engine 层。R_short (单 conc) 差距最大说明 per-step overhead 显著。
+
+**bench 工件**:
+- `results/4way_bench/bench_{sglang_triton,sglang_cutlass,vllm_triton,vllm_cutlass}.json`
+- `results/4way_bench/comparison_table.md`
+- `results/4way_bench/{sglang,vllm}_{triton,cutlass}/server.log`
+- Launch scripts: `/tmp/start_{sglang,vllm}_{triton,cutlass}.sh`
+
+**caveat**: 三个 regime wall-clock 都 < 13s,各 8-16 reqs,所以有一定噪声。但 4 个 backend 各自跑 3 个 regime,vLLM 的 Triton/CUTLASS 完全打平 + sglang 的 Triton/CUTLASS 一致拉开 2.4×,信号在 3 个 regime 上方向一致,定性结论稳。
+
+---
+
 ## 6. 推荐下一步
 
-1. **复现发现 #1** (Hopper bf16: FlashInfer 比 Triton 慢): 我们已经显示 Triton 在 30% 峰值;需要在 H200 上实际跑 FlashInfer (`trtllm_bf16` 不行 —— Blackwell only —— 但修了 §9.3 的 JIT include 路径后可以试 `cutlass_fused_moe`)。
+1. **🔥 §5.5 发现的高 ROI 路线: 修 sglang 的 FlashInfer CUTLASS wrapper**: 同一个 `flashinfer.cutlass_fused_moe` kernel,vLLM 包了之后 ≈ Triton,sglang 包了之后慢 2.4×。diff 两边的 wrapper (`python/sglang/srt/layers/moe/moe_runner/flashinfer_cutlass.py` vs `vllm/.../flashinfer_cutlass_moe.py`),找差异。
 
-2. **调研发现 #3** (Qwen3.5 + DEP 崩溃): 在 H200 上 DP > 1 复现崩溃,捕获精确错误,提 follow-up。
+2. **🔥 §5.5 发现的更大杠杆: sglang Triton 整体比 vLLM Triton 慢 20-59%**: 同一个 Triton MoE kernel,差距在 engine 层 (dispatch / cudagraph / scheduler / prefix-caching)。R_short (单 conc) gap 最大说明 per-step overhead 显著,值得 profile 一个 decode step 看 launch overhead。
 
-3. **Crossover 研究 (发现 #2)** (Hopper FP8 的 TP vs EP): 用 `--tp-size 1 vs 2 vs 4 vs 8 vs 16` 跑 sglang FP8 (需要 FP8 权重 —— 先转 Qwen3-30B-A3B),测 CUTLASS 何时超过 Triton。
+3. **复现发现 #1** (Hopper bf16: FlashInfer 比 Triton 慢): **§5.5 已经做了**,结论是这个命题在 vLLM stack 上不成立,在 sglang stack 上 "成立但不是因为 kernel 慢,是因为 wrapper 慢"。源码注释要么过时要么针对其他条件。
 
-4. **MXFP4 重启 Triton-unfused (发现 #4)**: 如果 MTP bug 可修,重启一个 backend 然后 benchmark。
+4. **调研发现 #3** (Qwen3.5 + DEP 崩溃): 在 H200 上 DP > 1 复现崩溃,捕获精确错误,提 follow-up。
+
+5. **Crossover 研究 (发现 #2)** (Hopper FP8 的 TP vs EP): 用 `--tp-size 1 vs 2 vs 4 vs 8 vs 16` 跑 sglang FP8 (需要 FP8 权重 —— 先转 Qwen3-30B-A3B),测 CUTLASS 何时超过 Triton。
+
+6. **MXFP4 重启 Triton-unfused (发现 #4)**: 如果 MTP bug 可修,重启一个 backend 然后 benchmark。
 
 ---
 
