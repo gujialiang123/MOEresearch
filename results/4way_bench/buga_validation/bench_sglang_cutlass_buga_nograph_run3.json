@@ -1,0 +1,36 @@
+{
+  "tag": "sglang_cutlass_buga_nograph_run3",
+  "url": "http://127.0.0.1:30000",
+  "results": {
+    "R_short": {
+      "num_prompts": 8,
+      "prompt_words": 200,
+      "max_new": 64,
+      "concurrency": 1,
+      "wall_s": 11.875247240066528,
+      "req_per_s": 0.6736701845674736,
+      "tokens_per_s": 43.11489181231831,
+      "total_out_tokens": 512
+    },
+    "R_medium": {
+      "num_prompts": 16,
+      "prompt_words": 800,
+      "max_new": 256,
+      "concurrency": 8,
+      "wall_s": 12.314461946487427,
+      "req_per_s": 1.299285349983467,
+      "tokens_per_s": 332.6170495957675,
+      "total_out_tokens": 4096
+    },
+    "R_long": {
+      "num_prompts": 8,
+      "prompt_words": 2000,
+      "max_new": 256,
+      "concurrency": 16,
+      "wall_s": 6.160625696182251,
+      "req_per_s": 1.2985693977411437,
+      "tokens_per_s": 332.4337658217328,
+      "total_out_tokens": 2048
+    }
+  }
+}
