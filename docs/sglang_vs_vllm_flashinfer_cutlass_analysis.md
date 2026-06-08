@@ -1,5 +1,12 @@
 # sglang vs vLLM:FlashInfer CUTLASS MoE 性能差异根因分析
 
+> ⚠ **2026-06-08 重要更正**: §4.3, §4.5, §6 的 "AutoTuner re-benchmark 9x kernel launch"
+> 根因分析**已被实验推翻**。Fix 1 (`tune_max_num_tokens=8192`) 实测无效 (-6%)。
+> 真正的差距来源是 **cudagraph 覆盖度**,不是 AutoTuner。详见 `docs/fix1_invalidated.md`。
+> 本文中所有提到 "9x kernel launch 是 AutoTuner re-benchmark" 的段落已过时,请以
+> `fix1_invalidated.md` 为准。其它部分 (§1 实测数据, §B SM100 hand-tuned 表, §C 候选
+> 搜索空间, §12 conc 反转) 仍正确。
+
 > **目的**: 解释为什么同一份 `flashinfer.fused_moe.cutlass_fused_moe` kernel,
 > 在 vLLM 上跑出来跟 Triton MoE 打平,在 sglang 上反而比 Triton 慢 3.4-4.7×。
 > 所有结论都有 profiling 数据 / log / 源码路径作为证据。
