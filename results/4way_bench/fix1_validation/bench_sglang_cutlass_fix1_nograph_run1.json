@@ -1,0 +1,36 @@
+{
+  "tag": "sglang_cutlass_fix1_nograph_run1",
+  "url": "http://127.0.0.1:30000",
+  "results": {
+    "R_short": {
+      "num_prompts": 8,
+      "prompt_words": 200,
+      "max_new": 64,
+      "concurrency": 1,
+      "wall_s": 12.249135255813599,
+      "req_per_s": 0.6531073282257289,
+      "tokens_per_s": 41.79886900644665,
+      "total_out_tokens": 512
+    },
+    "R_medium": {
+      "num_prompts": 16,
+      "prompt_words": 800,
+      "max_new": 256,
+      "concurrency": 8,
+      "wall_s": 13.722466707229614,
+      "req_per_s": 1.1659711290514903,
+      "tokens_per_s": 298.4886090371815,
+      "total_out_tokens": 4096
+    },
+    "R_long": {
+      "num_prompts": 8,
+      "prompt_words": 2000,
+      "max_new": 256,
+      "concurrency": 16,
+      "wall_s": 7.039695978164673,
+      "req_per_s": 1.1364127122554644,
+      "tokens_per_s": 290.9216543373989,
+      "total_out_tokens": 2048
+    }
+  }
+}
