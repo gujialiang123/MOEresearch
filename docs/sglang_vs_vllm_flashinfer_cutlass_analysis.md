@@ -123,34 +123,72 @@ void cutlass::device_kernel<
 
 ---
 
-## 3. 为什么 vLLM 上 CUTLASS ≈ Triton?
+## 3. 为什么 vLLM 上 CUTLASS ≈ Triton(e2e 吞吐打平)?
 
-**两个 backend 都跑了**,只是分了:
-- CUTLASS: 1924 ms cutlass-sm90 + 117 ms `fused_moe::run_global` (flashinfer cuda helper)
-- Triton: 259 ms triton MoE + 125 ms `fused_moe::run_global` (同一个 helper)
+> **⚠ 重要 caveat —— "≈" 的指标是 e2e wall-clock req/s,不是 kernel 时间**。
+> 这两个完全不同的维度,我之前 §3 旧版的解释 (cudagraph capture 摊销) 不准确,这版重写。
 
-数字上:
-- Triton run 的 MoE 总时间 ≈ 259 + 125 = 384 ms
-- CUTLASS run 的 MoE 总时间 ≈ 1924 + 117 = 2041 ms ← **比 Triton 慢 5×?**
+**比较指标说明**:
+- "vLLM CUTLASS ≈ Triton" → 指 **end-to-end 吞吐**: vllm_triton R_medium=4.71 req/s,vllm_cutlass=4.72 req/s
+- 但**单看 nsys GPU kernel 时间**: cutlass-sm90-gemm 总 1924 ms,triton MoE forward 总 259 ms ← **CUTLASS kernel 实际慢 ~7×**
+- vLLM 源码 `unquantized.py:71` 那条 "FlashInfer slower than Triton on Hopper" 注释指的就是 **kernel 时间**,**这条注释是对的,不是过时**。
 
-但 wall-clock 端 vllm_triton / vllm_cutlass 是打平的 (4.71 vs 4.72 req/s)。怎么解释?
+那为什么 kernel 慢 7× 但 e2e 打平?
 
-**答案**: vLLM 用了 cudagraph (`cudagraph_mode=FULL_AND_PIECEWISE`,见 vLLM `EngineCore` 启动日志
-`results/4way_bench/vllm_cutlass/server_tail2.log`)。在 cudagraph 模式下,GPU
-端 kernel 是 "replay" 的,**单次 launch overhead 几乎为零**。所以 CUTLASS 多花的
-1660 ms 是发生在 cudagraph capture 阶段 (capture warm-up 跑了大量 tactic 选择),
-**capture 完之后真正服务请求时,replay 的成本对两 backend 来说几乎一样**。
+### 3.1 e2e wall-clock = max(GPU 时间, CPU launch overhead)
 
-这就是为什么 vLLM 源码注释 `unquantized.py:71` 写的 "Hopper bf16 上 FlashInfer 比
-Triton 慢" 在 e2e 上看不到 —— **cudagraph 把 launch overhead 吃掉了**,只看
-kernel 净时间的话 CUTLASS 确实更重,但用户感觉不到。
+LLM 推理每步 decode 大概工作流:
+```
+CPU 端: Python wrapper 计算 → 发 kernel launch → wait for GPU
+GPU 端: 执行 kernel → 返回
+```
+两边可以重叠,但只能重叠到一定程度,实际 wall clock 是 `max(CPU 路径时间, GPU 路径时间)` (加上 IPC、sampling 等其他延迟)。
 
-> 注释来源: `/home/t-jialianggu/work/vllm/vllm/model_executor/layers/fused_moe/oracle/unquantized.py:71`
-> 大意: "On Hopper (SM90), the FlashInfer unquantized MoE kernels are slower than Triton"
+数字:
+- vllm_triton R_medium bench wall ≈ 3700 ms,总 GPU kernel 时间 (含 triton+attn+others) ≈ 687 ms → **GPU util ≈ 19%**,**81% 时间 GPU 在等 CPU**。是 **CPU-bound**。
+- vllm_cutlass 同样 bench wall ≈ 3700 ms,总 GPU kernel 时间 ≈ 3300 ms → **GPU util ≈ 89%**,几乎跑满。是 **GPU-bound**。
 
-**这条注释不算错** —— 它讲的是 kernel 净时间,数据上是对的。但是它**没考虑 cudagraph
-摊销之后的 e2e 效果**,导致 oracle 默认偏好 Triton。这一点之后可以考虑提个 issue
-给 vLLM,让他们 re-validate 这条 default 选择的依据。
+两个完全不同的 regime:
+- **Triton path**: kernel 很快,瓶颈在 CPU。即使 cudagraph 把 launch 切到接近 0,wall 还是被 IPC、sampling、Python scheduler 别的部分卡住。
+- **CUTLASS path**: kernel 很重,瓶颈在 GPU。CPU 端再优化也没用,GPU 在干活。
+
+**这两个不同的瓶颈,在 Qwen3-30B-A3B / H200 / bf16 / R_medium 这个特定配置上,数值上恰好给出了相近的 req/s。换 model / GPU / batch 就会拉开**。
+
+### 3.2 PR #21872 的数据正好印证这个解释
+
+(详细 PR 引用见 §9.1)
+sglang author 在 H100 SM90 + Qwen3MoE FP8 上测:
+
+| 配置 | Triton | CUTLASS | CUTLASS / Triton |
+|---|---|---|---|
+| **No CUDA graph** (CPU launch 是瓶颈) | 152 tok/s | 163 tok/s | **+7.4%** (CUTLASS 略快) |
+| **With CUDA graph** (CPU bottleneck 消失) | 869 tok/s | 749 tok/s | **−13.8%** (CUTLASS 慢) |
+
+逻辑链:
+1. **No cudagraph 时**: CPU launch 主导。CUTLASS 把 routing+GEMM+activation 融成更少的 kernel,**少的 launch 数** → CPU 端少花时间 → 略快。
+2. **加 cudagraph 后**: CPU launch 几乎为 0。瓶颈切到 GPU 时间。CUTLASS 的 GPU kernel 本身比 Triton 慢 → 慢 13.8%。
+
+这是 vLLM 默认 oracle 把 Triton 排在 CUTLASS 前的理由 (`unquantized.py:71`) —— 因为 **cudagraph 是 vLLM 的默认模式**,在这模式下 CUTLASS GEMM 时间本身就吃亏。
+
+### 3.3 我们的 R_medium 结果为什么是打平而不是 −13.8%?
+
+PR #21872 是 FP8,我们是 bf16。可能差异:
+- bf16 比 FP8 大 2 倍,内存带宽压力更大,GPU 端 kernel 本身就慢 → CUTLASS / Triton 的相对差距被 memory bandwidth 吞了一部分
+- Qwen3-30B-A3B (E=128, N=768) 跟 PR 测的 shape 不一样,fused_moe Triton 的 autotune 配置不同
+- 我们的 bench harness 不一样,prefill / decode 比例不同
+
+不管怎样,**两个独立测量都指向同一个本质**: SM90 + cudagraph 上 CUTLASS 没有 GPU kernel 优势 (kernel 时间比 Triton 慢);没 cudagraph 时它的优势(更少 launch)又出来一点。
+
+### 3.4 sglang 为什么显著慢 3.4-4.7×?(预告 §4)
+
+sglang_cutlass 同时被**三个瓶颈**打:
+
+1. **没 cudagraph** (capture hang,§4.4): CPU launch overhead 没被消除 → 落到 Triton-style CPU-bound
+2. **AutoTuner 每 forward 重 benchmark 9× kernel** (§4.3): CPU launch overhead 比 Triton 还高得多
+3. **同时跑 CUTLASS GEMM**: GPU 时间也长 (跟 vLLM CUTLASS 一样)
+
+三个 bottleneck 全占,自然差。
+
 
 ---
 
