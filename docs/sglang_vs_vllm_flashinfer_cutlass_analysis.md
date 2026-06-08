@@ -563,3 +563,239 @@ flashinfer JIT 调用、CUDA stream capture 这几个交互点。
   —— 第一版 4-way bench (1 run/backend, 后被修订)
 - `~/.copilot/session-state/<session-id>/checkpoints/005-4way-bench-3runs-and-nsys-proof.md`
   —— 3 runs + nsys 证据 + 撤回 "sglang Triton 慢" 的错论
+
+---
+
+## 9. (新增) 上游 issue / PR 调研 —— bug 是不是已知?有没有人在修?
+
+调研日期: 2026-06-08。调研对象: sgl-project/sglang, flashinfer-ai/flashinfer, vllm-project/vllm。
+
+### 9.1 直接相关的 sglang PR / issue
+
+| # | 类型 | 标题 | 状态 | 跟我们的关系 |
+|---|---|---|---|---|
+| [#21872](https://github.com/sgl-project/sglang/pull/21872) | PR (OPEN) | Add FlashInfer CUTLASS fused MoE support for FP8 block-quantized models on SM90 | OPEN since 2026-04-01 | ★★★★★ —— 直接 benchmark SM90 cutlass vs triton + 给出 root cause |
+| [#26715](https://github.com/sgl-project/sglang/issues/26715) | Bug | flashinfer_trtllm BF16 MoE: piecewise CUDA graph capture causes illegal memory access | OPEN | SM100 + flashinfer_trtllm + PCG 崩 (不是我们 case),但**workaround 是 `--moe-runner-backend flashinfer_cutlass`** —— 表明 SM100 上 cutlass + cudagraph 正常,只有 SM90 上挂死 |
+| [#26137](https://github.com/sgl-project/sglang/issues/26137) | Bug | Decode workers hang at CUDA graph capture during init_device_graphs | CLOSED 2026-05-24 | DeepSeek-R1 FP4 DP32 + flashinfer_cutedsl + DeepEP + PCG 挂在 capture(类似现象但是不同 backend) |
+| [#23870](https://github.com/sgl-project/sglang/issues/23870) | Bug | PiecewiseCudaGraphRunner.warmup_compile → cudaErrorIllegalAddress on dense model | OPEN | dense model 的 PCG 崩,相关但不同 path |
+
+**特别有价值的 PR #21872**: PR 作者(claude-code 生成的 PR)在 H100 SM90 上直接跑了
+sglang FP8 block-quantized flashinfer_cutlass MoE vs Triton 的对比:
+
+| Mode | Triton | FlashInfer CUTLASS | Diff |
+|---|---|---|---|
+| **No CUDA graph** | 152 tok/s | 163 tok/s | **+7.4%** (cutlass 略快) |
+| **CUDA graph** | 869 tok/s | 749 tok/s | **−13.8%** (cutlass 显著慢) |
+
+PR 作者自己的解释 (PR description, 引用):
+> "FlashInfer CUTLASS fuses routing+GEMM+activation, reducing kernel launch overhead.
+> This gives +7.4% in eager mode. However **under CUDA graph (which already eliminates
+> launch overhead), the CUTLASS GEMM is less efficient than Triton's tuned kernel for
+> these shapes**, resulting in regression."
+
+PR 的 "Recommended use" 也写: "`--disable-cuda-graph` or piecewise CUDA graph scenarios
+where kernel launch overhead matters" —— **跟我们独立观察一致**。
+
+→ 这条 PR 既是 §4 的 9× kernel launch 问题的旁证 (eager mode 下 cutlass +7%,说明
+launch overhead 是真问题),也是 §10 要分析的 "SM90 上 cutlass 不比 triton 快" 命题
+的直接数据点 (cudagraph 开后 cutlass 反而 -13.8%)。
+
+### 9.2 sglang `TODO` 的 commit 历史
+
+```bash
+# 查找该 TODO 是谁加的、什么时候
+git blame -L 1840,1845 python/sglang/srt/model_executor/model_runner.py
+```
+
+结果:
+```
+468931b572 (Baizhou Zhang 2025-12-21 18:08:07 -0800 1841)
+        # TODO: flashinfer_cutlass will cause some flashinfer compilation errors. To be fixed.
+468931b572 (Baizhou Zhang 2025-12-21 18:08:07 -0800 1842)
+        #     "flashinfer_cutlass",
+```
+
+Commit `468931b572`:
+```
+[Tiny]Move deepseek fp4 cutlass moe test to per-commit test (#15565)
+Author: Baizhou Zhang <sobereddiezhang@gmail.com>
+Date: Sun Dec 21 18:08:07 2025 -0800
+```
+
+PR 标题写 `[Tiny]Move ... test to per-commit test`(把测试从 nightly 提到 per-commit),
+**但 diff 里顺手把 `flashinfer_cutlass` 从 `_should_run_flashinfer_autotune` 的 list
+里注释掉了**,**没在 PR description 里解释为什么**。PR comments 里也没有讨论。
+
+这是一个**没记录的 silent disable** —— 没人在追这个 bug,也没 open issue 跟进。
+
+### 9.3 我们没找到的相关 issue/PR
+
+- **没找到** open issue 描述 "sglang + flashinfer_cutlass + cudagraph 在 SM90 hang"。
+- **没找到** open PR 在修这个 hang bug。
+- flashinfer-ai/flashinfer 仓库**没有** open issue 描述 `cutlass_fused_moe` 跟 cuda graph 不兼容。
+
+**意思**: 这是个 stealth bug —— sglang 维护者知道(注释 + silent disable),但没正式追,
+没有 issue 让外部贡献者发现并 fix。
+
+### 9.4 推测的 bug 路径
+
+基于 §4.4.1 的源码证据 + PR 历史,推测 chain 是这样的:
+
+1. 某次 flashinfer 升级后,`cutlass_fused_moe` 进 sglang 的 `_flashinfer_autotune()` warmup
+   (用 `with autotune():` ctx mgr)时,触发 JIT 编译错误(注释只写 "compilation errors",
+   没给具体信息)
+2. Baizhou 在 `#15565` 里临时把 `flashinfer_cutlass` 从 autotune list 里注释掉绕过
+3. 没人在 cudagraph 端跟进 —— 因为 sglang 的 cudagraph capture 本身不直接调
+   `autotune()` ctx,但**capture 期间** Python wrapper 会执行,内部会调 flashinfer
+   的 AutoTuner.choose_one → 同样触发 JIT 编译/tuning,可能在 stream capture 状态下
+   挂死 (这就是我们观察到的 detokenizer hang)
+
+**未验证的假设**:
+- detokenizer hang 是不是真的是 "flashinfer JIT 编译被 cudagraph stream capture 卡住"
+- 还是 sglang detokenizer IPC 在 cudagraph 模式下有死锁
+- 要确认,得 attach `py-spy dump --pid <detokenizer_pid>` 看 stack
+
+### 9.5 推荐 fix 路径(给 sglang 提 issue 的话怎么写)
+
+1. **issue 标题**: `[Bug] sglang + flashinfer_cutlass + cudagraph: detokenizer hangs after "Capture cuda graph end" on SM90`
+2. **issue 内容**:
+   - 重现步骤 (`--moe-runner-backend flashinfer_cutlass` without `--disable-cuda-graph` on H100/H200)
+   - 现象: detokenizer heartbeat 停,/health 返回 503,reproduced 2×
+   - 直接证据: `model_runner.py:1841-1842` TODO 表明维护者已知
+   - 性能影响: 我们测得 R_medium 3.4× slowdown, R_short 4.5× slowdown
+   - 关联: PR #21872 也观察到 cudagraph 路径有问题
+3. **修复路径**:
+   - 短期: 完整 reproduce hang + 抓 detokenizer stack trace
+   - 中期: 在 `_flashinfer_autotune` 里把 `flashinfer_cutlass` 重新放进来,看具体
+     compilation error 是什么
+   - 长期: 跟 flashinfer-ai 团队协作修 `cutlass_fused_moe` 跟 sglang capture 的兼容性
+
+---
+
+## 10. (新增) 即使 bug 修好,为什么 SM90 上 FlashInfer CUTLASS 也不会显著超 Triton?
+
+观察事实(来自 §1 实测 + PR #21872 的独立测量):
+- vLLM SM90 H200 bf16: cutlass / triton = 1.00-1.02× (持平)
+- PR #21872 SM90 H100 FP8 block-quant: cutlass / triton 在 cudagraph 下 = **0.86×** (cutlass 反而慢)
+- 业界普遍说法: SM100 (Blackwell) 上 flashinfer cutlass 比 triton 显著快
+
+为什么 SM90 上的差距这么小或反向?
+
+### 10.1 第一层原因 —— Triton MoE 是 shape-tuned 的,CUTLASS 是 general 的
+
+vLLM/sglang 用的 Triton MoE kernel(`triton_red_fused_fused_add_rms_norm_moe_forward_0`)
+经过多个 release 在 H100/H200 上对常见 (E, N, K, top_k) shape 的 **autotune 数据库**
+(`fused_moe/configs/E=128,N=768,device_name=NVIDIA_H200.json` 等) 已经存在。每个 model
+shape 都有人手动 tune 过最优 BLOCK_M/BLOCK_N/BLOCK_K/num_stages/num_warps。
+
+FlashInfer CUTLASS 是 general 框架,kernel 选择空间是固定的 tile shape 组合,**没有
+shape-specific 人工 tune**,靠 AutoTuner 在线挑。对于 well-known shape (Qwen3MoE、DeepSeek),
+Triton 的人工 tune 数据库占优。
+
+### 10.2 第二层原因 —— flashinfer SM90 grouped-GEMM 的搜索空间太窄
+
+直接证据: `flashinfer/jit/gemm/cutlass/generate_kernels.py`
+
+**SM90 grouped GEMM 生成器** (`generate_sm90_grouped_gemm_operations`,line 556-637):
+```python
+supported_dtypes = [DataType.f16, DataType.bf16, DataType.f32, DataType.e4m3]
+                     # NO e2m1 (FP4)
+M_TILES = [128]      # 注释: "Currently M tile must be 128 for Grouped GEMM"
+N_TILES = [16, 32, 64, 128, 256]
+cga_shapes = product([1, 2], [1, 2], [1])  # 4 个固定 cluster shape
+mainloop_schedule = TmaWarpSpecializedCooperative  # 1 种
+```
+
+**SM100 grouped GEMM 生成器** (`generate_sm100_grouped_gemm_operations`,line 840-941):
+```python
+supported_dtypes = [
+    DataType.f16, DataType.bf16, DataType.f32,
+    DataType.e4m3,           # FP8 ✓
+    e2m1,                    # FP4 native ✓ (SM90 没有)
+    (DataType.e4m3, e2m1),   # mixed FP8/FP4 ✓
+]
+cta_shapes_m = [64, 128]     # 2 个 M tile (vs SM90 只有 1 个)
+cta_shapes_n = [8, 16, 32, 64, 128, 192, 256]  # 多了 N=8 和 N=192
+cga_shapes = [(1, 1, 1), (2, 1, 1)]
+dynamic_cga = [True, False]  # 动态 cluster shape (SM90 没有)
+epi_schedules = [
+    PtrArrayNoSmemWarpSpecialized1Sm,   # 给某些 shape 用 no-smem epilogue
+    PtrArrayTmaWarpSpecialized1Sm,
+]
+```
+
+**搜索空间大小估算**:
+- SM90: 4 dtypes × 5 N × 4 cluster × 2 swap_ab × 2 epi_fusion = **320** 个 kernel candidate
+- SM100: 6 dtypes × 14 cta_shape × 2 cga × 2 epi × 2 dynamic × 2 swap_ab × 2 epi_fusion ≈ **>5000** 个 candidate
+
+**意思**: SM100 上 AutoTuner 有 ~16× 多的选项可挑,所以更可能挑到接近最优的 tile/cluster
+组合;SM90 上选项少,选不到最优,跟 Triton 的人工 tune 差距就拉大。
+
+特别要注意 SM90 的 `M_TILES = [128]` 那条注释 —— **Grouped GEMM 的 M 维必须是 128**。
+对于小 batch (e.g. batch=1 R_short),sequence 维度也只有几十,M=128 大量浪费 tile,
+SM90 没法降到 M=64。SM100 允许 M=64,小 batch 利用率显著更好。
+
+### 10.3 第三层原因 —— 硬件原语本身
+
+**Hopper SM90 的矩阵乘原语**: `wgmma.async`(warp-group MMA)
+- 异步,但占用 register file 存累加器
+- accumulator 在 register 里,kernel 设计要小心 register pressure
+- BF16/FP8 都有原生支持
+- **没有 FP4 原生指令**
+
+**Blackwell SM100 的矩阵乘原语**: `umma`(Unified MMA) + TMEM(tensor memory)
+- 异步,**accumulator 在专用 tensor memory 而不是 register**,大幅减少 register pressure
+- 同 SM 内可以有更多并发 MMA 在飞行
+- BF16/FP8/**FP4 都有原生支持**(`mxfp4` `nvfp4`)
+
+**对 MoE 的实际影响**:
+- 对 **BF16 unquantized**(我们的测试 case): SM100 的 UMMA 带来 ~10-20% kernel-level 加速,
+  但 Triton 在 SM90 的 WGMMA 也跑得很好,所以净差距小。SM100 上 cutlass 略胜 triton,
+  SM90 上打平。
+- 对 **NVFP4 quantized**: SM100 用 FP4 tensor core 直接算,SM90 必须 dequantize 到 BF16
+  再算,**3-5× 差异**。这就是为什么 NVFP4 模型 (DeepSeek-V3.x NVFP4, MiniMax NVFP4 etc.)
+  在 SM100 上必须用 flashinfer cutlass,SM90 上根本没法用 flashinfer cutlass 的 NVFP4 path。
+
+### 10.4 第四层原因 —— Triton on SM90 已经很接近 SM90 峰值
+
+我们之前 `triton_rewrite_investigation.md` §14 量化过 Triton MoE kernel 在 H200 上达到
+**~30% of FP16 peak FLOPs** (Qwen3MoE)。CUTLASS 也大概在这个数量级。两边都
+**bottlenecked by memory bandwidth** 而不是 compute,所以 kernel 怎么调度的差异不显著。
+
+到 SM100 上情况就不一样:
+- HBM3e → HBM3+(SM100 GB200)bandwidth ~8 TB/s vs H200 4.8 TB/s
+- Tensor core peak ~3.5×
+- 给 kernel 的 compute headroom 大,kernel 之间能拉开差距
+
+### 10.5 一句话总结
+
+**SM90 上 flashinfer CUTLASS ≈ Triton 是三个因素叠加**:
+
+1. **Triton 端**: H100/H200 上 fused_moe Triton kernel 有完整 shape-tuned 配置库
+   (`fused_moe/configs/*.json`),对 well-known model shape 接近 SM90 硬件峰值
+2. **CUTLASS 端**: flashinfer 在 SM90 上的 grouped GEMM 搜索空间比 SM100 小约 16×
+   (M tile 锁死 128, 没 FP4 路径, 没 dynamic cluster, 1 个 epilogue schedule),
+   AutoTuner 选不到比 Triton 更优的配置
+3. **硬件端**: SM90 的 WGMMA 没有 SM100 的 TMEM / UMMA 那么强的并发能力,
+   compute headroom 比较紧,kernel 调度差异被 memory bandwidth bottleneck 吸收
+
+→ **结论**: 即使我们修好 §4 的 9× launch 问题 + §4.4 的 cudagraph hang,sglang_cutlass
+最多也只能追到 vllm_cutlass 水平,也就是跟 sglang_triton 持平,**不会有 SM100 那种
+显著 speedup**。CUTLASS 的真正价值在 SM100 + 量化模型场景,SM90 + unquantized BF16
+两边 e2e 几乎一样。
+
+### 10.6 这对优化 agent 的设计意味着什么
+
+我们最初做这个 study 是想找 "MoE 优化机会"。结论比预想的更微妙:
+
+| 场景 | 优化空间 | 优化路径 |
+|---|---|---|
+| SM90 H100/H200 + bf16 unquantized + cudagraph | **几乎没有** | Triton 已接近峰值,CUTLASS 没优势 |
+| SM90 H100/H200 + bf16 + no cudagraph | 修 sglang 那个 9× launch (§4) | tune_max_num_tokens 固定 + autotune warmup |
+| SM90 + FP8/INT8 quantized | 中等 | CUTLASS group-GEMM 比 Triton 稍快,但 cudagraph 下基本持平 |
+| SM100 GB200 + nvfp4/mxfp4 quantized | **巨大** | 必须用 flashinfer cutlass,且 cudagraph 对它友好 |
+| SM100 GB200 + bf16 | 小 | flashinfer 比 triton 稍快 (类似 SM90 SM100 的 trend) |
+
+对一个 e2e 优化 agent 来说,这意味着 "对每个 (model, GPU, dtype) 都跑所有 backend 比较"
+策略 ROI 很低 —— 对大部分 SM90 + bf16 的 long-tail model,Triton 就是最优解,不用 search。
+
