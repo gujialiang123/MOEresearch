@@ -41,3 +41,8 @@ scratch/
 # Models live at /data/hf/, never under this repo, but be defensive.
 hf_cache/
 models/
+
+# nsys profile artifacts (large binaries)
+*.nsys-rep
+*.sqlite
+results/4way_bench/nsys/*.log

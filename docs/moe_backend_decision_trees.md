@@ -1188,25 +1188,62 @@ void cutlass::device_kernel<
 
 2. **❌ "sglang Triton 比 vLLM Triton 慢" 是第一版本的 methodology 错** —— warm 起来打平,这条路线不存在,删除。
 
+### 🔍 5.5.1 根因追到了 —— AutoTuner re-benchmark 9× 放大 kernel launch
+
+后续的 sglang_cutlass nsys profile 给出了具体原因 (完整证据在 `results/4way_bench/nsys/ROOT_CAUSE.md`):
+
+**同一份 R_medium 工作 (16 reqs × 256 tokens),cutlass-sm90-gemm kernel 数量:**
+
+| | vLLM cutlass | sglang cutlass | 比例 |
+|---|---|---|---|
+| cutlass-sm90-gemm calls | 10,802 | 97,774 | **sglang 9.05×** |
+| avg 单 kernel 时间 | 178 us | 142 us | sglang 反而略快 |
+| 每 output token 的 cutlass call | 2.6 | 23.9 | 9.2× |
+
+**结论:每个 kernel 一样快,但 sglang launch 了 9× 多。**
+
+**diff 调用点**:两边都走 `flashinfer.fused_moe.cutlass_fused_moe`,但传参不同:
+
+| arg | sglang (`unquant.py:373-386`) | vLLM (`flashinfer_cutlass_moe.py:378-403`) |
+|---|---|---|
+| `output=` | 不传 (内部分配) | 传预分配 buffer |
+| `tune_max_num_tokens` | **`next_power_of_2(x.shape[0])`** —— 每 forward 变 | `max(max_capture_size, 1)` —— **固定** |
+
+**根因在 flashinfer 内部** (`flashinfer/fused_moe/core.py:548-578`): 每次 `cutlass_fused_moe()` 调用都跑 `AutoTuner.choose_one()` 两次 (GEMM1 + GEMM2) 来挑 tactic。cache 命中时便宜;**cache miss 时会真的 launch 候选 kernel 做 micro-benchmark**。
+- vLLM: tune 参数固定 + cudagraph 把 shape 锁在 capture_sizes,cache 一直命中 → tuning 只跑 1 次
+- sglang: tune 参数每次变 + 无 cudagraph 让 batch shape 也变,cache miss → 反复 re-benchmark,这就是 9× 多 kernel launch 的来源
+
+### 三个候选 fix (`ROOT_CAUSE.md` 有详细方案)
+
+1. **🥇 一行 patch**:`unquant.py:385` 把 `tune_max_num_tokens=next_power_of_2(x.shape[0])` 改成固定常量 (e.g. `8192`)。最小风险,期望 wrapper-level 2-3× 提升。
+2. **🥈 wrap in `with autotune(False):`**:warm-up 后彻底禁 tuner re-benchmark。
+3. **🥉 修 cudagraph hang**:让 sglang 也能用 cudagraph + 固定 shape,跟 vLLM 对齐。
+
+要先验证 Fix 1 (5 分钟 patch + re-run 3 次 + nsys 看 cutlass-sm90-gemm 是否从 97774 跌到 ~10000)。
+
 ### bench / nsys 工件
 
 - `results/4way_bench/runs/bench_*_run{1,2,3}.json` —— 3 runs/backend 原始数据
 - `results/4way_bench/runs/stats_table.md` —— 自动生成的 mean±std 表
-- `results/4way_bench/nsys/EVIDENCE.md` —— nsys 详细证据
-- `results/4way_bench/nsys/vllm_{cutlass,triton}_kernels.csv` —— 完整 kernel time breakdown
+- `results/4way_bench/nsys/EVIDENCE.md` —— vLLM nsys 详细证据 (CUTLASS 真在跑,无 fallback)
+- `results/4way_bench/nsys/ROOT_CAUSE.md` —— **9× 多 kernel launch 根因分析 + 三个 fix**
+- `results/4way_bench/nsys/kernel_count_comparison.md` —— sglang_cutlass / vllm_cutlass / vllm_triton kernel count 三栏对比
+- `results/4way_bench/nsys/{sglang_cutlass,vllm_cutlass,vllm_triton}_kernels.csv` —— 完整 kernel time breakdown
 - `results/4way_bench/scripts/{run_bench_4way.py, start_*.sh}` —— 启动脚本
 
 ---
 
 ## 6. 推荐下一步
 
-1. **🔥 §5.5 修订发现: sglang flashinfer_cutlass 慢 3.4-4.7×,且 cudagraph 会挂死**: 同一个 `flashinfer.cutlass_fused_moe` kernel,vLLM 包了之后 ≈ Triton,sglang 包了之后慢 3.4-4.7× **而且** cudagraph 整套挂死。两件事:
-   - 修 cudagraph hang bug (复测时 detokenizer 在 capture 阶段挂死,根因待定)
-   - diff sglang vs vLLM 的 wrapper (`flashinfer_cutlass.py` 两份),找 H2D / stream / shape 差异
+1. **🔥 §5.5.1 根因找到了 —— flashinfer AutoTuner re-benchmark 在 sglang stack 上不命中 cache,9× 多 kernel launch**。三个候选 fix:
+   - **a)** `unquant.py:385` 一行 patch:`tune_max_num_tokens` 固定常量 (而不是 `next_power_of_2(x.shape[0])`)
+   - **b)** `with autotune(False):` 在 warm-up 后禁 tuner
+   - **c)** 修 cudagraph hang bug,让 shape 锁在 capture_sizes
+   下一步: 先 apply (a) 跑 3 runs + nsys 看 cutlass-sm90-gemm 是否从 97774 跌到 ~10000,确认根因后再考虑 (b)/(c)。
 
 2. **❌ 撤回**: 第一版本说的 "sglang Triton 比 vLLM Triton 慢 20-59%" 是 cold-start methodology 错。warm 起来两边打平 (差距 -1% ~ +5%)。
 
-3. **复现发现 #1** (Hopper bf16: FlashInfer 比 Triton 慢): **§5.5 已经做了**,结论是这个命题在 vLLM stack 上不成立,在 sglang stack 上 "成立但根因可能是 cudagraph 挂死被迫禁用,不一定是 kernel 慢"。
+3. **复现发现 #1** (Hopper bf16: FlashInfer 比 Triton 慢): **§5.5 已经做了**,结论是 vLLM stack 上不成立,sglang stack 上是 wrapper 端 AutoTuner 问题不是 kernel 慢 (§5.5.1)。
 
 4. **调研发现 #3** (Qwen3.5 + DEP 崩溃): 在 H200 上 DP > 1 复现崩溃,捕获精确错误,提 follow-up。
 
