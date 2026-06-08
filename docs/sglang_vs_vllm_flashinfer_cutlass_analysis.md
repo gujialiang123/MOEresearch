@@ -338,10 +338,59 @@ server log 片段 (来源: 复测时实时观察):
 慢 3.4-4.7× 提供了第二条解释通道 —— 即使把 `tune_max_num_tokens` 修固定,
 没 cudagraph 锁 shape 的情况下 batch shape 还是会变,cache 仍可能 miss。
 
-cudagraph hang 的根因没确认 —— 复测时只观察到 detokenizer heartbeat 不更新,没拿到
-Python stack trace 或 GPU 端 error。后续需要单独排查 (可能是 flashinfer JIT 的
-某个 op 跟 cudagraph capture 冲突,或者 sglang 的 detokenizer IPC 在 cudagraph
-mode 下有死锁)。
+#### 4.4.1 sglang 维护者自己知道这个 bug —— 直接源码证据
+
+`sglang/python/sglang/srt/model_executor/model_runner.py:1834-1844`:
+```python
+backend_str = self.server_args.moe_runner_backend
+
+# TODO smor- support other cases for flashinfer autotune, such as, mamba backend
+
+if backend_str not in [
+    "flashinfer_trtllm",
+    "flashinfer_mxfp4",
+    # TODO: flashinfer_cutlass will cause some flashinfer compilation errors. To be fixed.
+    # "flashinfer_cutlass",
+]:
+    return False
+```
+
+这个函数 (`_should_flashinfer_autotune`) 判断 "什么 backend 应该走 sglang 的 flashinfer
+autotune warmup 路径"。`_flashinfer_autotune()` 的实现 (model_runner.py:1859-1874):
+
+```python
+def _flashinfer_autotune(self):
+    from flashinfer.autotuner import autotune
+    logger.info("Running FlashInfer autotune...")
+    # Run warmup on the non-default stream to avoid NCCL 2.29+ cudaMemcpyBatchAsync
+    self.forward_stream.wait_stream(torch.cuda.current_stream())
+    with torch.get_device_module(self.device).stream(self.forward_stream):
+        with torch.inference_mode(), autotune():          # ← Fix 2 提到的 autotune ctx
+            self._dummy_run(
+                batch_size=self.req_to_token_pool.size, run_ctx=autotune()
+            )
+    torch.cuda.current_stream().wait_stream(self.forward_stream)
+    logger.info("FlashInfer autotune completed.")
+```
+
+注意 `with autotune():` —— 这就是 flashinfer 的 autotune context manager,本意是
+在 warmup 阶段一次性 tune 好所有 tactic,后续推理 cache 命中。其他 flashinfer
+backend (`flashinfer_trtllm`, `flashinfer_mxfp4`) 都走这个路径。
+
+**但 `flashinfer_cutlass` 被注释掉了,留 TODO 说 "会让 flashinfer 编译报错"**。所以:
+1. `flashinfer_cutlass` 没走 `_flashinfer_autotune()` warmup
+2. → AutoTuner 没在 cudagraph capture 之前预热
+3. → 每个推理 forward 都触发 AutoTuner re-benchmark (nsys 观察到的 97774 calls)
+4. → 同时 cudagraph + flashinfer_cutlass 还有 detokenizer hang bug
+
+**§4.3 的 9× kernel launch + §4.4 的 cudagraph hang 很可能是同一个 bug 的两种表现**:
+sglang 知道 flashinfer_cutlass 跟 sglang 的 capture/warmup 集成有问题,跳过 warmup
+来规避,但这又导致 e2e 性能拉胯。
+
+cudagraph hang 的具体根因(我们观察到的 detokenizer 挂死)目前不能完全归结到上面这
+条 TODO,但**两件事高度相关**:都涉及 flashinfer JIT 编译 + sglang capture 流程。
+后续要复现 + 抓 stack 才能确定。
+
 
 ---
 
