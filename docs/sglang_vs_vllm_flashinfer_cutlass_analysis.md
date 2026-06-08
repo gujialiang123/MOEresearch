@@ -799,3 +799,114 @@ SM90 没法降到 M=64。SM100 允许 M=64,小 batch 利用率显著更好。
 对一个 e2e 优化 agent 来说,这意味着 "对每个 (model, GPU, dtype) 都跑所有 backend 比较"
 策略 ROI 很低 —— 对大部分 SM90 + bf16 的 long-tail model,Triton 就是最优解,不用 search。
 
+
+---
+
+## 11. (新增) Hang 复现失败 + cudagraph 实际只帮 R_short
+
+调研 §9/§10 之后,尝试实测 §4.4 的 hang bug:
+
+**结果**: 这次**没复现 hang** —— `--moe-runner-backend flashinfer_cutlass` 不带
+`--disable-cuda-graph` 直接启动,Capture cuda graph end 之后正常进入 service,
+所有请求都 200,server.log 看到 decode 真的在用 cudagraph (`cuda graph: True` 出现 112 次)。
+
+**最可能的原因**: checkpoint 005 时的 hang 是 **flashinfer JIT 编译 + cudagraph capture
+同时进行** 导致的临时挂死 (`fused_moe_90.so` 第一次 JIT 要 7+ 分钟,在 capture 期间
+触发会让流程死锁)。现在 `~/.cache/flashinfer/0.6.11.post2/90a/cached_ops/fused_moe_90/`
+已经有 `.so` 文件,capture 时不再触发 JIT,流程正常。
+- 这跟 §4.4.1 sglang TODO 注释里的 "flashinfer compilation errors" 假说一致。
+- 也跟 sglang PR #15565 silent disable 的时机一致(那时候 flashinfer 升级,新版需要
+  重新 JIT,引发 compilation errors)。
+
+→ **§4.4 的 hang 是"冷启动 race condition" 不是"永久 deadlock"。** 这是个时序 bug,
+不是逻辑 bug。要稳定复现需要先 `rm -rf ~/.cache/flashinfer/0.6.11.post2/90a/cached_ops/fused_moe_90/`
+然后重启 server,让 JIT 在 capture 时触发。
+
+### 11.1 e2e bench —— cudagraph 帮了多少?
+
+跑 3 runs/regime × `flashinfer_cutlass` 带 cudagraph(`--watchdog-timeout 1800`,
+GPU=1),数据在 `results/4way_bench/runs/bench_sglang_cutlass_graph_run{1,2,3}.json`:
+
+| Regime | no_cudagraph (旧, mean) | with_cudagraph (新, mean) | speedup |
+|---|---|---|---|
+| R_short  | 0.70 req/s | **1.25 req/s** | **1.79×** |
+| R_medium | 1.30 req/s | 1.35 req/s | 1.04× |
+| R_long   | 1.29 req/s | 1.33 req/s | 1.03× |
+
+**和 baseline 比**:
+
+| Regime | sglang_cutlass + graph | sglang_triton | vllm_cutlass |
+|---|---|---|---|
+| R_short  | 1.25 | 3.23 | 3.23 |
+| R_medium | 1.35 | 4.51 | 4.59 |
+| R_long   | 1.33 | 4.38 | 4.26 |
+
+→ **cudagraph 只在 R_short 显著帮(1.79×),R_medium/R_long 几乎不变**。
+
+### 11.2 为什么 cudagraph 在 R_medium/R_long 没帮?
+
+直接证据来自 server.log (来源: `results/4way_bench/hang_repro/server.log`):
+```
+=== decode batch lines: cuda graph True or False? ===
+     65 cuda graph: False     ← 全是 prefill
+    112 cuda graph: True      ← 全是 decode
+```
+
+**sglang 的 cudagraph 只 capture decode step,不 capture prefill**。
+
+regime 拆解:
+- **R_short** (8 reqs / 200w / 64 out, conc=1): 200 prefill tok + 64 decode tok ≈ 24% decode → cudagraph 帮一点点 (1.79×)
+- **R_medium** (16 reqs / 800w / 256 out, conc=8): 800 prefill + 256 decode ≈ 24% decode,**但 batch 大,prefill 时间被均摊后,decode 部分 cudagraph 也帮一点** —— 不过 prefill 占大头还是 AutoTuner 重 benchmark
+- **R_long** (8 reqs / 2000w / 256 out, conc=16): 2000 prefill + 256 decode ≈ 11% decode → cudagraph 几乎不帮
+
+**所以 §4 找到的 9× kernel launch 大头是 prefill 端**,cudagraph 没法解决。需要的是
+**Fix 1 (固定 `tune_max_num_tokens`) 或 Fix 2 (`with autotune(False)`)**,这两个能影响
+prefill 路径的 AutoTuner cache。
+
+### 11.3 修订 §6 优化路线优先级
+
+旧版 §6 说:
+> 1. 🥇 Fix 1: 一行 patch (tune_max_num_tokens 固定)
+> 2. 🥈 Fix 2: `with autotune(False):`
+> 3. 🥉 Fix 3: 修 cudagraph hang
+
+**修订后**:
+- **🥇 Fix 1/2 仍然是主战场**: prefill 端 AutoTuner 是大头,cudagraph 没法解
+- **🥉 Fix 3 (修 hang) 优先级降低**: 不是稳定 deadlock,是冷启动 race。warm 之后即使没人显式修,
+  也能跑通 cudagraph,只是 e2e 性能基本没变化(只帮 R_short)。
+- **新优先级**: Fix 1 后必须验证 prefill 端 AutoTuner 路径的 cutlass-sm90-gemm count
+  是否真的减少 → 如果减,prefill 加速 → e2e 加速。如果没减,根因不是 tune_max_num_tokens
+  而是别的(可能是 AutoTuner.choose_one 内部 cache key 还依赖 shape)。
+
+### 11.4 验证 Fix 1 的具体方案
+
+```bash
+# 1. apply patch
+cd /home/t-jialianggu/work/sglang
+# edit python/sglang/srt/layers/quantization/unquant.py:385
+#   tune_max_num_tokens=next_power_of_2(x.shape[0])  →  tune_max_num_tokens=8192
+
+# 2. start sglang_cutlass with cudagraph on GPU 1, GPU 0 别人占着别动
+bash /tmp/start_sglang_cutlass_GRAPH.sh  # no --disable-cuda-graph this time
+
+# 3. 跑 3 runs benchmark + 一次 nsys profile
+for run in 1 2 3; do
+  python3 /tmp/run_bench_4way.py http://127.0.0.1:30000 "sglang_cutlass_fix1_run${run}" \
+    /home/t-jialianggu/work/EndtoEnd-auto-optimization/results/4way_bench/runs/
+done
+
+# 4. compare: cutlass-sm90-gemm count should drop from ~97k toward vLLM's ~11k
+# (because prefill no longer re-tunes per forward)
+```
+
+### 11.5 一句话总结
+
+**Hang bug 这次没复现** —— 几乎确认是 flashinfer JIT 冷启动 race,不是永久 bug。
+**Cudagraph 实际只帮 R_short 1.79×**,R_medium/R_long 几乎没变 —— 因为 sglang 只
+graph-capture decode,而我们 regimes 是 prefill-heavy,prefill 端 AutoTuner 重 benchmark
+没被 cudagraph 解决。
+
+**所以 §6 优化路线变化**: Fix 1 (`tune_max_num_tokens` 固定) 是唯一真正能拉 R_medium/R_long
+性能的方案。Fix 3 (修 cudagraph hang) 没必要专门做 —— 它要么 warm 后自己好,要么只帮
+R_short 一点点。
+
