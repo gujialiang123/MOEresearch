@@ -543,3 +543,359 @@ User 注意到 "sm100 和 sm90 上 flashinfer moe kernel DSL 不同?一个 trtll
 - ~~修 sglang cudagraph hang~~ — cold cache 才出现,warm 后没事,而且 cudagraph 只帮 R_short
 - ~~解锁 CUTLASS SM90 M=64 tile~~ — 需要碰 CUTLASS 模板,ROI 不确定
 
+
+---
+
+# Part C (新增) — SM100 vs SM90 detailed tuner comparison + 能不能直接抄表?
+
+## C.1 三个澄清问题
+
+User 又问了三个问题,这里集中回答:
+
+### Q1: SM100 和 SM90 的 CUTLASS MoE kernel 是同一个吗?
+
+**部分一样,但 binary 不同**。
+
+- **C++ 源码 `.cu` 文件**: 一样。`flashinfer/data/csrc/nv_internal/tensorrt_llm/kernels/cutlass_kernels/moe_gemm/*.cu` 这一套是共用模板代码。
+- **JIT 编译指令**: 不一样,两个独立的 `gen_cutlass_fused_moe_sm{90,100}_module()` 函数。
+
+`flashinfer/jit/fused_moe.py:85-95` (SM90):
+```python
+def gen_cutlass_fused_moe_sm90_module():
+    nvcc_flags = sm90a_nvcc_flags + [
+        "-DCOMPILE_HOPPER_TMA_GEMMS",
+        "-DCOMPILE_HOPPER_TMA_GROUPED_GEMMS",
+        "-DENABLE_BF16", "-DENABLE_FP8",
+        "-DENABLE_FP8_BLOCK_SCALE" if cuda >= 12.8 else "",
+        "-DENABLE_FP4" if cuda >= 12.8 else "",
+    ]
+    return gen_cutlass_fused_moe_module(nvcc_flags, "90")    # arch="90"
+```
+
+`flashinfer/jit/fused_moe.py:68-82` (SM100):
+```python
+def gen_cutlass_fused_moe_sm100_module():
+    nvcc_flags = [
+        "-DCOMPILE_BLACKWELL_TMA_GEMMS",                     # 不同 macro
+        "-DCOMPILE_BLACKWELL_TMA_GROUPED_GEMMS",
+        "-DENABLE_BF16", "-DENABLE_FP8", "-DENABLE_FP4",
+    ]
+    return gen_cutlass_fused_moe_module(nvcc_flags, "100")   # arch="100"
+```
+
+**编译出来是两个不同 `.so` 文件**: `fused_moe_90.so` 和 `fused_moe_100.so`。`.cu` 源码里用 `#ifdef COMPILE_HOPPER_*` vs `#ifdef COMPILE_BLACKWELL_*` 包了不同的 kernel 实例化代码,nvcc 编译时只编对应那边的。
+
+**Mainloop 模板不同**:
+- SM90 用 `cutlass::gemm::collective::MainloopSm90ArrayTmaGmmaWarpSpecialized*` (基于 WGMMA)
+- SM100 用 `cutlass::gemm::collective::MainloopSm100Array*` (基于 UMMA + TMEM)
+
+模板名字里硬编码 `Sm90` / `Sm100`,nvcc 实例化时挑对应族。
+
+### Q2: CUTLASS 和 trtllm 都在 flashinfer 里吗?
+
+**对,都是 flashinfer 提供的入口**,但底下是两个独立 C++/CUDA 项目:
+
+```
+flashinfer (Python wrapper 库)
+├── cutlass_fused_moe()                                ← Path A
+│   └── 底下 link 到 CUTLASS (NVIDIA 开源 C++ 模板库)
+│       源码: data/csrc/nv_internal/tensorrt_llm/kernels/cutlass_kernels/
+│       (路径里有 "tensorrt_llm" 是历史包袱 — flashinfer 把 TRT-LLM
+│        vendor 进来的部分代码)
+│
+└── trtllm_bf16_moe(), trtllm_fp8_*(), trtllm_fp4_*()  ← Path B
+    └── 底下 link 到 TRT-LLM gen kernel
+        源码: data/csrc/trtllm_fused_moe_*.cu
+              + 下载的预编译 cubin (NVIDIA artifact server)
+```
+
+`flashinfer/fused_moe/__init__.py` 同时 export 这两套 API。
+
+### Q3: SM100 vs SM90 tuner 详细差别 + kernel 参数含义
+
+详见 §C.2-C.4。
+
+## C.2 先解释 N / M / K / tile / cluster 在 kernel 里指啥
+
+GEMM 公式: `C[M, N] = A[M, K] × B[K, N]`
+
+对 MoE 来说,每个 expert 算两个 GEMM:
+- `gemm1` (gate+up): `[M_tokens, K_hidden] × [K_hidden, 2*N_intermediate]` → `[M_tokens, 2*N_intermediate]`
+- `gemm2` (down):    `[M_tokens, N_intermediate] × [N_intermediate, K_hidden]` → `[M_tokens, K_hidden]`
+
+变量含义:
+- **M (token 维度)**: 喂给同一个 expert 的 token 数,跟 batch_size × top_k / num_experts 平均成比例
+- **N (输出 channel 维度)**: Qwen3MoE 是 768 (intermediate_size)
+- **K (输入 channel 维度)**: Qwen3MoE 是 2048 (hidden_size)
+
+### "Tile" 是把大矩阵切成小块给一个 SM 处理
+
+GPU 上一个 SM (Streaming Multiprocessor) 不能一次处理整个矩阵,要切成 tile。每个 tile 称为 **CTA** (Cooperative Thread Array),由一个 thread block 处理:
+
+```
+完整 C[M, N] 矩阵:
+┌─────────────────────────┐
+│ tile1 │ tile2 │ tile3 │ ← 每个小方块是一个 CTA tile (M_tile × N_tile)
+├───────┼───────┼───────┤    由一个 SM 算
+│ tile4 │ tile5 │ tile6 │
+└───────┴───────┴───────┘
+```
+
+CUTLASS 命名 `CtaShape128x16x128B` 表示:
+- M_tile = 128 (每个 tile 处理 128 个 token 行)
+- N_tile = 16 (每个 tile 处理 16 个输出 channel)
+- K_tile = 128 (内层 K 循环每次处理 128 个 channel,B 是 byte/bit 后缀)
+
+### "Cluster shape" / "CGA" 是把多个 CTA 组成 cluster (Hopper+ 才有)
+
+Hopper 引入 **Thread Block Cluster**: 多个 CTA 可以**跨 SM 共享 shared memory**,做 multicast / distributed shared memory,减少 HBM 读。
+
+`ClusterShape_2x1x1` = 2 个 CTA 在 M 方向组成 cluster (mcast along M)。两个 SM 共享 A 矩阵的 tile,减少 HBM 读。
+
+Blackwell 加了 **Dynamic Cluster** — cluster shape 不用编译时定死,可以运行时决定。
+
+## C.3 SM90 candidate kernel 列表 (硬证据)
+
+来源: `flashinfer/data/csrc/nv_internal/tensorrt_llm/kernels/cutlass_kernels/cutlass_heuristic.cpp:196-224`
+
+```cpp
+std::vector<CutlassTileConfigSM90> get_candidate_tiles_sm90(
+    CutlassGemmConfig::CandidateConfigTypeParam const config) {
+  if (config & CutlassGemmConfig::GROUPED_GEMM) {
+    if (config & CutlassGemmConfig::WEIGHT_ONLY) {
+      // 量化路径
+      return {
+        CtaShape64x16x128B,  CtaShape64x32x128B,
+        CtaShape64x64x128B,  CtaShape64x128x128B,
+        CtaShape128x16x128B, CtaShape128x32x128B,
+        CtaShape128x64x128B, CtaShape128x128x128B
+      };  // 8 个 tile
+    } else {
+      // ★ 我们 BF16 unquantized 走这条
+      return {
+        CtaShape128x16x128B,  CtaShape128x32x128B,
+        CtaShape128x64x128B,  CtaShape128x128x128B,
+        CtaShape128x256x128B, CtaShape256x128x128B
+      };  // 6 个 tile,M 锁死 128 或 256
+    }
+  }
+}
+```
+
+### SM90 GROUPED_GEMM (no quant) 候选 tile 6 个
+
+| Tile | M_tile | N_tile | K_tile | M-mcast 支持? | N-mcast 支持? |
+|---|---|---|---|---|---|
+| 128×16×128 | 128 | 16 | 128 | ✓ | ✗ |
+| 128×32×128 | 128 | 32 | 128 | ✓ | ✗ |
+| 128×64×128 | 128 | 64 | 128 | ✓ | ✗ |
+| 128×128×128 | 128 | 128 | 128 | ✓ | ✓ |
+| 128×256×128 | 128 | 256 | 128 | ✓ | ✓ |
+| 256×128×128 | 256 | 128 | 128 | ✓ | ✓ |
+
+### 加 cluster shape 后 (`get_candidate_configs_sm90`, line 380-444)
+
+- 1×1×1 (always added, 6 个)
+- 2×1×1 (需 M-mcast, M_tile ≥ 128 → 6 个 tile 都支持, 加 6 个)
+- 1×2×1 (需 N-mcast, N_tile ≥ 128 → 3 个 tile 支持, 加 3 个)
+- 2×2×1 (需 M+N mcast → 同上 3 个, 加 3 个)
+
+**SM90 候选总数 = 6 + 6 + 3 + 3 = 18 个 candidate kernel**
+
+每个 candidate **没有 num_stages / num_warps 子选项**,全 AUTO 由 CUTLASS 自己根据 tile 推。
+
+## C.4 SM100 candidate kernel 列表 (硬证据)
+
+来源: `flashinfer/jit/gemm/cutlass/generate_kernels.py:840-941` (JIT 编译时 kernel 实例化的总列表)
+
+```python
+def generate_sm100_grouped_gemm_operations(is_arch_enabled, arch):
+    supported_dtypes = [
+        DataType.f16, DataType.bf16, DataType.f32,
+        DataType.e4m3,           # FP8
+        e2m1,                    # FP4 native (SM90 没有!)
+        (DataType.e4m3, e2m1),   # 混合 FP8+FP4
+    ]
+    cta_shapes_m = [64, 128]                    # ← M 有 2 个选项 (SM90 只有 128)
+    cta_shapes_n = [8, 16, 32, 64, 128, 192, 256]  # ← N 7 个 (SM90 只有 5)
+    cga_shapes = [(1,1,1), (2,1,1)]
+    dynamic_cga = [True, False]                  # ← 动态 cluster (SM90 没有)
+    epi_schedules = [
+        PtrArrayNoSmemWarpSpecialized1Sm,        # ← no-smem epilogue (SM90 没有)
+        PtrArrayTmaWarpSpecialized1Sm,
+    ]
+    swap_ab = [True, False]                      # ← swap A/B (SM90 不曝露)
+```
+
+### SM100 BF16 unquantized 候选估算
+
+2 (M) × 7 (N) × 2 (cga) × 2 (dynamic_cga) × 2 (epi) × 2 (swap_ab) = **224 BF16 候选**
+
+实际有效候选 ~150-200 (经过 `are_tile_shapes_supported_sm100` 过滤)。
+
+## C.5 直接对比表
+
+| 维度 | SM90 (BF16 unquant grouped GEMM) | SM100 (BF16 unquant grouped GEMM) | 倍数 |
+|---|---|---|---|
+| **M tile 选项** | **1 个** (锁死 128) <br>(源码注释 "Currently M tile must be 128 for Grouped GEMM") | 2 个 (64, 128) | 2× |
+| **N tile 选项** | 5 个 (16, 32, 64, 128, 256) | 7 个 (8, 16, 32, 64, 128, 192, 256) | 1.4× |
+| **K tile 选项** | 1 个 (128) | 1-2 个 (由 `calc_shape_mnk_sm100_grouped_gemm` 动态算) | 1-2× |
+| **Cluster shape** | 4 种 (1×1×1, 2×1×1, 1×2×1, 2×2×1),受 tile 限制 | 2 种 base × dynamic 开关 | 持平 |
+| **Epilogue schedule** | **1 种** (`PtrArrayTmaWarpSpecializedCooperative`) | 2 种 (`PtrArrayNoSmemWarpSpecialized1Sm` + `PtrArrayTmaWarpSpecialized1Sm`) | 2× |
+| **Mainloop kernel schedule** | 1-2 种 (`Coop`, 或 `CoopFP8FastAccum` 量化时) | 1-2 种 (Sm100 专属) | 持平 |
+| **Swap A/B 选项** | 不曝露 | 2 种 (True / False) | 2× |
+| **Dynamic CGA** | ❌ 不支持 (编译时固定) | ✓ True/False | — |
+| **Native FP4 dtype** | ❌ (CUDA 12.8 后能编 FP4 dispatch 代码,但 mainloop 没原生 FP4 指令) | ✓ (`MainloopSm100ArraySm100*Nvf4*`) | — |
+| **Hand-tuned tactic 表** | ❌ 完全没有 | ✓ B200 + GB200 各一份 .py 文件 | — |
+| **总 BF16 候选 kernel 数 (粗算)** | **18 个** | **~224 个** | **~12×** |
+
+## C.6 Tuner 行为差别
+
+两边的 AutoTuner 框架是同一个 (`flashinfer/autotuner.py`),区别在**数据**:
+
+| Tuner 行为 | SM90 (H100/H200) | SM100 (B200/GB200) |
+|---|---|---|
+| `load_from_file()` 查 hand-tuned 表 (autotuner.py:316) | 找文件 `v0_1_trtllm_fused_moe_NVIDIA_H200.py` → **NOT FOUND**,直接 fallback | 找文件 `v0_1_trtllm_fused_moe_NVIDIA_B200.py` → **FOUND**,如果 shape key 在表里 → 直接 load tactic_id |
+| Cache miss 时行为 | 在 18 个候选里全 launch 一遍做 micro-benchmark | 在 ~224 个候选里挑,但 hand-tuned 表命中率高,只对没在表里的 shape benchmark |
+| 命中 hand-tuned 表的 shape (B200 上举例) | 不存在 | batch ∈ {1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384} 都有 |
+| 每次 forward 的 tuning 开销 | **9× extra kernel launch** (我们 §4 nsys 量到的) | ~1× extra (cache 命中时几乎 0) |
+
+## C.7 实际 Qwen3MoE 上的影响
+
+Qwen3-30B-A3B 的关键 shape:
+- hidden K = 2048, intermediate N = 768, num_experts E = 128, top_k = 8
+- Decode batch B = 64 时,平均每 expert 处理 M ≈ 64 × 8 / 128 = 4 token,hot expert 可能 ~15
+
+**SM90 上**:
+- M tile 锁死 128 → 处理 15 个 token 要 1 个 tile,**87% register 浪费**
+- N tile 没有 ~48 这种;N=768 ÷ N_tile=128 要 6 个 tile,或 ÷ N_tile=256 要 3 个
+- 实际只能在 6 个 tile 里挑,不一定是真正最优的
+
+**SM100 上**:
+- M tile 可选 64 → 处理 15 token 浪费降到 76%
+- N tile 多了 8 和 192:N_tile=192 时 768/192=4 个 tile,**整除**,no waste
+- 加 dynamic CGA、no-smem epilogue,实际能挑到更接近最优的配置
+- 如果 device 是 B200/GB200,**直接 load `v0_1_trtllm_fused_moe_NVIDIA_B200.py` 命中 hand-tuned tactic**
+
+## C.8 ❌ 直接把 SM100 表抄给 SM90 — 不行,会变更差
+
+User 问: 能不能直接 `cp v0_1_trtllm_fused_moe_NVIDIA_B200.py v0_1_trtllm_fused_moe_NVIDIA_H200.py`?
+
+**不能。会更糟**。四个独立原因:
+
+### 原因 1: tactic_id 是 per-arch 的私有下标,不能跨 arch 翻译
+
+`autotuner.py:199-203` 源码注释直接说:
+```
+"how to interpret the meaning of tactic is pure internal details of the runner"
+```
+
+B200 表里 value `(0, 5)` 表示 "用第 0 个 runner 的第 5 号 tactic"。但 SM90 的 `MoERunner.get_valid_tactics()` 返回的 18 个候选,跟 SM100 的 ~224 个候选**完全不同的 list**,**下标 5 在两边指向完全不同的 kernel**。
+
+### 原因 2: SM100 表里挑的 kernel 可能 SM90 上根本不存在
+
+B200 上挑的最优 tactic 经常是 M=64 tile (Qwen 这种 shape 上特别合适)。SM90 上 M tile 锁死 128,**M=64 的 tile 根本没编译进 SM90 的 .so 里**。如果硬把 tactic_id=5 传给 SM90 runner,会 segfault 或 fallback 到默认。
+
+### 原因 3: B200 表里的 shape key 跟 H200 实际跑的 shape 不匹配
+
+B200 表里的 key 是 NVIDIA 测过的具体 model 的 shape,例如:
+```
+'((1, 3584), (256, 512, 448), (0,), (256, 7168, 16), (0,))'
+       ↑                                  ↑
+   batch=1, K_hidden=3584           K_hidden=7168 (DeepSeek-V3)
+```
+
+我们 Qwen3MoE 的 shape 是:
+```
+'((B, 2048), (128, 1536, ?), (0,), (128, 2048, 768), (0,))'
+              ↑                              ↑
+        num_experts=128                    N=768
+```
+
+**完全不在 B200 表里** → `load_from_file()` 查不到 → cache miss → 还是 fall back 到 runtime sweep。**抄了等于没抄**。
+
+### 原因 4: 即使 shape 偶然匹配,B200 挑的 tactic 在 SM90 上未必最优
+
+两边硬件原语不同:
+- SM100 的最优 tactic 可能严重依赖 UMMA + TMEM 把累加器搬出 register
+- 同 tile 在 SM90 上用 WGMMA,因为累加器占 register,实际行为可能完全不同
+
+所以 hand-tuned 的本质是**每个 device 单独 sweep**,**不能跨 device 共享**。
+
+## C.9 ✅ 正确做法: 重做一份 SM90 sweep
+
+要补 SM90 短板的正确做法,是**在 H200 真机上跑 AutoTuner sweep,生成 H200 自己的 hand-tuned 表**。NVIDIA 为 B200/GB200 做的也正是这件事。
+
+### 伪代码
+
+```python
+device_name = "NVIDIA_H200"
+shapes_to_sweep = [
+    # (E, K, N) — covers common MoE models
+    (128, 2048, 768),   # Qwen3-30B-A3B
+    (256, 7168, 2048),  # DeepSeek-V3
+    (16, 4096, 14336),  # Mixtral-8x7B
+    # ... more model shapes
+]
+batches_to_sweep = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192]
+
+best_configs = {}
+for E, K, N in shapes_to_sweep:
+    for B in batches_to_sweep:
+        # 构造 fake input matching shape
+        hidden_states = torch.randn(B, K, dtype=torch.bfloat16, device='cuda')
+        w13 = torch.randn(E, 2*N, K, dtype=torch.bfloat16, device='cuda')
+        w2 = torch.randn(E, K, N, dtype=torch.bfloat16, device='cuda')
+        # ... routing setup
+        
+        # Enable AutoTuner sweep mode
+        with autotune(enable=True):
+            cutlass_fused_moe(hidden_states, w13, w2, ..., tune_max_num_tokens=8192)
+        
+        # AutoTuner sweep 完成,从 profiling_cache 拿出 best tactic
+        from flashinfer.autotuner import AutoTuner
+        tuner = AutoTuner.get()
+        # Find the key for this shape and pull (runner_id, tactic_id)
+        for cache_key, (runner_id, tactic_id, _) in tuner.profiling_cache.items():
+            if matches_shape(cache_key, E, K, N, B):
+                best_configs[serialize_key(cache_key)] = (runner_id, tactic_id)
+
+# 写成 .py 文件
+write_python_dict(best_configs, "tuning_configs/v0_1_trtllm_fused_moe_NVIDIA_H200.py")
+```
+
+### 实际收益预估
+
+| 阶段 | sglang_cutlass R_medium (我们已测) | 状态 |
+|---|---|---|
+| 当前 (broken) | 1.31 req/s | runtime AutoTuner re-benchmark 每 forward 9× kernel launch |
+| **+ Fix 1** (固定 `tune_max_num_tokens`) | 预估 3-4 req/s | runtime AutoTuner 但 cache 命中率高,只 sweep 一次 |
+| **+ Fix 3'** (hand-tuned H200 表) | 预估 4.5-4.7 req/s | 启动时直接 load,完全跳过 runtime sweep,跟 vllm_cutlass 同水平 |
+
+两个 fix 是互补的,**一起做才能彻底解决**。
+
+### 工程量
+
+| 步骤 | 时间 |
+|---|---|
+| 写 sweep 脚本 (复用 AutoTuner API) | 半天 |
+| 跑 sweep (每 shape×batch 跑 18 个 candidate, ~5000 次 kernel launch) | 2-4 小时 |
+| 写成 .py 文件 + flashinfer-ai/flashinfer 提 PR | 半天 |
+| **总** | **1-2 天** |
+
+NVIDIA 给 B200/GB200 做的就是这个流程,只是他们的 sweep shape list 更全,包括了 NVFP4 / FP8 等量化路径。
+
+### 不需要碰 sglang/vLLM 代码
+
+这条 fix 直接打在 **flashinfer 仓库**,任何用 flashinfer cutlass MoE 的引擎 (vLLM, sglang, TGI, etc.) 在 SM90 上都受益。是真正的"上游 fix"。
+
+## C.10 一句话总结(给 reviewer)
+
+| | |
+|---|---|
+| SM100 / SM90 共享 CUTLASS 源码? | ✓ 但编译成不同 binary,mainloop 模板 (`Sm90` vs `Sm100`) 不同 |
+| flashinfer 里有 CUTLASS 和 trtllm_gen 两套? | ✓ 两个独立 backend, flashinfer 是 wrapper |
+| SM100 tuner 比 SM90 强多少? | tile 搜索空间 12×, 加上 hand-tuned 表 |
+| 直接抄 SM100 表给 SM90 行吗? | ❌ 不行,tactic_id 跨 arch 不通用,shape 也不匹配 |
+| 那怎么补 SM90? | 在 H200 上**重做一份 sweep**,生成 `v0_1_trtllm_fused_moe_NVIDIA_H200.py`,直接对标 NVIDIA 给 B200/GB200 做的事。1-2 天工程量,上游 PR 即可 |
+
