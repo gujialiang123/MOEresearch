@@ -1,0 +1,36 @@
+{
+  "tag": "vllm_cutlass_no_autotune_run1",
+  "url": "http://127.0.0.1:30001",
+  "results": {
+    "R_short": {
+      "num_prompts": 8,
+      "prompt_words": 200,
+      "max_new": 64,
+      "concurrency": 1,
+      "wall_s": 6.233810186386108,
+      "req_per_s": 1.2833242849567408,
+      "tokens_per_s": 82.13275423723141,
+      "total_out_tokens": 512
+    },
+    "R_medium": {
+      "num_prompts": 16,
+      "prompt_words": 800,
+      "max_new": 256,
+      "concurrency": 8,
+      "wall_s": 12.391943454742432,
+      "req_per_s": 1.2911614758762278,
+      "tokens_per_s": 330.5373378243143,
+      "total_out_tokens": 4096
+    },
+    "R_long": {
+      "num_prompts": 8,
+      "prompt_words": 2000,
+      "max_new": 256,
+      "concurrency": 16,
+      "wall_s": 7.029813051223755,
+      "req_per_s": 1.1380103484554762,
+      "tokens_per_s": 291.3306492046019,
+      "total_out_tokens": 2048
+    }
+  }
+}
