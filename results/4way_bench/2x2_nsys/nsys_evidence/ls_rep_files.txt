@@ -1,0 +1,4 @@
+-rw-rw-r-- 1 t-jialianggu t-jialianggu 127410423 Jun  8 20:48 /home/t-jialianggu/work/EndtoEnd-auto-optimization/results/4way_bench/2x2_nsys/AT_OFF_CG_OFF.nsys-rep
+-rw-rw-r-- 1 t-jialianggu t-jialianggu  47990255 Jun  8 20:41 /home/t-jialianggu/work/EndtoEnd-auto-optimization/results/4way_bench/2x2_nsys/AT_OFF_CG_ON.nsys-rep
+-rw-rw-r-- 1 t-jialianggu t-jialianggu 112099136 Jun  8 20:44 /home/t-jialianggu/work/EndtoEnd-auto-optimization/results/4way_bench/2x2_nsys/AT_ON_CG_OFF.nsys-rep
+-rw-rw-r-- 1 t-jialianggu t-jialianggu  50938027 Jun  8 20:38 /home/t-jialianggu/work/EndtoEnd-auto-optimization/results/4way_bench/2x2_nsys/AT_ON_CG_ON.nsys-rep

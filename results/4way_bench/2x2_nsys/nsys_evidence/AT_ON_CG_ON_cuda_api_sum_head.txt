@@ -1,0 +1,20 @@
+
+NOTICE: Existing SQLite export found: /home/t-jialianggu/work/EndtoEnd-auto-optimization/results/4way_bench/2x2_nsys/AT_ON_CG_ON.sqlite
+        It is assumed file was previously exported from: /home/t-jialianggu/work/EndtoEnd-auto-optimization/results/4way_bench/2x2_nsys/AT_ON_CG_ON.nsys-rep
+        Consider using --force-export=true if needed.
+
+Processing [/home/t-jialianggu/work/EndtoEnd-auto-optimization/results/4way_bench/2x2_nsys/AT_ON_CG_ON.sqlite] with [/home/t-chendili/cuda/12.6/nsight-systems-2024.5.1/host-linux-x64/reports/cuda_api_sum.py]... 
+Time (%),Total Time (ns),Num Calls,Avg (ns),Med (ns),Min (ns),Max (ns),StdDev (ns),Name
+72.1,10414705400,20599,505592.8,527184.0,2268,108083513,1043329.8,cudaMemcpyAsync
+21.1,3041151562,20971,145017.0,26071.0,2458,23267825,662799.1,cudaStreamSynchronize
+1.9,279743300,9262,30203.3,4371.0,973,165447675,1732230.7,cudaLaunchKernel
+1.1,153698070,12,12808172.5,30683.5,6125,152086470,43862288.0,cudaMemGetInfo
+1.0,149108224,58,2570831.4,905162.0,21030,25001789,4216208.0,cuLibraryLoadData
+0.8,113566590,26898,4222.1,3659.5,652,12554444,78911.1,cudaLaunchKernelExC_v11060
+0.6,83477423,541,154302.1,113886.0,39842,5468498,317056.3,cudaGraphInstantiateWithFlags_v11040
+0.5,66013480,310,212946.7,152190.0,3965,1016865,130521.2,cudaMalloc
+0.1,15243756,4389,3473.2,2867.0,1034,56768,2012.3,cudaMemsetAsync
+0.1,14317186,4050,3535.1,4222.0,810,28017,1997.5,cuLaunchKernelEx
+0.1,14252857,5424,2627.7,3391.0,579,68092,2342.6,cuLaunchKernel
+0.1,14130328,28,504654.6,5173.0,3204,13018090,2458909.3,cudaHostAlloc
+0.1,13929395,558,24963.1,20711.0,12494,1939034,81515.6,cudaDeviceSynchronize

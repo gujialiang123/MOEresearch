@@ -1,0 +1,2 @@
+/home/t-chendili/cuda/12.6/bin/nsys exists: /home/t-chendili/cuda/12.6/bin/nsys
+NVIDIA Nsight Systems version 2024.5.1.113-245134619542v0
