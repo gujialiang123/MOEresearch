@@ -1,0 +1,36 @@
+{
+  "tag": "vllm_AToff_eager_run2",
+  "url": "http://127.0.0.1:30001",
+  "results": {
+    "R_short": {
+      "num_prompts": 8,
+      "prompt_words": 200,
+      "max_new": 64,
+      "concurrency": 1,
+      "wall_s": 17.276286363601685,
+      "req_per_s": 0.46306247949528634,
+      "tokens_per_s": 29.635998687698326,
+      "total_out_tokens": 512
+    },
+    "R_medium": {
+      "num_prompts": 16,
+      "prompt_words": 800,
+      "max_new": 256,
+      "concurrency": 8,
+      "wall_s": 17.340006113052368,
+      "req_per_s": 0.9227217046916896,
+      "tokens_per_s": 236.21675640107253,
+      "total_out_tokens": 4096
+    },
+    "R_long": {
+      "num_prompts": 8,
+      "prompt_words": 2000,
+      "max_new": 256,
+      "concurrency": 16,
+      "wall_s": 8.6562979221344,
+      "req_per_s": 0.9241826092357304,
+      "tokens_per_s": 236.59074796434697,
+      "total_out_tokens": 2048
+    }
+  }
+}

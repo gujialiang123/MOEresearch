@@ -1,0 +1,36 @@
+{
+  "tag": "vllm_ATon_eager_run3",
+  "url": "http://127.0.0.1:30001",
+  "results": {
+    "R_short": {
+      "num_prompts": 8,
+      "prompt_words": 200,
+      "max_new": 64,
+      "concurrency": 1,
+      "wall_s": 15.996683835983276,
+      "req_per_s": 0.500103651608381,
+      "tokens_per_s": 32.006633702936384,
+      "total_out_tokens": 512
+    },
+    "R_medium": {
+      "num_prompts": 16,
+      "prompt_words": 800,
+      "max_new": 256,
+      "concurrency": 8,
+      "wall_s": 15.943896532058716,
+      "req_per_s": 1.0035188053201722,
+      "tokens_per_s": 256.9008141619641,
+      "total_out_tokens": 4096
+    },
+    "R_long": {
+      "num_prompts": 8,
+      "prompt_words": 2000,
+      "max_new": 256,
+      "concurrency": 16,
+      "wall_s": 8.046661615371704,
+      "req_per_s": 0.9942011212099978,
+      "tokens_per_s": 254.51548702975944,
+      "total_out_tokens": 2048
+    }
+  }
+}
