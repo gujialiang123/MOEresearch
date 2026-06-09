@@ -1,0 +1,69 @@
+{
+  "regime": "R_short",
+  "run": 2,
+  "elapsed_wall_s": 2.4355801199562848,
+  "wall_s": 2.4355019140057266,
+  "req_per_s": 3.2847438772249675,
+  "tokens_per_s": 210.22360814239792,
+  "total_out_tokens": 512,
+  "completion_rate": 1.0,
+  "errors": [],
+  "records": [
+    {
+      "idx": 0,
+      "ok": true,
+      "e2e_s": 0.30404315888881683,
+      "output_tokens": 64,
+      "error": null
+    },
+    {
+      "idx": 1,
+      "ok": true,
+      "e2e_s": 0.30571763403713703,
+      "output_tokens": 64,
+      "error": null
+    },
+    {
+      "idx": 2,
+      "ok": true,
+      "e2e_s": 0.30703330133110285,
+      "output_tokens": 64,
+      "error": null
+    },
+    {
+      "idx": 3,
+      "ok": true,
+      "e2e_s": 0.3040554909966886,
+      "output_tokens": 64,
+      "error": null
+    },
+    {
+      "idx": 4,
+      "ok": true,
+      "e2e_s": 0.3033636440522969,
+      "output_tokens": 64,
+      "error": null
+    },
+    {
+      "idx": 5,
+      "ok": true,
+      "e2e_s": 0.30422913283109665,
+      "output_tokens": 64,
+      "error": null
+    },
+    {
+      "idx": 6,
+      "ok": true,
+      "e2e_s": 0.3030445142649114,
+      "output_tokens": 64,
+      "error": null
+    },
+    {
+      "idx": 7,
+      "ok": true,
+      "e2e_s": 0.3033527871593833,
+      "output_tokens": 64,
+      "error": null
+    }
+  ]
+}

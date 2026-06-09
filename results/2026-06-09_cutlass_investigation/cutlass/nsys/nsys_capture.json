@@ -1,0 +1,5 @@
+{
+  "schema_version": 0,
+  "ok": false,
+  "error": "profile.nsys-rep is only 481128 bytes; likely no GPU activity captured"
+}

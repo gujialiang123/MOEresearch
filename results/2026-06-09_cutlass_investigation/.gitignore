@@ -1,0 +1,5 @@
+# Don't commit large traces (40 MB chrome traces)
+*/torch_trace/*.json.gz
+*/torch_trace/*.pt.trace.json
+*/nsys/*.nsys-rep
+*/nsys/*.sqlite
