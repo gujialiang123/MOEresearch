@@ -1,0 +1,44 @@
+{
+  "schema_version": 0,
+  "ok": true,
+  "captured_at": "2026-06-09T18:51:40.630953+00:00",
+  "ncu_path": "/home/t-chendili/.conda/pkgs/nsight-compute-2026.1.1.2-h1ff7d1d_0/bin/ncu",
+  "ncu_version": "Version 2026.1.1.0 (build 37634170) (public-release)",
+  "target_cmd": "/tmp/ncu_moe_wrapper.sh",
+  "kernel_regex": "cutlass::device_kernel.*GemmUniversal.*GroupProblemShape",
+  "launch_count": 4,
+  "gpu_id": 1,
+  "metrics_file": "/home/t-jialianggu/work/EndtoEnd-auto-optimization/.github/skills/ncu-microarch/metric_sets/default.txt",
+  "metrics_collected": [
+    "sm__throughput.avg.pct_of_peak_sustained_elapsed",
+    "dram__throughput.avg.pct_of_peak_sustained_elapsed",
+    "smsp__warps_active.avg.pct_of_peak_sustained_active",
+    "l1tex__t_sector_hit_rate.pct",
+    "lts__t_sector_hit_rate.pct",
+    "sm__pipe_tensor_cycles_active.avg.pct_of_peak_sustained_active",
+    "smsp__average_warps_issue_stalled_long_scoreboard_per_issue_active",
+    "smsp__average_warps_issue_stalled_math_pipe_throttle_per_issue_active"
+  ],
+  "kernels": [
+    {
+      "kernel": "void device_kernel<GemmUniversal<GroupProblemShape<tuple<long, long, long>>, CollectiveMma<MainloopSm90ArrayTmaGmmaWarpSpecialized<12, tuple<C<1>, C<1>, C<1>>, KernelPtrArrayTmaWarpSpecializedCooperative>, tuple<C<128>, C<16>, C<64>>, bfloat16_t, tuple<long, C<1>, C<0>> *, bfloat16_t, tuple<long, C<1>, C<0>> *, TiledMMA<MMA_Atom<MMA_64x16x16_F32BF16BF16_SS<0, 0, 1, 1>>, Layout<tuple<C<2>, C<1>, C<1>>, tuple<C<1>, C<0>, C<0>>>, tuple<Underscore, Underscore, Underscore>>, SM90_TMA_LOAD, ComposedLayout<Swizzle<3, 4, 3>, smem_ptr_flag_bits<16>, Layout<tuple<C<8>, C<64>>, tuple<C<64>, C<1>>>>, void, identity, SM90_TMA_LOAD, ComposedLayout<Swizzle<3, 4, 3>, smem_ptr_flag_bits<16>, Layout<tuple<C<8>, C<64>>, tuple<C<64>, C<1>>>>, void, identity>, CollectiveEpilogue<Sm90PtrArrayTmaWarpSpecialized<1, 1, 8, 0, 0, 2>, tuple<C<128>, C<16>, C<64>>, tuple<C<128>, C<16>>, void, tuple<long, C<1>, C<0>> *, bfloat16_t, tuple<long, C<1>, C<0>> *, FusionCallbacks<Sm90PtrArrayTmaWarpSpecialized<1, 1, 8, 0, 0, 2>, LinearCombination<bfloat16_t, float, void, float, 2>, tuple<C<128>, C<16>, C<64>>, tuple<C<128>, C<16>>, >, SM90_TMA_LOAD, ComposedLayout<Swizzle<1, 4, 3>, smem_ptr_flag_bits<16>, Layout<tuple<C<8>, C<16>>, tuple<C<16>, C<1>>>>, SM75_U32x4_LDSM_N, SM90_TMA_STORE, ComposedLayout<Swizzle<1, 4, 3>, smem_ptr_flag_bits<16>, Layout<tuple<C<8>, C<16>>, tuple<C<16>, C<1>>>>, SM90_U32x4_STSM_N, Copy_Atom<SM90_U32x4_STSM_N, half_t>, void>, void, void>>(Params)",
+      "samples": 4,
+      "metrics": {
+        "dram_throughput_pct": 10.857,
+        "l1_hit_pct": 91.218,
+        "l2_hit_pct": 59.345,
+        "stall_long_scoreboard_avg": 12.412,
+        "stall_math_pipe_throttle_avg": 0.18,
+        "tensor_pipe_active_pct": 7.67,
+        "sm_throughput_pct": 12.905,
+        "warps_active_pct": 17.2
+      },
+      "verdict": "low_occupancy",
+      "headroom_estimate_pct": 87.1,
+      "notes": [
+        "long_scoreboard stall = 12.41 warps/issue \u2014 severe memory-bound signal."
+      ]
+    }
+  ],
+  "warnings": []
+}

@@ -279,3 +279,87 @@ This investigation surfaced **two concrete gaps** to add to
    `pytorch-profiling`) gave the agent a **named, documented framework** for
    interpreting profile data. The conclusions in this report all map to
    specific rows in those tables.
+
+---
+
+## Phase 7 — ncu deep-dive on the CUTLASS kernel (added 2026-06-09 evening)
+
+After chendi unlocked NCU permissions, captured microarchitectural metrics for
+the CUTLASS MoE GEMM kernel via the new `ncu-microarch` skill. **The findings
+contradict the improvement-direction priority from Phase 5.**
+
+### Skill invocation
+
+```bash
+python .github/skills/ncu-microarch/impl/run_ncu.py \
+  --target-cmd "/tmp/ncu_moe_wrapper.sh" \
+  --kernel-regex "cutlass::device_kernel.*GemmUniversal.*GroupProblemShape" \
+  --launch-count 4 --gpu-id 1 \
+  --out-dir results/2026-06-09_cutlass_investigation/ncu/cutlass_microbench/
+```
+
+The wrapper script sets env vars (`CUDA_HOME`, `PATH`, `HOME`, `LD_LIBRARY_PATH`)
+inline because the sudo whitelist for ncu doesn't allow `-E` (env preservation).
+
+### Skill output (`ncu_summary.json`)
+
+| Metric | Value | Healthy range | Verdict |
+|---|---|---|---|
+| `sm_throughput_pct`         | **12.9%** | 70–95 | far below peak |
+| `dram_throughput_pct`       | **10.9%** | <50 if compute_bound | NOT bandwidth-bound |
+| `warps_active_pct` (occupancy) | **17.2%** | >50 | **low_occupancy** |
+| `tensor_pipe_active_pct`    | **7.7%**  | 50–95 on bf16 GEMM | 🚨 **Tensor Cores nearly idle** |
+| `l1_hit_pct` / `l2_hit_pct` | 91% / 59% | high is good | OK |
+| `stall_long_scoreboard_avg` | **12.4 warps/issue** | <2 | severe memory-wait |
+| `headroom_estimate_pct`     | **87.1%** | — | huge potential |
+| `verdict`                   | `low_occupancy` | — | — |
+
+### What this means — and why D1/D2/D3 are now suspect
+
+**Phase 5 said the improvement directions were D1 (sglang autotune) > D2 (kill
+routing overhead) > D3 (control dense backend). Phase 7 NCU data forces a
+re-ranking**:
+
+- **D1 (sglang autotune)**: Microbench already showed 5–6× speedup from autotune.
+  But NCU now shows even the *autotuned* kernel only hits 12.9% SM throughput.
+  So D1 fixes part of the gap but the kernel itself is still leaving 87%
+  headroom on the table.
+- **D2 (routing overhead 9%)**: Still real, still worth fixing — but the bigger
+  prize is making the GEMM itself faster.
+- **D3 (dense backend)**: Unchanged.
+- **NEW D5 (kernel-level)**: Tensor Cores at 7.7% on a bf16 GEMM is anomalous.
+  Either: (a) the kernel falls back to non-TC instructions for these shapes,
+  (b) wrong dtype dispatch, or (c) wrong tile shape causing under-utilization.
+  This is the **highest-ROI direction** uncovered.
+
+### Skill attribution
+
+This finding would NOT have been reachable with the prior toolkit:
+- `e2e-bench-runner` → only macro req/s
+- `pytorch-profiling` / `nsys-timeline-sql` → kernel TIME but not kernel
+  EFFICIENCY (i.e. they can show "this kernel takes 44µs" but not "it could
+  take 6µs because it's only at 12% peak")
+- `ncu-microarch` (this skill) → the only one that surfaces SM occupancy +
+  Tensor Core utilization + warp-stall reason
+
+The `profile-summary-unified` skill's `kernel_micro` field — which was always
+`{"available": false}` until tonight — now has real data. The
+`evidence_chain` entry for `kernel_micro` flipped from `ok: false` to
+`ok: true` automatically.
+
+### Caveats (what the NCU data does NOT yet show)
+
+- **Profiled the standalone microbench, not the vLLM-wrapped path**. Reason:
+  NCU can't attach to a running vLLM server (same limit as `nsys-capture`).
+  The numbers should be similar (same kernel, same shape), but the dispatch
+  overhead inside vLLM is invisible to NCU.
+- **B=8 only**. Larger batches might shift verdict — need a small sweep.
+- **Single launch_count=4**. Re-run with 12+ for tighter intervals before
+  publishing externally.
+
+### Next concrete step
+
+Write a `cutlass_d5_kernel_tc_utilization.handoff.md` for the coding agent,
+citing this NCU data, pointing at the CUTLASS kernel dispatch logic in
+`flashinfer/.../cutlass_backend/`, with acceptance test: post-patch ncu
+should show `tensor_pipe_active_pct > 30` on the same shape.

@@ -245,12 +245,48 @@ def _categorize_kernel(name: str) -> str:
 # Main
 # ---------------------------------------------------------------------------
 
+def _from_ncu(path: Path):
+    """Pull kernel_micro from ncu-microarch ncu_summary.json."""
+    d = json.loads(path.read_text())
+    if not d.get("ok"):
+        return ({}, [{"field": "kernel_micro", "source_skill": "ncu-microarch",
+                      "source_file": str(path), "ok": False,
+                      "gap_reason": d.get("error", "ncu summary not ok")}])
+    kernels = []
+    for k in d.get("kernels") or []:
+        m = k.get("metrics") or {}
+        kernels.append({
+            "kernel": k.get("kernel"),
+            "sm_occupancy_pct":      m.get("warps_active_pct"),
+            "achieved_flops_pct":    m.get("sm_throughput_pct"),
+            "dram_bw_pct":           m.get("dram_throughput_pct"),
+            "l1_hit_pct":            m.get("l1_hit_pct"),
+            "l2_hit_pct":            m.get("l2_hit_pct"),
+            "tensor_pipe_active":    m.get("tensor_pipe_active_pct"),
+            "top_stall_reason":      f"long_scoreboard={m.get('stall_long_scoreboard_avg'):.2f}, "
+                                     f"math_pipe={m.get('stall_math_pipe_throttle_avg'):.2f}"
+                                     if (m.get('stall_long_scoreboard_avg') is not None
+                                         and m.get('stall_math_pipe_throttle_avg') is not None) else None,
+            "verdict":               k.get("verdict"),
+            "headroom_estimate_pct": k.get("headroom_estimate_pct"),
+            "notes":                 k.get("notes", []),
+        })
+    return ({"kernel_micro": {"available": True, "kernels": kernels}},
+            [{"field": "kernel_micro", "source_skill": "ncu-microarch",
+              "source_file": str(path), "ok": True}])
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--bench-summary")
     ap.add_argument("--timeline-summary")
     ap.add_argument("--torch-profile-text")
     ap.add_argument("--sglang-profile")
+    ap.add_argument("--ncu-summary")
     ap.add_argument("--subject-yaml", required=True,
                     help="YAML with subject info (framework, model, config_summary, hardware)")
     ap.add_argument("--workload-yaml", required=True,
@@ -261,7 +297,7 @@ def main():
     args = ap.parse_args()
 
     if not any([args.bench_summary, args.timeline_summary,
-                args.torch_profile_text, args.sglang_profile]):
+                args.torch_profile_text, args.sglang_profile, args.ncu_summary]):
         Path(args.out).write_text(json.dumps({
             "schema_version": SCHEMA_VERSION, "ok": False,
             "error": "no profile inputs given"}, indent=2))
@@ -285,7 +321,7 @@ def main():
         "gpu_macro": None,
         "kernel_breakdown": [],
         "kernel_micro": {"available": False,
-                         "reason": "ncu not yet wired in (pending mentor permission unlock)"},
+                         "reason": "no ncu input provided — pass --ncu-summary to fill"},
         "evidence_chain": [],
         "warnings": [],
     }
@@ -316,12 +352,17 @@ def main():
         out.update({k: v for k, v in partial.items() if v is not None})
         out["evidence_chain"].extend(chain)
 
-    # Add a placeholder for kernel_micro
-    out["evidence_chain"].append({
-        "field": "kernel_micro", "source_skill": None,
-        "source_file": None, "ok": False,
-        "gap_reason": "ncu unavailable (RmProfilingAdminOnly=1; pending mentor unlock)",
-    })
+    if args.ncu_summary:
+        partial, chain = _from_ncu(Path(args.ncu_summary))
+        out.update({k: v for k, v in partial.items() if v is not None})
+        out["evidence_chain"].extend(chain)
+    else:
+        # Add an explicit gap_reason placeholder when NCU was not provided.
+        out["evidence_chain"].append({
+            "field": "kernel_micro", "source_skill": None,
+            "source_file": None, "ok": False,
+            "gap_reason": "no --ncu-summary input given; run ncu-microarch skill first",
+        })
 
     # Consistency check: wall time agreement between e2e and gpu_macro
     e2e_wall = None

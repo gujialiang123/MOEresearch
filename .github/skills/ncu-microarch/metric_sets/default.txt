@@ -1,0 +1,32 @@
+# Default metric set for ncu-microarch skill.
+# Optimized to keep capture cheap: 8 most-actionable metrics per kernel.
+# Comments map each metric to a question the agent might ask.
+
+# === Speed of Light (compute vs memory bound) ===
+sm__throughput.avg.pct_of_peak_sustained_elapsed
+# "How busy is the SM compute pipeline?" (peak = 100%)
+
+dram__throughput.avg.pct_of_peak_sustained_elapsed
+# "How busy is HBM bandwidth?" — high here + low above = memory-bound
+
+# === Occupancy (parallelism reached) ===
+smsp__warps_active.avg.pct_of_peak_sustained_active
+# "How full are the warp slots?" — low here = launch shape too small
+
+# === Cache hit rates (memory hierarchy) ===
+l1tex__t_sector_hit_rate.pct
+# L1+TEX cache hit rate
+
+lts__t_sector_hit_rate.pct
+# L2 cache hit rate
+
+# === Tensor Core utilization (mixed-precision math) ===
+sm__pipe_tensor_cycles_active.avg.pct_of_peak_sustained_active
+# "Tensor Cores firing?" — 0% on a GEMM = NOT using TC (red flag on H200 bf16)
+
+# === Top warp stall reasons (why are warps blocked?) ===
+smsp__average_warps_issue_stalled_long_scoreboard_per_issue_active
+# Waiting on memory-load scoreboard — most common HBM-bound signature
+
+smsp__average_warps_issue_stalled_math_pipe_throttle_per_issue_active
+# Math pipe back-pressure — common in tensor-core saturated kernels

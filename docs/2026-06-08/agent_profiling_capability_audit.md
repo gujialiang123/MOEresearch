@@ -1,8 +1,10 @@
 # Agent profiling 能力盘点 — 现状 / 缺口 / 需要 mentor 协助的部分
 
-> **2026-06-09 更新**: Part B 6 个 gap 里 **3 个已经修正**(B.1 nsys SQL 路线、B.3 vLLM torch profiler 接通、B.6 跨配置自动对比),**1 个有进展**(B.2 NCU 根因找清楚,已发请求);**2 个仍未解决**(B.4 内存压力、B.5 sglang/vLLM Python 状态)。详见每节标题旁的 ✅/🟨/❌ 状态。
+> **2026-06-09 更新 (晚)**: Part B 的 **NCU gap 已经解锁** — chendi 加了 sudo NOPASSWD 给 ncu 二进制,新 skill `ncu-microarch` 已上线并接入 `profile-summary-unified`。**实战发现 CUTLASS MoE GEMM Tensor Core 利用率仅 7.7%** — 翻转了早上 D1/D2/D3 改进方向排序,引入新方向 D5。详见 `docs/2026-06-09/cutlass_vs_triton_e2e_investigation.md` Phase 7。
 >
-> 同时 **5 个新 skill 上线**: `regime-sweep-runner`、`cross-regime-anomaly`、`profile-summary-unified`、`handoff-prompt-template`、`e2e-bench-runner` v1(支持 YAML regime)。新的 skill 流水线图见 `docs/2026-06-09/skill_architecture.md`。
+> **更早 (下午)**: Part B 6 个 gap 里 **3 个已修正** (B.1 nsys SQL 路线、B.3 vLLM torch profiler 接通、B.6 跨配置自动对比);**1 个仍未解决** (B.5 sglang/vLLM Python 状态)。详见每节标题旁的 ✅/🟨/❌ 状态。
+>
+> 同时 **6 个新 skill 上线**: `regime-sweep-runner`、`cross-regime-anomaly`、`profile-summary-unified`、`handoff-prompt-template`、`ncu-microarch`、`e2e-bench-runner` v1(支持 YAML regime)。skill 流水线图见 `docs/2026-06-09/skill_architecture.md`。
 
 > 目的: 在讨论"如何把 agent 自动化"之前,先理清当前 agent (Copilot CLI with Claude) 在这次 sglang/vLLM/cutlass MoE 调研中实际用了哪些工具、拿到哪些信息、哪些拿不到、哪些将来构建真实 agent 时需要补。
 >
@@ -172,15 +174,30 @@ nsys stats --report cuda_api_sum --format csv output.nsys-rep
 
 **详情**: `docs/2026-06-08/nsys_deep_dive_and_proton.md` 全文修正了这条 gap。
 
-## B.2 ncu (Nsight Compute) — kernel-level metrics ❌ → 🟨 **2026-06-09 进展中**
+## B.2 ncu (Nsight Compute) — kernel-level metrics ❌ → ✅ **2026-06-09 晚 修正**
 
-**仍然没用上**,但**根因找清楚了**:
-- NCU 二进制在 `/home/t-chendili/.conda/pkgs/nsight-compute-*` 已经装好
-- 撞 `ERR_NVGPUCTRPERM`:`/proc/driver/nvidia/params` 里 `RmProfilingAdminOnly=1`
-- t-jialianggu 账号**没有任何 sudo 权限**(已确认 — 不在 `sudo` 或 `wheel` group;没有 `/etc/sudoers.d/` 条目);chendi 有专门的 NOPASSWD 条目
-- **已发请求给 chendi**(2026-06-09): 加一条 `t-jialianggu ALL=(ALL) NOPASSWD: <ncu_path>` 或 reload nvidia driver 翻 `RmProfilingAdminOnly=0`
+**已解锁** — chendi 在 `/etc/sudoers.d/` 加了 NOPASSWD 条目允许我跑 ncu。
 
-**等解锁后的 skill 计划**: 新增 `ncu-microarch` skill,出 SM occupancy / achieved FLOPs / L2 hit / register spills / top warp-stall reason。`profile_unified.json` 的 `kernel_micro` 字段(目前永远是 `available: false`)就能填上。流水线其他 skill 不需要改。
+**新 skill 实装**: `.github/skills/ncu-microarch/` (SKILL.md + impl/run_ncu.py + metric_sets/default.txt)
+- 默认 8 个 metric:SM throughput / DRAM throughput / warps active / L1+L2 hit / tensor pipe active / 2 个 stall reason
+- 自动 verdict 分类:compute_bound / memory_bound / latency_bound / low_occupancy / tensor_core_idle / balanced
+- 自动 headroom_estimate_pct
+- 已接入 `profile-summary-unified` 的 `_from_ncu()` adapter,填 `kernel_micro` 字段
+
+**第一个真实发现(给老板)** — 用 ncu profile CUTLASS MoE GEMM(`device_kernel<GemmUniversal<GroupProblemShape...>`,Qwen3-30B-A3B shape, B=8, autotuned):
+- SM throughput **12.9%**(远低于 peak)
+- DRAM throughput **10.9%**(也没饱和带宽)
+- Warps active **17.2%**(占用率低)
+- **Tensor Core active 7.7%** ← 🚨 **bf16 GEMM 应该 70%+,这里几乎没用 TC**
+- Long scoreboard stall 12.4 warps/issue(在等内存)
+- Verdict: `low_occupancy`,headroom estimate **87.1%**
+
+**这个发现彻底翻转了 2026-06-09 早上调查报告里的改进方向 D1/D2/D3**:
+- 我们之前以为是路由开销 + autotune 缺失
+- 真相: CUTLASS kernel 本身**就没在好好用 Tensor Core**,问题在 kernel 实现/dispatch 不在外围 — 这是个**全新的 D5 方向**
+- 详情写进 `docs/2026-06-09/cutlass_vs_triton_e2e_investigation.md` 的 Phase 7
+
+**Skill 限制(实战发现)**: ncu 只能 profile 它自己启动的子进程,不能 attach 已在跑的 server(跟 nsys-capture 一样)。要 profile 真实 server 流量需要让 server 自己内置触发(像 vLLM 的 /start_profile),或者用 standalone microbench。已在 SKILL.md 的 "Do NOT call when" 章节明确写出。
 
 ## B.3 Python op-level 时间分布 ❌ → ✅ **2026-06-09 修正**
 

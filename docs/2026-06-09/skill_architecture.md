@@ -82,13 +82,14 @@ we actually fork the roles.
 | `nsys-capture`            | capture per-kernel timeline | shell cmd + duration | `.nsys-rep` + `.sqlite` |
 | `nsys-timeline-sql`       | SQL-reduce nsys to numbers | `.sqlite` | `timeline_summary.json` (+ `query` subcmd) |
 | `pytorch-profiling`       | sglang-specific per-kernel + phase | sglang server + workload | `profile_summary.json` |
+| `ncu-microarch`           | "why is THIS kernel slow?" — SM occupancy, TC utilization, warp stalls | running cmd + kernel regex | `ncu_summary.json` + verdict |
 | `server-log-mining`       | config-shaped problems (KV pressure, max_running_requests, etc.) | `server.log` | `server_features.json` |
 | `failure-classification`  | what kind of crash / OOM / timeout | per-run result | `failure_class.json` |
 | `noise-aware-scoring`     | thresholded "is this signal or noise?" | metric series | scored bools |
 | `suspicion-scoring`       | within-config anomaly score | server_features + noise + failure | suspicion per run |
 | `boundary-expansion`      | generate neighbour workloads along an axis | seed workload + axis | N workload YAMLs |
 | `minimal-repro-shrink`    | shrink failing workload until symptom disappears | failing workload | minimal repro |
-| `profile-summary-unified` | merge all profiling outputs → one canonical artifact | bench + timeline + torch trace | `profile_unified.json` + `evidence_chain` |
+| `profile-summary-unified` | merge all profiling outputs → one canonical artifact | bench + timeline + torch trace + **ncu** | `profile_unified.json` + `evidence_chain` |
 | `handoff-prompt-template` | analysis → coding contract | unified profile + suggested change | `handoff.md` (markdown, hand-edited) |
 
 ## 4. Methodology cross-cuts (not skills, but rules every skill follows)
@@ -104,16 +105,25 @@ we actually fork the roles.
    than silently producing zeros. The `cross-regime-anomaly` skill treats a
    `failed_cell` as its own finding kind.
 
-## 5. The current gap (NCU pending)
+## 5. NCU is now unlocked (2026-06-09 evening)
 
-`kernel_micro` field in `profile_unified.json` is reserved but currently
-always `{"available": false, "reason": "ncu unavailable (RmProfilingAdminOnly=1)"}`.
+`kernel_micro` field in `profile_unified.json` is now **populated** when the
+agent passes `--ncu-summary` to `profile-summary-unified`.
 
-Once NCU is unlocked (see capability audit Gap), a new sibling skill
-`ncu-microarch` will fill this field — SM occupancy, achieved FLOPS, L2 hit
-rate, register spills, top warp-stall reason per kernel. The rest of the
-pipeline does NOT need changes; just one more adapter in
-`profile-summary-unified/impl/unify.py`.
+The new `ncu-microarch` skill wraps `sudo -n ncu` against a specific kernel
+regex, outputs SM occupancy / DRAM throughput / L1+L2 hit / Tensor Core
+utilization / top warp-stall reason. Verdict enum: `compute_bound /
+memory_bound / latency_bound / low_occupancy / tensor_core_idle / balanced`.
+
+Real-world first finding (2026-06-09 evening): CUTLASS MoE GEMM on Qwen3 shape
+shows `tensor_pipe_active_pct = 7.7%` — Tensor Cores nearly idle on a bf16 GEMM.
+This flipped the improvement-direction priority in the morning's investigation.
+
+**Remaining ncu limitation**: same as nsys-capture — can only profile its own
+spawned subprocess, not an already-running vLLM/sglang server. Workaround is
+to drive a standalone microbench (or, for vLLM-specific kernels, use vLLM's
+own torch.profiler endpoint for time-domain data and ncu only for
+microarchitectural counters on standalone reproductions).
 
 ## 6. Where to add new skills
 
@@ -166,13 +176,24 @@ skill 是为**未来分裂出两个 agent 角色**而设计的:
 4. **失败要响亮** — 每个 skill 都返回 `{"ok": false, "error": "..."}`,
    不允许默默产生 0 值。`cross-regime-anomaly` 把 `failed_cell` 当成一种 finding kind
 
-## 5. 目前的 gap(NCU 待解锁)
+## 5. NCU 解锁 (2026-06-09 晚)
 
-`profile_unified.json` 里 `kernel_micro` 字段保留好了但目前永远是
-`{"available": false, "reason": "ncu unavailable"}`。等 NCU 解锁后(见 audit
-里的 gap),新加一个兄弟 skill `ncu-microarch` 就能填上 — SM 占用率、tensor
-core 利用率、L2 命中、寄存器溢出、每个 kernel 的 top warp stall 原因。
-流水线**不需要其他改动**,只在 `unify.py` 加一个 adapter。
+`profile_unified.json` 里 `kernel_micro` 字段**现在可以填上了** — 给
+`profile-summary-unified` 加 `--ncu-summary` 参数即可。
+
+新 skill `ncu-microarch` 包 `sudo -n ncu`,出 SM 占用率 / DRAM throughput /
+L1+L2 hit / Tensor Core 利用率 / top warp stall 原因。Verdict 枚举:
+`compute_bound / memory_bound / latency_bound / low_occupancy /
+tensor_core_idle / balanced`。
+
+**首个真实发现**(2026-06-09 晚): CUTLASS MoE GEMM 在 Qwen3 shape 上
+`tensor_pipe_active_pct = 7.7%` — bf16 GEMM Tensor Core 几乎没用。这翻转了
+早上调查报告的改进方向排序。
+
+**NCU 剩余限制**:跟 nsys-capture 一样 — 只能 profile 自己启动的子进程,
+不能 attach 已经在跑的 vLLM/sglang server。绕过办法是写独立 microbench
+(或者对 vLLM 特定 kernel,用 vLLM 自带的 torch.profiler 端点拿时间数据,
+NCU 只对独立 reproduction 测微观计数器)。
 
 ## 6. 加新 skill 时怎么命名
 

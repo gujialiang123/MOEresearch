@@ -264,3 +264,73 @@ Qwen3-30B-A3B 有 48 层,top-8 of 128 experts:
 3. 两份 SKILL.md(`nsys-timeline-sql` 和 `pytorch-profiling`)里的
    "metric → 问题"表给了 agent **一个有名字、有文档的解读框架**。
    本报告里的所有结论都映射到那些表的具体行上。
+
+---
+
+## 阶段 7 — NCU 深挖 CUTLASS kernel(2026-06-09 晚补充)
+
+晚上 chendi 解锁了 NCU 权限,用新写的 `ncu-microarch` skill 抓了 CUTLASS MoE GEMM
+的微观指标。**结论推翻了上午 Phase 5 的改进方向排序**。
+
+### Skill 调用
+
+```bash
+python .github/skills/ncu-microarch/impl/run_ncu.py \
+  --target-cmd "/tmp/ncu_moe_wrapper.sh" \
+  --kernel-regex "cutlass::device_kernel.*GemmUniversal.*GroupProblemShape" \
+  --launch-count 4 --gpu-id 1 \
+  --out-dir results/2026-06-09_cutlass_investigation/ncu/cutlass_microbench/
+```
+
+wrapper 脚本里要内嵌环境变量(`CUDA_HOME`、`PATH`、`HOME`、`LD_LIBRARY_PATH`),
+因为 chendi 给的 sudo 白名单不允许 `-E` 保留环境。
+
+### Skill 输出关键数字
+
+| Metric | 值 | 健康范围 | 含义 |
+|---|---|---|---|
+| `sm_throughput_pct`         | **12.9%** | 70–95 | 远低于 peak |
+| `dram_throughput_pct`       | **10.9%** | <50 (若 compute-bound) | 不是带宽瓶颈 |
+| `warps_active_pct`(占用率) | **17.2%** | >50 | **低占用** |
+| `tensor_pipe_active_pct`    | **7.7%**  | bf16 GEMM 应该 50–95 | 🚨 **Tensor Core 几乎没用** |
+| `l1_hit_pct` / `l2_hit_pct` | 91% / 59% | 高 = 好 | OK |
+| `stall_long_scoreboard_avg` | **12.4 warps/issue** | <2 | 严重等内存 |
+| `headroom_estimate_pct`     | **87.1%** | — | 还有巨大头空间 |
+| `verdict`                   | `low_occupancy` | — | — |
+
+### 这是什么意思 — 为什么 D1/D2/D3 排序要改
+
+上午 Phase 5 给的顺序是 D1(sglang autotune)> D2(砍路由 overhead)> D3(控制 dense 后端)。
+NCU 数据强制重排:
+
+- **D1 (sglang autotune)**:微基准已证 5–6×,但 NCU 显示**即使 tuned 后** kernel
+  本身也只跑到 12.9% SM throughput。D1 解决一部分但 kernel 自己还差 87%。
+- **D2 (9% 路由)**:仍然真实仍然值得做,但比起把 GEMM 本身搞快,优先级降了。
+- **D3 (dense 后端)**:不变。
+- **新增 D5 (kernel 层面)**:bf16 GEMM Tensor Core 仅 7.7% — 反常。可能是
+  (a) 这个 shape 走了非 TC 指令、(b) dtype dispatch 错了、(c) tile shape 不对
+  导致 underutilization。**这是 NCU 揭示出来 ROI 最高的方向**。
+
+### Skill 归因
+
+这个发现**没有 NCU 拿不到**:
+- `e2e-bench-runner` → 只能看到宏观 req/s
+- `pytorch-profiling` / `nsys-timeline-sql` → kernel **时间**而不是 kernel **效率**
+  (能告诉你"44µs",但说不出"它本可以 6µs 因为只跑到 12% peak")
+- `ncu-microarch`(本 skill) → 唯一能拿到 SM 占用率 + TC 利用率 + warp stall 原因的
+
+`profile-summary-unified` 的 `kernel_micro` 字段(之前一直 `available: false`)
+今晚自动填上了真实数据,`evidence_chain` 里这行从 `ok: false` 翻成 `ok: true`。
+
+### 该 NCU 数据**没**显示的(给 mentor 汇报时要诚实)
+
+- 用的是**独立微基准**,不是 vLLM 包好的路径(NCU 不能 attach 到已经在跑的 server)。
+  kernel 本身数字应该一致,但 vLLM 内 dispatch 开销看不见。
+- 只测了 B=8。更大 batch 可能改 verdict。
+- launch_count=4 偏少。要外部发表前重跑 launch_count=12+ 拿更稳的区间。
+
+### 下一步
+
+写一份 `cutlass_d5_kernel_tc_utilization.handoff.md`,引用本 NCU 数据,
+指向 `flashinfer/.../cutlass_backend/` 的 dispatch 逻辑,acceptance test 设为
+"patch 后 ncu 应该看到 tensor_pipe_active_pct > 30"。
