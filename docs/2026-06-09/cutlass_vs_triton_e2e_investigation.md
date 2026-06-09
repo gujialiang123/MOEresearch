@@ -1,6 +1,8 @@
 # Why is flashinfer CUTLASS MoE no faster than Triton MoE at e2e?
 ## Skill-driven investigation, 2026-06-09
 
+> 🇬🇧 English version · [跳转中文版](cutlass_vs_triton_e2e_investigation.zh.md)
+
 **Mission**: theoretically a hand-tuned CUTLASS kernel should beat a Triton
 codegen. At e2e level, on vLLM, CUTLASS only barely edges Triton (≤2%); on
 sglang, CUTLASS is actually 2.4× slower. Why? And what would actually move CUTLASS forward?
