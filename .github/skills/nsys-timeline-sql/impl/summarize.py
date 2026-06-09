@@ -100,6 +100,7 @@ def summarize(sqlite_path: Path, out_dir: Path, top_n: int = 10,
         top_kernels.append({
             "rank": i,
             "short_name": r["short_name"],
+            "demangled_sample": r.get("demangled_sample") if isinstance(r, dict) else r["demangled_sample"],
             "self_ms": self_ns / 1e6,
             "self_pct_of_active": (self_ns / primary_active_ns * 100.0)
                                   if primary_active_ns else 0.0,

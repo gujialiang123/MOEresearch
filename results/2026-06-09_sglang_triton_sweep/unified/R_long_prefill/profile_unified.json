@@ -1,0 +1,980 @@
+{
+  "schema_version": 0,
+  "ok": true,
+  "captured_at": "2026-06-09T22:10:42.977833+00:00",
+  "subject": {
+    "framework": "sglang",
+    "framework_version": "0.5.9",
+    "model": "qwen3-30b-a3b-moe",
+    "config_summary": {
+      "moe_backend": "triton",
+      "cudagraph": false,
+      "autotune": false,
+      "tp_size": 1
+    },
+    "hardware": {
+      "name": "NVIDIA H200",
+      "sm": "9.0",
+      "num_sms": 132
+    }
+  },
+  "workload": {
+    "regime_id": "R_long_prefill",
+    "regime_yaml_path": "/home/t-jialianggu/work/EndtoEnd-auto-optimization/regimes/qwen3_30b_moe_sglang_perf_sweep.yaml",
+    "regime_yaml_sha256": "b177197a452215bc"
+  },
+  "e2e": {
+    "req_per_s": {
+      "mean": 2.73579454500555,
+      "stddev_pct": 10.347446998827381,
+      "reliable": false
+    },
+    "tokens_per_s_mean": 87.5454254401776,
+    "e2e_p50_ms": 1627.6345821097493,
+    "e2e_p99_ms": 1630.2006170153618,
+    "completion_rate": 1.0
+  },
+  "gpu_macro": {
+    "wall_ms": 1769.704388,
+    "gpu_active_ms": 213.788921,
+    "gpu_idle_ms": 1555.915467,
+    "gpu_util_pct": 12.080487704593972,
+    "launch_count": 34273,
+    "launch_ratio_graph_to_eager": 0.0,
+    "verdict": "eager_dominated"
+  },
+  "kernel_breakdown": [
+    {
+      "category": "moe_gemm",
+      "kernel_pattern": "fused_moe_kernel",
+      "demangled_sample": "fused_moe_kernel",
+      "self_ms": 101.407115,
+      "self_pct": 47.43328818241241,
+      "calls": 3552,
+      "avg_us": 28.549300394144147,
+      "source": "nsys-timeline-sql"
+    },
+    {
+      "category": "attention",
+      "kernel_pattern": "device_kernel",
+      "demangled_sample": "void cutlass::device_kernel<flash::enable_sm90_or_later<flash::FlashAttnFwdSm90<flash::CollectiveMainloopFwdSm90<(int)2, cute::tuple<cute::C<(int)1>, cute::C<(int)1>, cute::C<(int)1>>, cute::tuple<cute::C<(int)128>, cute::C<(int)128>, cute::C<(int)128>>, (int)128, cutlass::bfloat16_t, float, cutlass::arch::Sm90, (bool)1, (bool)0, (bool)0, (bool)1, (bool)1, (bool)0, (bool)0, (bool)1, (bool)1, (bool)1, (bool)1, (bool)0, cutlass::bfloat16_t>, flash::CollectiveEpilogueFwd<cute::tuple<cute::C<(int)128>, cute::C<(int)128>, cute::C<(int)128>>, cute::tuple<cute::C<(int)1>, cute::C<(int)1>, cute::C<(int)1>>, cutlass::bfloat16_t, cutlass::arch::Sm90, (int)256, (bool)1, (bool)1, (bool)1, (bool)0>, flash::VarlenDynamicPersistentTileScheduler<(int)128, (int)128, (int)256, (int)128, (bool)1, (bool)1, (bool)1, (bool)1, (bool)1, (bool)1>>>>(T1::Params)",
+      "self_ms": 25.961871,
+      "self_pct": 12.143693358179211,
+      "calls": 3554,
+      "avg_us": 7.3049721440630275,
+      "source": "nsys-timeline-sql"
+    },
+    {
+      "category": "dense_gemm",
+      "kernel_pattern": "nvjet_tst_64x8_64x16_4x1_v_bz_TNT",
+      "demangled_sample": "nvjet_tst_64x8_64x16_4x1_v_bz_TNT",
+      "self_ms": 13.872137,
+      "self_pct": 6.488707148673995,
+      "calls": 1776,
+      "avg_us": 7.81088795045045,
+      "source": "nsys-timeline-sql"
+    },
+    {
+      "category": "dense_gemm",
+      "kernel_pattern": "nvjet_tst_64x8_64x16_4x1_v_bz_splitK_TNT",
+      "demangled_sample": "nvjet_tst_64x8_64x16_4x1_v_bz_splitK_TNT",
+      "self_ms": 13.225576,
+      "self_pct": 6.186277538675636,
+      "calls": 1777,
+      "avg_us": 7.442642656162071,
+      "source": "nsys-timeline-sql"
+    },
+    {
+      "category": "dense_gemm",
+      "kernel_pattern": "nvjet_tst_8x64_64x16_4x1_v_bz_TNN",
+      "demangled_sample": "nvjet_tst_8x64_64x16_4x1_v_bz_TNN",
+      "self_ms": 9.272954,
+      "self_pct": 4.337434305120049,
+      "calls": 1777,
+      "avg_us": 5.218319639842431,
+      "source": "nsys-timeline-sql"
+    },
+    {
+      "category": "norm",
+      "kernel_pattern": "FusedAddRMSNormKernel",
+      "demangled_sample": "void flashinfer::norm::FusedAddRMSNormKernel<(unsigned int)8, __nv_bfloat16>(T2 *, T2 *, T2 *, unsigned int, unsigned int, unsigned int, float, float)",
+      "self_ms": 7.615447,
+      "self_pct": 3.5621336056043806,
+      "calls": 3553,
+      "avg_us": 2.143385026737968,
+      "source": "nsys-timeline-sql"
+    },
+    {
+      "category": "moe_routing",
+      "kernel_pattern": "topkGatingSoftmax",
+      "demangled_sample": "void topkGatingSoftmax<__nv_bfloat16, (int)8, (int)128, (int)4, (int)16>(const T1 *, const bool *, float *, int, int *, int, int, int, bool, float, const float *)",
+      "self_ms": 5.714746,
+      "self_pct": 2.673078648448766,
+      "calls": 1777,
+      "avg_us": 3.2159516038266744,
+      "source": "nsys-timeline-sql"
+    },
+    {
+      "category": "attention",
+      "kernel_pattern": "prepare_varlen_num_blocks_kernel",
+      "demangled_sample": "void flash::prepare_varlen_num_blocks_kernel<(int)1, (bool)1>(int, int, int, const int *, const int *, const int *, const int *, const int *, const int *, int, int, int, int, int, cutlass::FastDivmod, cutlass::FastDivmod, int *, int *, int *, int *, int *, bool, bool, bool, int)",
+      "self_ms": 5.700393,
+      "self_pct": 2.666365017109563,
+      "calls": 1777,
+      "avg_us": 3.2078745075970736,
+      "source": "nsys-timeline-sql"
+    },
+    {
+      "category": "dense_gemm",
+      "kernel_pattern": "nvjet_tst_384x8_64x4_2x1_v_bz_TNT",
+      "demangled_sample": "nvjet_tst_384x8_64x4_2x1_v_bz_TNT",
+      "self_ms": 5.552116,
+      "self_pct": 2.5970082893116806,
+      "calls": 37,
+      "avg_us": 150.0571891891892,
+      "source": "nsys-timeline-sql"
+    },
+    {
+      "category": "elementwise",
+      "kernel_pattern": "elementwise_kernel",
+      "demangled_sample": "void at::native::elementwise_kernel<(int)128, (int)4, void at::native::gpu_kernel_impl_nocast<at::native::direct_copy_kernel_cuda(at::TensorIteratorBase &)::[lambda() (instance 3)]::operator ()() const::[lambda() (instance 12)]::operator ()() const::[lambda(c10::BFloat16) (instance 1)]>(at::TensorIteratorBase &, const T1 &)::[lambda(int) (instance 1)]>(int, T3)",
+      "self_ms": 4.352289,
+      "self_pct": 2.035787906895325,
+      "calls": 1777,
+      "avg_us": 2.4492341024198088,
+      "source": "nsys-timeline-sql"
+    },
+    {
+      "category": "moe_routing",
+      "kernel_pattern": "moe_align_block_size_kernel",
+      "demangled_sample": "void moe_align_block_size_kernel<int>(const T1 *, int *, int *, int *, int, int, unsigned long, int *, bool, int, int)",
+      "self_ms": 4.294625,
+      "self_pct": 2.0088155082648087,
+      "calls": 1777,
+      "avg_us": 2.416783905458638,
+      "source": "nsys-timeline-sql"
+    },
+    {
+      "category": "other",
+      "kernel_pattern": "BatchQKApplyRotaryPosIdsCosSinCacheEnhancedHeadParallelismKernel",
+      "demangled_sample": "void flashinfer::BatchQKApplyRotaryPosIdsCosSinCacheEnhancedHeadParallelismKernel<(bool)1, (bool)0, (unsigned int)128, (unsigned int)8, (unsigned int)16, __nv_bfloat16, long>(T6 *, T6 *, T6 *, T6 *, T6 *, T6 *, T6 *, float *, T7 *, unsigned int, unsigned int, unsigned int, unsigned int, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, T7 *)",
+      "self_ms": 3.17156,
+      "self_pct": 1.4835006347218527,
+      "calls": 1776,
+      "avg_us": 1.7857882882882883,
+      "source": "nsys-timeline-sql"
+    },
+    {
+      "category": "dense_gemm",
+      "kernel_pattern": "splitKreduce_kernel",
+      "demangled_sample": "void cublasLt::splitKreduce_kernel<(int)32, (int)16, int, float, __nv_bfloat16, float, __nv_bfloat16, (bool)0, float, __nv_bfloat16, __nv_bfloat16, (bool)1, (bool)0, (bool)0>(cublasLt::cublasSplitKParams<T6>, const T4 *, const T10 *, T9 *, T5 *, const T6 *, const T6 *, const T11 *, const T4 *, T11 *, void *, long, T6 *, int *, T6 *, T6 *, const T6 *, const T6 *, const T6 *, const T6 *, const T6 *)",
+      "self_ms": 3.061705,
+      "self_pct": 1.4321158391552011,
+      "calls": 1777,
+      "avg_us": 1.7229628587507033,
+      "source": "nsys-timeline-sql"
+    },
+    {
+      "category": "elementwise",
+      "kernel_pattern": "triton_per_fused_copy__mul_sum_0",
+      "demangled_sample": "triton_per_fused_copy__mul_sum_0",
+      "self_ms": 2.662549,
+      "self_pct": 1.245410186620475,
+      "calls": 1776,
+      "avg_us": 1.4991829954954956,
+      "source": "nsys-timeline-sql"
+    },
+    {
+      "category": "other",
+      "kernel_pattern": "fused_qknorm_warp",
+      "demangled_sample": "void <unnamed>::fused_qknorm_warp<(long)128, (bool)1, __nv_bfloat16>(<unnamed>::QKNormParams)",
+      "self_ms": 2.48446,
+      "self_pct": 1.1621088634429284,
+      "calls": 1776,
+      "avg_us": 1.3989076576576576,
+      "source": "nsys-timeline-sql"
+    }
+  ],
+  "kernel_micro": {
+    "available": true,
+    "kernels": [
+      {
+        "kernel": "void at_cuda_detail::DeviceScanInitKernel<at_cuda_detail::ScanTileState<int, 1>>(T1, int)",
+        "sm_occupancy_pct": 5.226,
+        "achieved_flops_pct": 0.006,
+        "dram_bw_pct": 0.03,
+        "l1_hit_pct": 0.0,
+        "l2_hit_pct": 35.558,
+        "tensor_pipe_active": 0.766,
+        "top_stall_reason": "long_scoreboard=0.09, math_pipe=0.00",
+        "verdict": "low_occupancy",
+        "headroom_estimate_pct": 100.0,
+        "notes": []
+      },
+      {
+        "kernel": "void at::vectorized_elementwise_kernel<4, at::FillFunctor<int>, std::array<char *, 1>>(int, T2, T3)",
+        "sm_occupancy_pct": 5.906,
+        "achieved_flops_pct": 0.008,
+        "dram_bw_pct": 0.043,
+        "l1_hit_pct": 0.0,
+        "l2_hit_pct": 38.085,
+        "tensor_pipe_active": 0.0,
+        "top_stall_reason": "long_scoreboard=0.00, math_pipe=0.00",
+        "verdict": "low_occupancy",
+        "headroom_estimate_pct": 100.0,
+        "notes": []
+      },
+      {
+        "kernel": "void flash::prepare_varlen_num_blocks_kernel<1, 1>(int, int, int, const int *, const int *, const int *, const int *, const int *, const int *, int, int, int, int, int, cutlass::FastDivmod, cutlass::FastDivmod, int *, int *, int *, int *, int *, bool, bool, bool, int)",
+        "sm_occupancy_pct": 1.562,
+        "achieved_flops_pct": 0.013,
+        "dram_bw_pct": 0.058,
+        "l1_hit_pct": 57.143,
+        "l2_hit_pct": 63.559,
+        "tensor_pipe_active": 0.0,
+        "top_stall_reason": "long_scoreboard=2.54, math_pipe=0.00",
+        "verdict": "low_occupancy",
+        "headroom_estimate_pct": 99.9,
+        "notes": [
+          "long_scoreboard stall = 2.54 warps/issue \u2014 severe memory-wait"
+        ]
+      },
+      {
+        "kernel": "void flash::prepare_varlen_num_blocks_kernel<1, 1>(int, int, int, const int *, const int *, const int *, const int *, const int *, const int *, int, int, int, int, int, cutlass::FastDivmod, cutlass::FastDivmod, int *, int *, int *, int *, int *, bool, bool, bool, int)",
+        "sm_occupancy_pct": 1.562,
+        "achieved_flops_pct": 0.013,
+        "dram_bw_pct": 0.061,
+        "l1_hit_pct": 57.143,
+        "l2_hit_pct": 59.868,
+        "tensor_pipe_active": 0.0,
+        "top_stall_reason": "long_scoreboard=2.06, math_pipe=0.00",
+        "verdict": "low_occupancy",
+        "headroom_estimate_pct": 99.9,
+        "notes": [
+          "long_scoreboard stall = 2.06 warps/issue \u2014 severe memory-wait"
+        ]
+      },
+      {
+        "kernel": "void flash::prepare_varlen_num_blocks_kernel<1, 1>(int, int, int, const int *, const int *, const int *, const int *, const int *, const int *, int, int, int, int, int, cutlass::FastDivmod, cutlass::FastDivmod, int *, int *, int *, int *, int *, bool, bool, bool, int)",
+        "sm_occupancy_pct": 1.562,
+        "achieved_flops_pct": 0.012,
+        "dram_bw_pct": 0.058,
+        "l1_hit_pct": 57.143,
+        "l2_hit_pct": 59.781,
+        "tensor_pipe_active": 0.0,
+        "top_stall_reason": "long_scoreboard=2.07, math_pipe=0.00",
+        "verdict": "low_occupancy",
+        "headroom_estimate_pct": 99.9,
+        "notes": [
+          "long_scoreboard stall = 2.07 warps/issue \u2014 severe memory-wait"
+        ]
+      },
+      {
+        "kernel": "void at_cuda_detail::DeviceScanKernel<at_cuda_detail::DeviceScanPolicy<int, std::plus<int>>::Policy900, const int *, int *, at_cuda_detail::ScanTileState<int, 1>, std::plus<int>, at_cuda_detail::NullType, unsigned int, int, 0>(T2, T3, T4, int, T5, T6, T7)",
+        "sm_occupancy_pct": 6.24,
+        "achieved_flops_pct": 0.059,
+        "dram_bw_pct": 0.171,
+        "l1_hit_pct": 66.667,
+        "l2_hit_pct": 59.454,
+        "tensor_pipe_active": 0.0,
+        "top_stall_reason": "long_scoreboard=1.68, math_pipe=0.00",
+        "verdict": "low_occupancy",
+        "headroom_estimate_pct": 99.8,
+        "notes": []
+      },
+      {
+        "kernel": "void moe_align_block_size_kernel<int>(const T1 *, int *, int *, int *, int, int, unsigned long, int *, bool, int, int)",
+        "sm_occupancy_pct": 49.719,
+        "achieved_flops_pct": 0.109,
+        "dram_bw_pct": 0.224,
+        "l1_hit_pct": 0.0,
+        "l2_hit_pct": 53.543,
+        "tensor_pipe_active": 0.007,
+        "top_stall_reason": "long_scoreboard=58.16, math_pipe=0.18",
+        "verdict": "latency_bound",
+        "headroom_estimate_pct": 99.8,
+        "notes": [
+          "Both SM and DRAM under 30% \u2014 launch overhead or warp stalls dominate",
+          "long_scoreboard stall = 58.16 warps/issue \u2014 severe memory-wait"
+        ]
+      },
+      {
+        "kernel": "void moe_align_block_size_kernel<int>(const T1 *, int *, int *, int *, int, int, unsigned long, int *, bool, int, int)",
+        "sm_occupancy_pct": 49.753,
+        "achieved_flops_pct": 0.109,
+        "dram_bw_pct": 0.222,
+        "l1_hit_pct": 0.0,
+        "l2_hit_pct": 54.103,
+        "tensor_pipe_active": 0.007,
+        "top_stall_reason": "long_scoreboard=57.95, math_pipe=0.19",
+        "verdict": "latency_bound",
+        "headroom_estimate_pct": 99.8,
+        "notes": [
+          "Both SM and DRAM under 30% \u2014 launch overhead or warp stalls dominate",
+          "long_scoreboard stall = 57.95 warps/issue \u2014 severe memory-wait"
+        ]
+      },
+      {
+        "kernel": "compute_position_kernel",
+        "sm_occupancy_pct": 6.204,
+        "achieved_flops_pct": 0.324,
+        "dram_bw_pct": 0.031,
+        "l1_hit_pct": 0.596,
+        "l2_hit_pct": 87.272,
+        "tensor_pipe_active": 0.0,
+        "top_stall_reason": "long_scoreboard=2.03, math_pipe=0.00",
+        "verdict": "low_occupancy",
+        "headroom_estimate_pct": 99.7,
+        "notes": [
+          "long_scoreboard stall = 2.03 warps/issue \u2014 severe memory-wait"
+        ]
+      },
+      {
+        "kernel": "void at::unrolled_elementwise_kernel<at::direct_copy_kernel_cuda(at::TensorIteratorBase &)::[lambda() (instance 3)]::operator ()() const::[lambda() (instance 3)]::operator ()() const::[lambda(int) (instance 1)], std::array<char *, 2>, 4, TrivialOffsetCalculator<1, unsigned int>, TrivialOffsetCalculator<1, unsigned int>, memory::LoadWithCast<1>, memory::StoreWithCast<1>>(int, T1, T2, T4, T5, T6, T7)",
+        "sm_occupancy_pct": 5.363,
+        "achieved_flops_pct": 0.01,
+        "dram_bw_pct": 0.272,
+        "l1_hit_pct": 0.0,
+        "l2_hit_pct": 63.323,
+        "tensor_pipe_active": 0.0,
+        "top_stall_reason": "long_scoreboard=1.34, math_pipe=0.00",
+        "verdict": "low_occupancy",
+        "headroom_estimate_pct": 99.7,
+        "notes": []
+      },
+      {
+        "kernel": "void at::unrolled_elementwise_kernel<at::direct_copy_kernel_cuda(at::TensorIteratorBase &)::[lambda() (instance 3)]::operator ()() const::[lambda() (instance 3)]::operator ()() const::[lambda(int) (instance 1)], std::array<char *, 2>, 4, TrivialOffsetCalculator<1, unsigned int>, TrivialOffsetCalculator<1, unsigned int>, memory::LoadWithCast<1>, memory::StoreWithCast<1>>(int, T1, T2, T4, T5, T6, T7)",
+        "sm_occupancy_pct": 5.394,
+        "achieved_flops_pct": 0.01,
+        "dram_bw_pct": 0.296,
+        "l1_hit_pct": 0.0,
+        "l2_hit_pct": 64.381,
+        "tensor_pipe_active": 0.0,
+        "top_stall_reason": "long_scoreboard=1.33, math_pipe=0.00",
+        "verdict": "low_occupancy",
+        "headroom_estimate_pct": 99.7,
+        "notes": []
+      },
+      {
+        "kernel": "write_req_to_token_pool_triton",
+        "sm_occupancy_pct": 6.247,
+        "achieved_flops_pct": 0.137,
+        "dram_bw_pct": 0.466,
+        "l1_hit_pct": 69.849,
+        "l2_hit_pct": 43.723,
+        "tensor_pipe_active": 0.0,
+        "top_stall_reason": "long_scoreboard=12.95, math_pipe=0.00",
+        "verdict": "low_occupancy",
+        "headroom_estimate_pct": 99.5,
+        "notes": [
+          "long_scoreboard stall = 12.95 warps/issue \u2014 severe memory-wait"
+        ]
+      },
+      {
+        "kernel": "void count_and_sort_expert_tokens_kernel<int>(const T1 *, int *, int *, unsigned long)",
+        "sm_occupancy_pct": 90.352,
+        "achieved_flops_pct": 0.523,
+        "dram_bw_pct": 0.285,
+        "l1_hit_pct": 1.816,
+        "l2_hit_pct": 91.162,
+        "tensor_pipe_active": 0.0,
+        "top_stall_reason": "long_scoreboard=3182.60, math_pipe=0.45",
+        "verdict": "latency_bound",
+        "headroom_estimate_pct": 99.5,
+        "notes": [
+          "Both SM and DRAM under 30% \u2014 launch overhead or warp stalls dominate",
+          "long_scoreboard stall = 3182.60 warps/issue \u2014 severe memory-wait"
+        ]
+      },
+      {
+        "kernel": "void count_and_sort_expert_tokens_kernel<int>(const T1 *, int *, int *, unsigned long)",
+        "sm_occupancy_pct": 89.535,
+        "achieved_flops_pct": 0.655,
+        "dram_bw_pct": 0.376,
+        "l1_hit_pct": 1.699,
+        "l2_hit_pct": 93.978,
+        "tensor_pipe_active": 0.0,
+        "top_stall_reason": "long_scoreboard=2348.67, math_pipe=0.48",
+        "verdict": "latency_bound",
+        "headroom_estimate_pct": 99.3,
+        "notes": [
+          "Both SM and DRAM under 30% \u2014 launch overhead or warp stalls dominate",
+          "long_scoreboard stall = 2348.67 warps/issue \u2014 severe memory-wait"
+        ]
+      },
+      {
+        "kernel": "void at::vectorized_gather_kernel<16, long>(char *, char *, T2 *, int, long, long, long, long, bool)",
+        "sm_occupancy_pct": 11.602,
+        "achieved_flops_pct": 0.77,
+        "dram_bw_pct": 1.046,
+        "l1_hit_pct": 3.985,
+        "l2_hit_pct": 54.381,
+        "tensor_pipe_active": 0.0,
+        "top_stall_reason": "long_scoreboard=15.50, math_pipe=0.16",
+        "verdict": "low_occupancy",
+        "headroom_estimate_pct": 99.0,
+        "notes": [
+          "long_scoreboard stall = 15.50 warps/issue \u2014 severe memory-wait"
+        ]
+      },
+      {
+        "kernel": "fused_moe_kernel",
+        "sm_occupancy_pct": 12.448,
+        "achieved_flops_pct": 54.228,
+        "dram_bw_pct": 23.778,
+        "l1_hit_pct": 0.848,
+        "l2_hit_pct": 85.422,
+        "tensor_pipe_active": 54.971,
+        "top_stall_reason": "long_scoreboard=0.58, math_pipe=0.99",
+        "verdict": "low_occupancy",
+        "headroom_estimate_pct": 45.8,
+        "notes": []
+      },
+      {
+        "kernel": "fused_moe_kernel",
+        "sm_occupancy_pct": 12.448,
+        "achieved_flops_pct": 54.185,
+        "dram_bw_pct": 23.771,
+        "l1_hit_pct": 0.849,
+        "l2_hit_pct": 86.414,
+        "tensor_pipe_active": 55.054,
+        "top_stall_reason": "long_scoreboard=0.58, math_pipe=0.99",
+        "verdict": "low_occupancy",
+        "headroom_estimate_pct": 45.8,
+        "notes": []
+      },
+      {
+        "kernel": "void at::elementwise_kernel<128, 4, void at::gpu_kernel_impl_nocast<at::direct_copy_kernel_cuda(at::TensorIteratorBase &)::[lambda() (instance 3)]::operator ()() const::[lambda() (instance 12)]::operator ()() const::[lambda(c10::BFloat16) (instance 1)]>(at::TensorIteratorBase &, const T1 &)::[lambda(int) (instance 1)]>(int, T3)",
+        "sm_occupancy_pct": 92.451,
+        "achieved_flops_pct": 57.419,
+        "dram_bw_pct": 36.146,
+        "l1_hit_pct": 21.263,
+        "l2_hit_pct": 50.413,
+        "tensor_pipe_active": 2.726,
+        "top_stall_reason": "long_scoreboard=19.30, math_pipe=0.41",
+        "verdict": "tensor_core_idle",
+        "headroom_estimate_pct": 42.6,
+        "notes": [
+          "Tensor Cores firing <10% \u2014 likely wrong dtype or non-TC kernel",
+          "long_scoreboard stall = 19.29 warps/issue \u2014 severe memory-wait"
+        ]
+      },
+      {
+        "kernel": "void at::elementwise_kernel<128, 4, void at::gpu_kernel_impl_nocast<at::direct_copy_kernel_cuda(at::TensorIteratorBase &)::[lambda() (instance 3)]::operator ()() const::[lambda() (instance 12)]::operator ()() const::[lambda(c10::BFloat16) (instance 1)]>(at::TensorIteratorBase &, const T1 &)::[lambda(int) (instance 1)]>(int, T3)",
+        "sm_occupancy_pct": 92.415,
+        "achieved_flops_pct": 57.503,
+        "dram_bw_pct": 36.181,
+        "l1_hit_pct": 21.283,
+        "l2_hit_pct": 50.51,
+        "tensor_pipe_active": 2.732,
+        "top_stall_reason": "long_scoreboard=19.27, math_pipe=0.41",
+        "verdict": "tensor_core_idle",
+        "headroom_estimate_pct": 42.5,
+        "notes": [
+          "Tensor Cores firing <10% \u2014 likely wrong dtype or non-TC kernel",
+          "long_scoreboard stall = 19.27 warps/issue \u2014 severe memory-wait"
+        ]
+      },
+      {
+        "kernel": "void at::elementwise_kernel<128, 4, void at::gpu_kernel_impl_nocast<at::direct_copy_kernel_cuda(at::TensorIteratorBase &)::[lambda() (instance 3)]::operator ()() const::[lambda() (instance 12)]::operator ()() const::[lambda(c10::BFloat16) (instance 1)]>(at::TensorIteratorBase &, const T1 &)::[lambda(int) (instance 1)]>(int, T3)",
+        "sm_occupancy_pct": 92.392,
+        "achieved_flops_pct": 57.645,
+        "dram_bw_pct": 36.217,
+        "l1_hit_pct": 21.29,
+        "l2_hit_pct": 50.384,
+        "tensor_pipe_active": 2.73,
+        "top_stall_reason": "long_scoreboard=19.26, math_pipe=0.41",
+        "verdict": "tensor_core_idle",
+        "headroom_estimate_pct": 42.4,
+        "notes": [
+          "Tensor Cores firing <10% \u2014 likely wrong dtype or non-TC kernel",
+          "long_scoreboard stall = 19.26 warps/issue \u2014 severe memory-wait"
+        ]
+      },
+      {
+        "kernel": "void at::vectorized_gather_kernel<16, long>(char *, char *, T2 *, int, long, long, long, long, bool)",
+        "sm_occupancy_pct": 80.056,
+        "achieved_flops_pct": 26.877,
+        "dram_bw_pct": 67.393,
+        "l1_hit_pct": 2.783,
+        "l2_hit_pct": 64.186,
+        "tensor_pipe_active": 0.0,
+        "top_stall_reason": "long_scoreboard=42.16, math_pipe=0.53",
+        "verdict": "balanced",
+        "headroom_estimate_pct": 32.6,
+        "notes": [
+          "long_scoreboard stall = 42.16 warps/issue \u2014 severe memory-wait"
+        ]
+      },
+      {
+        "kernel": "void cutlass::device_kernel<flash::enable_sm90_or_later<flash::FlashAttnFwdSm90<flash::CollectiveMainloopFwdSm90<2, cute::tuple<cute::C<1>, cute::C<1>, cute::C<1>>, cute::tuple<cute::C<128>, cute::C<128>, cute::C<128>>, 128, cutlass::bfloat16_t, float, arch::Sm90, 1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 0, cutlass::bfloat16_t>, flash::CollectiveEpilogueFwd<cute::tuple<cute::C<128>, cute::C<128>, cute::C<128>>, cute::tuple<cute::C<1>, cute::C<1>, cute::C<1>>, cutlass::bfloat16_t, arch::Sm90, 256, 1, 1, 0, 0>, flash::VarlenDynamicPersistentTileScheduler<128, 128, 256, 128, 0, 1, 1, 1, 1, 1>>>>(T1::Params)",
+        "sm_occupancy_pct": 18.749,
+        "achieved_flops_pct": 69.097,
+        "dram_bw_pct": 3.621,
+        "l1_hit_pct": 1.582,
+        "l2_hit_pct": 97.064,
+        "tensor_pipe_active": 69.212,
+        "top_stall_reason": "long_scoreboard=1.11, math_pipe=0.09",
+        "verdict": "low_occupancy",
+        "headroom_estimate_pct": 30.9,
+        "notes": []
+      },
+      {
+        "kernel": "void cutlass::device_kernel<flash::enable_sm90_or_later<flash::FlashAttnFwdSm90<flash::CollectiveMainloopFwdSm90<2, cute::tuple<cute::C<1>, cute::C<1>, cute::C<1>>, cute::tuple<cute::C<128>, cute::C<128>, cute::C<128>>, 128, cutlass::bfloat16_t, float, arch::Sm90, 1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 0, cutlass::bfloat16_t>, flash::CollectiveEpilogueFwd<cute::tuple<cute::C<128>, cute::C<128>, cute::C<128>>, cute::tuple<cute::C<1>, cute::C<1>, cute::C<1>>, cutlass::bfloat16_t, arch::Sm90, 256, 1, 1, 0, 0>, flash::VarlenDynamicPersistentTileScheduler<128, 128, 256, 128, 0, 1, 1, 1, 1, 1>>>>(T1::Params)",
+        "sm_occupancy_pct": 18.749,
+        "achieved_flops_pct": 69.101,
+        "dram_bw_pct": 3.626,
+        "l1_hit_pct": 1.578,
+        "l2_hit_pct": 96.288,
+        "tensor_pipe_active": 69.221,
+        "top_stall_reason": "long_scoreboard=1.11, math_pipe=0.09",
+        "verdict": "low_occupancy",
+        "headroom_estimate_pct": 30.9,
+        "notes": []
+      },
+      {
+        "kernel": "void cutlass::device_kernel<flash::enable_sm90_or_later<flash::FlashAttnFwdSm90<flash::CollectiveMainloopFwdSm90<2, cute::tuple<cute::C<1>, cute::C<1>, cute::C<1>>, cute::tuple<cute::C<128>, cute::C<128>, cute::C<128>>, 128, cutlass::bfloat16_t, float, arch::Sm90, 1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 0, cutlass::bfloat16_t>, flash::CollectiveEpilogueFwd<cute::tuple<cute::C<128>, cute::C<128>, cute::C<128>>, cute::tuple<cute::C<1>, cute::C<1>, cute::C<1>>, cutlass::bfloat16_t, arch::Sm90, 256, 1, 1, 0, 0>, flash::VarlenDynamicPersistentTileScheduler<128, 128, 256, 128, 0, 1, 1, 1, 1, 1>>>>(T1::Params)",
+        "sm_occupancy_pct": 18.749,
+        "achieved_flops_pct": 69.079,
+        "dram_bw_pct": 3.631,
+        "l1_hit_pct": 1.579,
+        "l2_hit_pct": 97.129,
+        "tensor_pipe_active": 69.221,
+        "top_stall_reason": "long_scoreboard=1.11, math_pipe=0.09",
+        "verdict": "low_occupancy",
+        "headroom_estimate_pct": 30.9,
+        "notes": []
+      },
+      {
+        "kernel": "fused_moe_kernel",
+        "sm_occupancy_pct": 12.398,
+        "achieved_flops_pct": 69.84,
+        "dram_bw_pct": 22.62,
+        "l1_hit_pct": 0.312,
+        "l2_hit_pct": 79.325,
+        "tensor_pipe_active": 70.647,
+        "top_stall_reason": "long_scoreboard=0.40, math_pipe=1.50",
+        "verdict": "low_occupancy",
+        "headroom_estimate_pct": 30.2,
+        "notes": []
+      },
+      {
+        "kernel": "fused_moe_kernel",
+        "sm_occupancy_pct": 12.397,
+        "achieved_flops_pct": 69.867,
+        "dram_bw_pct": 22.466,
+        "l1_hit_pct": 0.312,
+        "l2_hit_pct": 80.442,
+        "tensor_pipe_active": 70.602,
+        "top_stall_reason": "long_scoreboard=0.40, math_pipe=1.50",
+        "verdict": "low_occupancy",
+        "headroom_estimate_pct": 30.1,
+        "notes": []
+      },
+      {
+        "kernel": "nvjet_tst_128x256_64x4_1x2_h_bz_coopA_TNN",
+        "sm_occupancy_pct": 14.115,
+        "achieved_flops_pct": 45.379,
+        "dram_bw_pct": 70.475,
+        "l1_hit_pct": 0.0,
+        "l2_hit_pct": 18.863,
+        "tensor_pipe_active": 55.253,
+        "top_stall_reason": "long_scoreboard=21.36, math_pipe=0.30",
+        "verdict": "low_occupancy",
+        "headroom_estimate_pct": 29.5,
+        "notes": [
+          "long_scoreboard stall = 21.36 warps/issue \u2014 severe memory-wait"
+        ]
+      },
+      {
+        "kernel": "void flashinfer::BatchQKApplyRotaryPosIdsCosSinCacheEnhancedKernel<1, 0, 128, 8, 16, __nv_bfloat16, long>(T6 *, T6 *, T6 *, T6 *, T6 *, T6 *, T6 *, float *, T7 *, unsigned int, unsigned int, unsigned int, unsigned int, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, T7 *)",
+        "sm_occupancy_pct": 38.56,
+        "achieved_flops_pct": 24.924,
+        "dram_bw_pct": 71.338,
+        "l1_hit_pct": 59.355,
+        "l2_hit_pct": 51.631,
+        "tensor_pipe_active": 0.032,
+        "top_stall_reason": "long_scoreboard=21.64, math_pipe=0.14",
+        "verdict": "memory_bound",
+        "headroom_estimate_pct": 28.7,
+        "notes": [
+          "DRAM \u226570% \u2014 algorithmic reuse beats tile tuning",
+          "long_scoreboard stall = 21.64 warps/issue \u2014 severe memory-wait"
+        ]
+      },
+      {
+        "kernel": "void flashinfer::BatchQKApplyRotaryPosIdsCosSinCacheEnhancedKernel<1, 0, 128, 8, 16, __nv_bfloat16, long>(T6 *, T6 *, T6 *, T6 *, T6 *, T6 *, T6 *, float *, T7 *, unsigned int, unsigned int, unsigned int, unsigned int, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, T7 *)",
+        "sm_occupancy_pct": 38.694,
+        "achieved_flops_pct": 24.849,
+        "dram_bw_pct": 71.35,
+        "l1_hit_pct": 59.37,
+        "l2_hit_pct": 51.567,
+        "tensor_pipe_active": 0.033,
+        "top_stall_reason": "long_scoreboard=21.66, math_pipe=0.14",
+        "verdict": "memory_bound",
+        "headroom_estimate_pct": 28.6,
+        "notes": [
+          "DRAM \u226570% \u2014 algorithmic reuse beats tile tuning",
+          "long_scoreboard stall = 21.66 warps/issue \u2014 severe memory-wait"
+        ]
+      },
+      {
+        "kernel": "void flashinfer::BatchQKApplyRotaryPosIdsCosSinCacheEnhancedKernel<1, 0, 128, 8, 16, __nv_bfloat16, long>(T6 *, T6 *, T6 *, T6 *, T6 *, T6 *, T6 *, float *, T7 *, unsigned int, unsigned int, unsigned int, unsigned int, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, T7 *)",
+        "sm_occupancy_pct": 38.529,
+        "achieved_flops_pct": 24.971,
+        "dram_bw_pct": 71.392,
+        "l1_hit_pct": 59.375,
+        "l2_hit_pct": 51.655,
+        "tensor_pipe_active": 0.032,
+        "top_stall_reason": "long_scoreboard=21.66, math_pipe=0.14",
+        "verdict": "memory_bound",
+        "headroom_estimate_pct": 28.6,
+        "notes": [
+          "DRAM \u226570% \u2014 algorithmic reuse beats tile tuning",
+          "long_scoreboard stall = 21.67 warps/issue \u2014 severe memory-wait"
+        ]
+      },
+      {
+        "kernel": "nvjet_tst_128x256_64x4_1x2_h_bz_coopA_TNN",
+        "sm_occupancy_pct": 14.127,
+        "achieved_flops_pct": 47.267,
+        "dram_bw_pct": 71.544,
+        "l1_hit_pct": 0.0,
+        "l2_hit_pct": 18.917,
+        "tensor_pipe_active": 54.872,
+        "top_stall_reason": "long_scoreboard=22.01, math_pipe=0.30",
+        "verdict": "low_occupancy",
+        "headroom_estimate_pct": 28.5,
+        "notes": [
+          "long_scoreboard stall = 22.01 warps/issue \u2014 severe memory-wait"
+        ]
+      },
+      {
+        "kernel": "void topkGatingSoftmax<__nv_bfloat16, 8, 128, 4, 16>(const T1 *, const bool *, float *, int, int *, int, int, int, bool, float, const float *)",
+        "sm_occupancy_pct": 77.234,
+        "achieved_flops_pct": 71.57,
+        "dram_bw_pct": 6.371,
+        "l1_hit_pct": 72.719,
+        "l2_hit_pct": 71.953,
+        "tensor_pipe_active": 0.126,
+        "top_stall_reason": "long_scoreboard=1.17, math_pipe=5.42",
+        "verdict": "tensor_core_idle",
+        "headroom_estimate_pct": 28.4,
+        "notes": [
+          "Tensor Cores firing <10% \u2014 likely wrong dtype or non-TC kernel",
+          "math_pipe_throttle stall = 5.42 \u2014 tensor cores saturated"
+        ]
+      },
+      {
+        "kernel": "void topkGatingSoftmax<__nv_bfloat16, 8, 128, 4, 16>(const T1 *, const bool *, float *, int, int *, int, int, int, bool, float, const float *)",
+        "sm_occupancy_pct": 77.395,
+        "achieved_flops_pct": 71.81,
+        "dram_bw_pct": 6.416,
+        "l1_hit_pct": 72.663,
+        "l2_hit_pct": 71.751,
+        "tensor_pipe_active": 0.126,
+        "top_stall_reason": "long_scoreboard=1.20, math_pipe=5.41",
+        "verdict": "tensor_core_idle",
+        "headroom_estimate_pct": 28.2,
+        "notes": [
+          "Tensor Cores firing <10% \u2014 likely wrong dtype or non-TC kernel",
+          "math_pipe_throttle stall = 5.41 \u2014 tensor cores saturated"
+        ]
+      },
+      {
+        "kernel": "void <unnamed>::fused_qknorm_warp<128, 1, __nv_bfloat16>(<unnamed>::QKNormParams)",
+        "sm_occupancy_pct": 93.572,
+        "achieved_flops_pct": 57.376,
+        "dram_bw_pct": 72.559,
+        "l1_hit_pct": 64.661,
+        "l2_hit_pct": 50.28,
+        "tensor_pipe_active": 1.319,
+        "top_stall_reason": "long_scoreboard=18.05, math_pipe=0.46",
+        "verdict": "tensor_core_idle",
+        "headroom_estimate_pct": 27.4,
+        "notes": [
+          "Tensor Cores firing <10% \u2014 likely wrong dtype or non-TC kernel",
+          "long_scoreboard stall = 18.05 warps/issue \u2014 severe memory-wait"
+        ]
+      },
+      {
+        "kernel": "void <unnamed>::fused_qknorm_warp<128, 1, __nv_bfloat16>(<unnamed>::QKNormParams)",
+        "sm_occupancy_pct": 93.525,
+        "achieved_flops_pct": 57.398,
+        "dram_bw_pct": 72.743,
+        "l1_hit_pct": 64.649,
+        "l2_hit_pct": 50.319,
+        "tensor_pipe_active": 1.328,
+        "top_stall_reason": "long_scoreboard=17.82, math_pipe=0.46",
+        "verdict": "tensor_core_idle",
+        "headroom_estimate_pct": 27.3,
+        "notes": [
+          "Tensor Cores firing <10% \u2014 likely wrong dtype or non-TC kernel",
+          "long_scoreboard stall = 17.82 warps/issue \u2014 severe memory-wait"
+        ]
+      },
+      {
+        "kernel": "void <unnamed>::fused_qknorm_warp<128, 1, __nv_bfloat16>(<unnamed>::QKNormParams)",
+        "sm_occupancy_pct": 93.419,
+        "achieved_flops_pct": 56.61,
+        "dram_bw_pct": 72.813,
+        "l1_hit_pct": 64.63,
+        "l2_hit_pct": 50.367,
+        "tensor_pipe_active": 1.328,
+        "top_stall_reason": "long_scoreboard=17.53, math_pipe=0.46",
+        "verdict": "tensor_core_idle",
+        "headroom_estimate_pct": 27.2,
+        "notes": [
+          "Tensor Cores firing <10% \u2014 likely wrong dtype or non-TC kernel",
+          "long_scoreboard stall = 17.53 warps/issue \u2014 severe memory-wait"
+        ]
+      },
+      {
+        "kernel": "void norm::RMSNormKernel<8, __nv_bfloat16>(T2 *, T2 *, T2 *, unsigned int, unsigned int, unsigned int, float, float)",
+        "sm_occupancy_pct": 91.553,
+        "achieved_flops_pct": 74.429,
+        "dram_bw_pct": 67.081,
+        "l1_hit_pct": 45.489,
+        "l2_hit_pct": 53.167,
+        "tensor_pipe_active": 0.0,
+        "top_stall_reason": "long_scoreboard=6.56, math_pipe=1.35",
+        "verdict": "tensor_core_idle",
+        "headroom_estimate_pct": 25.6,
+        "notes": [
+          "Tensor Cores firing <10% \u2014 likely wrong dtype or non-TC kernel",
+          "long_scoreboard stall = 6.56 warps/issue \u2014 severe memory-wait"
+        ]
+      },
+      {
+        "kernel": "void activation::act_and_mul_kernel<__nv_bfloat16, &silu<float>>(T1 *, const T1 *, int)",
+        "sm_occupancy_pct": 45.921,
+        "achieved_flops_pct": 37.174,
+        "dram_bw_pct": 78.133,
+        "l1_hit_pct": 0.0,
+        "l2_hit_pct": 33.742,
+        "tensor_pipe_active": 0.0,
+        "top_stall_reason": "long_scoreboard=10.15, math_pipe=0.09",
+        "verdict": "tensor_core_idle",
+        "headroom_estimate_pct": 21.9,
+        "notes": [
+          "Tensor Cores firing <10% \u2014 likely wrong dtype or non-TC kernel",
+          "long_scoreboard stall = 10.15 warps/issue \u2014 severe memory-wait"
+        ]
+      },
+      {
+        "kernel": "void activation::act_and_mul_kernel<__nv_bfloat16, &silu<float>>(T1 *, const T1 *, int)",
+        "sm_occupancy_pct": 45.668,
+        "achieved_flops_pct": 37.084,
+        "dram_bw_pct": 78.08,
+        "l1_hit_pct": 0.0,
+        "l2_hit_pct": 33.86,
+        "tensor_pipe_active": 0.0,
+        "top_stall_reason": "long_scoreboard=9.84, math_pipe=0.09",
+        "verdict": "tensor_core_idle",
+        "headroom_estimate_pct": 21.9,
+        "notes": [
+          "Tensor Cores firing <10% \u2014 likely wrong dtype or non-TC kernel",
+          "long_scoreboard stall = 9.84 warps/issue \u2014 severe memory-wait"
+        ]
+      },
+      {
+        "kernel": "void norm::FusedAddRMSNormKernel<8, __nv_bfloat16>(T2 *, T2 *, T2 *, unsigned int, unsigned int, unsigned int, float, float)",
+        "sm_occupancy_pct": 92.001,
+        "achieved_flops_pct": 52.556,
+        "dram_bw_pct": 82.393,
+        "l1_hit_pct": 45.609,
+        "l2_hit_pct": 50.729,
+        "tensor_pipe_active": 0.0,
+        "top_stall_reason": "long_scoreboard=14.35, math_pipe=0.60",
+        "verdict": "tensor_core_idle",
+        "headroom_estimate_pct": 17.6,
+        "notes": [
+          "Tensor Cores firing <10% \u2014 likely wrong dtype or non-TC kernel",
+          "long_scoreboard stall = 14.35 warps/issue \u2014 severe memory-wait"
+        ]
+      },
+      {
+        "kernel": "void norm::FusedAddRMSNormKernel<8, __nv_bfloat16>(T2 *, T2 *, T2 *, unsigned int, unsigned int, unsigned int, float, float)",
+        "sm_occupancy_pct": 91.892,
+        "achieved_flops_pct": 52.439,
+        "dram_bw_pct": 82.838,
+        "l1_hit_pct": 45.356,
+        "l2_hit_pct": 50.581,
+        "tensor_pipe_active": 0.0,
+        "top_stall_reason": "long_scoreboard=14.43, math_pipe=0.59",
+        "verdict": "tensor_core_idle",
+        "headroom_estimate_pct": 17.2,
+        "notes": [
+          "Tensor Cores firing <10% \u2014 likely wrong dtype or non-TC kernel",
+          "long_scoreboard stall = 14.43 warps/issue \u2014 severe memory-wait"
+        ]
+      },
+      {
+        "kernel": "void norm::FusedAddRMSNormKernel<8, __nv_bfloat16>(T2 *, T2 *, T2 *, unsigned int, unsigned int, unsigned int, float, float)",
+        "sm_occupancy_pct": 91.956,
+        "achieved_flops_pct": 52.359,
+        "dram_bw_pct": 82.925,
+        "l1_hit_pct": 45.474,
+        "l2_hit_pct": 50.762,
+        "tensor_pipe_active": 0.0,
+        "top_stall_reason": "long_scoreboard=14.31, math_pipe=0.59",
+        "verdict": "tensor_core_idle",
+        "headroom_estimate_pct": 17.1,
+        "notes": [
+          "Tensor Cores firing <10% \u2014 likely wrong dtype or non-TC kernel",
+          "long_scoreboard stall = 14.31 warps/issue \u2014 severe memory-wait"
+        ]
+      },
+      {
+        "kernel": "void norm::FusedAddRMSNormKernel<8, __nv_bfloat16>(T2 *, T2 *, T2 *, unsigned int, unsigned int, unsigned int, float, float)",
+        "sm_occupancy_pct": 92.477,
+        "achieved_flops_pct": 52.81,
+        "dram_bw_pct": 82.986,
+        "l1_hit_pct": 45.593,
+        "l2_hit_pct": 50.691,
+        "tensor_pipe_active": 0.0,
+        "top_stall_reason": "long_scoreboard=14.32, math_pipe=0.59",
+        "verdict": "tensor_core_idle",
+        "headroom_estimate_pct": 17.0,
+        "notes": [
+          "Tensor Cores firing <10% \u2014 likely wrong dtype or non-TC kernel",
+          "long_scoreboard stall = 14.32 warps/issue \u2014 severe memory-wait"
+        ]
+      },
+      {
+        "kernel": "nvjet_tst_320x128_64x3_1x2_h_bz_coopB_TNT",
+        "sm_occupancy_pct": 14.815,
+        "achieved_flops_pct": 89.62,
+        "dram_bw_pct": 17.496,
+        "l1_hit_pct": 0.0,
+        "l2_hit_pct": 85.077,
+        "tensor_pipe_active": 91.674,
+        "top_stall_reason": "long_scoreboard=3.28, math_pipe=0.27",
+        "verdict": "low_occupancy",
+        "headroom_estimate_pct": 10.4,
+        "notes": [
+          "long_scoreboard stall = 3.28 warps/issue \u2014 severe memory-wait"
+        ]
+      },
+      {
+        "kernel": "nvjet_tst_320x128_64x3_1x2_h_bz_coopB_TNT",
+        "sm_occupancy_pct": 14.816,
+        "achieved_flops_pct": 89.602,
+        "dram_bw_pct": 18.172,
+        "l1_hit_pct": 0.0,
+        "l2_hit_pct": 83.442,
+        "tensor_pipe_active": 91.761,
+        "top_stall_reason": "long_scoreboard=3.30, math_pipe=0.27",
+        "verdict": "low_occupancy",
+        "headroom_estimate_pct": 10.4,
+        "notes": [
+          "long_scoreboard stall = 3.30 warps/issue \u2014 severe memory-wait"
+        ]
+      },
+      {
+        "kernel": "nvjet_tst_320x128_64x3_1x2_h_bz_coopB_TNT",
+        "sm_occupancy_pct": 14.815,
+        "achieved_flops_pct": 89.607,
+        "dram_bw_pct": 17.652,
+        "l1_hit_pct": 0.0,
+        "l2_hit_pct": 85.424,
+        "tensor_pipe_active": 91.77,
+        "top_stall_reason": "long_scoreboard=3.28, math_pipe=0.27",
+        "verdict": "low_occupancy",
+        "headroom_estimate_pct": 10.4,
+        "notes": [
+          "long_scoreboard stall = 3.28 warps/issue \u2014 severe memory-wait"
+        ]
+      },
+      {
+        "kernel": "void moe_sum_reduce_warp_per_token_vec_kernel<8>(const c10::BFloat16 *, c10::BFloat16 *, long, long, long, long, long, long, float)",
+        "sm_occupancy_pct": 42.793,
+        "achieved_flops_pct": 24.905,
+        "dram_bw_pct": 91.532,
+        "l1_hit_pct": 49.956,
+        "l2_hit_pct": 12.157,
+        "tensor_pipe_active": 0.381,
+        "top_stall_reason": "long_scoreboard=24.55, math_pipe=0.17",
+        "verdict": "memory_bound",
+        "headroom_estimate_pct": 8.5,
+        "notes": [
+          "DRAM \u226570% \u2014 algorithmic reuse beats tile tuning",
+          "long_scoreboard stall = 24.55 warps/issue \u2014 severe memory-wait"
+        ]
+      },
+      {
+        "kernel": "void moe_sum_reduce_warp_per_token_vec_kernel<8>(const c10::BFloat16 *, c10::BFloat16 *, long, long, long, long, long, long, float)",
+        "sm_occupancy_pct": 42.803,
+        "achieved_flops_pct": 25.222,
+        "dram_bw_pct": 91.587,
+        "l1_hit_pct": 49.955,
+        "l2_hit_pct": 12.254,
+        "tensor_pipe_active": 0.384,
+        "top_stall_reason": "long_scoreboard=23.87, math_pipe=0.18",
+        "verdict": "memory_bound",
+        "headroom_estimate_pct": 8.4,
+        "notes": [
+          "DRAM \u226570% \u2014 algorithmic reuse beats tile tuning",
+          "long_scoreboard stall = 23.87 warps/issue \u2014 severe memory-wait"
+        ]
+      },
+      {
+        "kernel": "nvjet_tst_192x192_64x4_1x2_h_bz_coopB_TNN",
+        "sm_occupancy_pct": 14.785,
+        "achieved_flops_pct": 94.582,
+        "dram_bw_pct": 24.676,
+        "l1_hit_pct": 0.0,
+        "l2_hit_pct": 73.72,
+        "tensor_pipe_active": 96.009,
+        "top_stall_reason": "long_scoreboard=3.19, math_pipe=0.27",
+        "verdict": "low_occupancy",
+        "headroom_estimate_pct": 5.4,
+        "notes": [
+          "long_scoreboard stall = 3.19 warps/issue \u2014 severe memory-wait"
+        ]
+      },
+      {
+        "kernel": "nvjet_tst_192x192_64x4_1x2_h_bz_coopB_TNN",
+        "sm_occupancy_pct": 14.786,
+        "achieved_flops_pct": 94.667,
+        "dram_bw_pct": 24.713,
+        "l1_hit_pct": 0.0,
+        "l2_hit_pct": 71.98,
+        "tensor_pipe_active": 95.98,
+        "top_stall_reason": "long_scoreboard=3.18, math_pipe=0.27",
+        "verdict": "low_occupancy",
+        "headroom_estimate_pct": 5.3,
+        "notes": [
+          "long_scoreboard stall = 3.18 warps/issue \u2014 severe memory-wait"
+        ]
+      }
+    ]
+  },
+  "evidence_chain": [
+    {
+      "field": "e2e.req_per_s",
+      "source_skill": "e2e-bench-runner",
+      "source_file": "/home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-06-09_sglang_triton_sweep/bench/bench_summary.json",
+      "ok": true
+    },
+    {
+      "field": "gpu_macro",
+      "source_skill": "nsys-timeline-sql",
+      "source_file": "/home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-06-09_sglang_triton_sweep/nsys/R_long_prefill/timeline_summary.json",
+      "ok": true
+    },
+    {
+      "field": "kernel_breakdown",
+      "source_skill": "nsys-timeline-sql",
+      "source_file": "/home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-06-09_sglang_triton_sweep/nsys/R_long_prefill/timeline_summary.json",
+      "ok": true
+    },
+    {
+      "field": "kernel_micro",
+      "source_skill": "ncu-microarch",
+      "source_file": "/home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-06-09_sglang_triton_sweep/ncu/R_long_prefill/ncu_summary.json",
+      "ok": true
+    }
+  ],
+  "warnings": []
+}

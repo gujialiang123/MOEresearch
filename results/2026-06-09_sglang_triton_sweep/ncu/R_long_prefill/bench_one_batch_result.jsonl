@@ -1,0 +1,1 @@
+{"run_name": "R_long_prefill_ncu_full", "batch_size": 4, "input_len": 8000, "output_len": 32, "prefill_latency": 3536.3004864491522, "prefill_throughput": 9.049004778474478, "median_decode_latency": 0.12675295071676373, "median_decode_throughput": 31.557450752670952, "total_latency": 3540.239146245178, "overall_throughput": 9.075093142810807}

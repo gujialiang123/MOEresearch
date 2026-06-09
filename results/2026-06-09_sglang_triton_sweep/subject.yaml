@@ -1,0 +1,12 @@
+framework: sglang
+framework_version: "0.5.9"
+model: qwen3-30b-a3b-moe
+config_summary:
+  moe_backend: triton
+  cudagraph: false
+  autotune: false
+  tp_size: 1
+hardware:
+  name: NVIDIA H200
+  sm: "9.0"
+  num_sms: 132

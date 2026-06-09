@@ -81,9 +81,13 @@ def _from_timeline_summary(path: Path):
     # kernel breakdown: take top kernels from timeline_summary
     kernels = []
     for k in d.get("top_kernels") or []:
+        # Prefer demangled for categorization — short_name is often ambiguous
+        # (e.g. CUTLASS device_kernel<flash::*> and <gemm::*> share short name).
+        name_for_cat = k.get("demangled_sample") or k.get("short_name") or ""
         kernels.append({
-            "category": _categorize_kernel(k["short_name"]),
-            "kernel_pattern": k["short_name"],
+            "category": _categorize_kernel(name_for_cat),
+            "kernel_pattern": k.get("short_name"),
+            "demangled_sample": k.get("demangled_sample"),
             "self_ms": k.get("self_ms"),
             "self_pct": k.get("self_pct_of_active"),
             "calls": k.get("calls"),
@@ -221,12 +225,14 @@ def _categorize_kernel(name: str) -> str:
         or "mergeexpert" in n or "count_and_sort_expert" in n):
         return "moe_routing"
     if ("gemmuniv" in n or "nvjet_sm" in n or "splitkreduce" in n
-        or "cublas" in n):
+        or "cublas" in n or n.startswith("nvjet_")):
         return "dense_gemm"
     if ("flashattn" in n or "flash::" in n or "flash_fwd" in n
         or ("cutlass" in n and "flash" in n) or "attention" in n
         or "fa3" in n or "prepare_varlen" in n):
         return "attention"
+    if "fusedaddrmsnormkernel" in n or ("rmsnormkernel" in n) or "fused_add_rms_norm" in n:
+        return "norm"
     if name.startswith("triton_") and ("rms_norm" in n or "norm" in n):
         return "norm"
     if name.startswith("triton_"):

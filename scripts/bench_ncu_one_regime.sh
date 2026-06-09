@@ -65,7 +65,7 @@ chmod +x $WRAPPER
 sudo -n $NCU \
   --target-processes all \
   --profile-from-start off \
-  --launch-count 50 \
+  --launch-count 30 \
   --set full \
   --kernel-name-base demangled \
   --kernel-name "regex:.*" \
