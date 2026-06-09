@@ -112,10 +112,14 @@ Good: `server-log-mining`, `noise-aware-scoring`, `minimal-repro-shrink`.
 | [`failure-classification`](.github/skills/failure-classification/SKILL.md) | 1, 2, 3 | Classify a failed run into one of: oom / server_crash / benchmark_timeout / kv_pressure / partial_success / parse_error / unknown. | ✅ v1 implemented |
 | [`suspicion-scoring`](.github/skills/suspicion-scoring/SKILL.md) | 1 | Combine server-log-mining + noise-aware-scoring + failure-classification + local-nonlinearity into one suspicion score per workload run, with full evidence audit trail. | ✅ v1 implemented |
 | [`minimal-repro-shrink`](.github/skills/minimal-repro-shrink/SKILL.md) | 1 (late), 2 | Binary-shrink a workload along (num_prompts, max_concurrency, input_len, output_len) until the symptom disappears. | 🟨 SKILL.md only; impl deferred to v0.4 |
-| [`e2e-bench-runner`](.github/skills/e2e-bench-runner/SKILL.md) | 1, 2, 3 | Run a 3-regime end-to-end benchmark N times (drop run 1), emit bench_summary.json with throughput + latency percentiles + stddev. Includes "which metric flags which problem" guide. | ✅ v0 implemented |
-| [`nsys-capture`](.github/skills/nsys-capture/SKILL.md) | 1, 2, 3 | Wrap an action with `nsys profile`, force flush, and immediately export to .sqlite for downstream SQL analysis. | ✅ v0 implemented |
+| [`e2e-bench-runner`](.github/skills/e2e-bench-runner/SKILL.md) | 1, 2, 3 | Run N-regime end-to-end bench, drop run 1, emit bench_summary.json with stddev + reliable flag. **v1**: accepts arbitrary regime YAML via `--regimes-file`. | ✅ v1 implemented |
+| [`nsys-capture`](.github/skills/nsys-capture/SKILL.md) | 1, 2, 3 | Wrap an action with `nsys profile`, force flush, auto-export to .sqlite. | ✅ v0 implemented (Gap: no --attach-pid yet) |
 | [`nsys-timeline-sql`](.github/skills/nsys-timeline-sql/SKILL.md) | 1, 2, 3 | Reduce nsys SQLite to timeline_summary.json (top kernels, idle gaps, CPU launch counts, cudagraph ratio, memcpy). Plus `query` sub-command for arbitrary read-only SQL. | ✅ v0 implemented |
-| [`pytorch-profiling`](.github/skills/pytorch-profiling/SKILL.md) | 1, 2 | Capture sglang Torch profile, reduce to phase + top-kernel + MoE + cudagraph summary. | ✅ v0 implemented (now with metric-to-problem guide) |
+| [`pytorch-profiling`](.github/skills/pytorch-profiling/SKILL.md) | 1, 2 | Capture sglang Torch profile, reduce to phase + top-kernel + MoE + cudagraph summary. (Note: sglang-specific; vLLM path uses torch.profiler text + profile-summary-unified.) | ✅ v0 implemented (with metric-to-problem guide) |
+| [`regime-sweep-runner`](.github/skills/regime-sweep-runner/SKILL.md) | 1, 2, 3 | Orchestrate e2e-bench-runner across N (config, regime) cells; emit regime_sweep_summary.json matrix. | ✅ v0 implemented |
+| [`cross-regime-anomaly`](.github/skills/cross-regime-anomaly/SKILL.md) | 1, 2, 3 | Read sweep matrix; rank anomalies (winner_inversion / large_uniform_gap / reliability_flag / regime_dependent_gap). The "agent finds opportunities by itself" skill. | ✅ v0 implemented |
+| [`profile-summary-unified`](.github/skills/profile-summary-unified/SKILL.md) | 1, 2, 3 | Merge bench/nsys/torch-profiler outputs into one profile_unified.json with `evidence_chain`. Single source of truth for handoff drafting. | ✅ v0 implemented |
+| [`handoff-prompt-template`](.github/skills/handoff-prompt-template/SKILL.md) | 2, 3 | Methodology skill — markdown template + worked example for analysis→coding agent handoffs. Bounds scope, enforces falsifiable acceptance tests. | ✅ v0 (template + 1 example) |
 
 ## 7. How to add a new skill
 

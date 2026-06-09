@@ -1,0 +1,137 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "profile_unified",
+  "description": "Canonical merged profiling artifact. See ../SKILL.md for narrative.",
+  "type": "object",
+  "required": ["schema_version", "ok", "captured_at", "subject", "workload", "evidence_chain"],
+  "properties": {
+    "schema_version": {"type": "integer", "minimum": 0},
+    "ok": {"type": "boolean"},
+    "error": {"type": "string"},
+    "captured_at": {"type": "string", "format": "date-time"},
+
+    "subject": {
+      "type": "object",
+      "required": ["framework", "model"],
+      "properties": {
+        "framework":         {"enum": ["vllm", "sglang"]},
+        "framework_version": {"type": "string"},
+        "model":             {"type": "string"},
+        "config_summary":    {"type": "object", "additionalProperties": true},
+        "hardware":          {
+          "type": "object",
+          "properties": {
+            "name":     {"type": "string"},
+            "sm":       {"type": "string"},
+            "num_sms":  {"type": "integer"}
+          }
+        }
+      }
+    },
+
+    "workload": {
+      "type": "object",
+      "required": ["regime_id"],
+      "properties": {
+        "regime_id":         {"type": "string"},
+        "regime_yaml_path":  {"type": "string"},
+        "regime_yaml_sha256":{"type": "string"}
+      }
+    },
+
+    "e2e": {
+      "type": ["object", "null"],
+      "properties": {
+        "req_per_s": {
+          "type": "object",
+          "properties": {
+            "mean":       {"type": ["number", "null"]},
+            "stddev_pct": {"type": ["number", "null"]},
+            "reliable":   {"type": ["boolean", "null"]}
+          }
+        },
+        "tokens_per_s_mean": {"type": ["number", "null"]},
+        "e2e_p50_ms":        {"type": ["number", "null"]},
+        "e2e_p99_ms":        {"type": ["number", "null"]},
+        "completion_rate":   {"type": ["number", "null"]}
+      }
+    },
+
+    "gpu_macro": {
+      "type": ["object", "null"],
+      "properties": {
+        "wall_ms":                     {"type": ["number", "null"]},
+        "gpu_active_ms":               {"type": ["number", "null"]},
+        "gpu_idle_ms":                 {"type": ["number", "null"]},
+        "gpu_util_pct":                {"type": ["number", "null"]},
+        "launch_count":                {"type": ["integer", "null"]},
+        "launch_ratio_graph_to_eager": {"type": ["number", "null"]},
+        "verdict":                     {"enum": ["eager_dominated", "mixed", "graph_dominated", null]}
+      }
+    },
+
+    "kernel_breakdown": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["category", "kernel_pattern", "self_ms"],
+        "properties": {
+          "category":        {"enum": [
+            "moe_gemm", "dense_gemm", "attention", "moe_routing",
+            "norm", "kv_cache", "memcpy", "topk", "elementwise", "other"
+          ]},
+          "kernel_pattern":  {"type": "string"},
+          "self_ms":         {"type": "number"},
+          "self_pct":        {"type": "number"},
+          "calls":           {"type": "integer"},
+          "avg_us":          {"type": "number"},
+          "source":          {"type": "string"}
+        }
+      }
+    },
+
+    "kernel_micro": {
+      "type": "object",
+      "required": ["available"],
+      "properties": {
+        "available": {"type": "boolean"},
+        "reason":    {"type": "string"},
+        "kernels":   {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kernel":               {"type": "string"},
+              "sm_occupancy_pct":     {"type": "number"},
+              "achieved_flops_pct":   {"type": "number"},
+              "dram_bw_pct":          {"type": "number"},
+              "l1_hit_pct":           {"type": "number"},
+              "l2_hit_pct":           {"type": "number"},
+              "tensor_pipe_active":   {"type": "number"},
+              "register_spills_bytes":{"type": "integer"},
+              "top_stall_reason":     {"type": "string"}
+            }
+          }
+        }
+      }
+    },
+
+    "evidence_chain": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["field", "ok"],
+        "properties": {
+          "field":        {"type": "string"},
+          "source_skill": {"type": ["string", "null"]},
+          "source_file":  {"type": ["string", "null"]},
+          "ok":           {"type": "boolean"},
+          "gap_reason":   {"type": "string"},
+          "note":         {"type": "string"}
+        }
+      }
+    },
+
+    "warnings": {"type": "array", "items": {"type": "string"}}
+  }
+}

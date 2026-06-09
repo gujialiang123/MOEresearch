@@ -1,0 +1,19 @@
+# Same 3 regimes built into e2e-bench-runner — externalized for reuse.
+regimes:
+  R_short:
+    num_prompts:  8
+    prompt_words: 200
+    max_new:      64
+    concurrency:  1
+
+  R_medium:
+    num_prompts: 16
+    prompt_words: 800
+    max_new:     256
+    concurrency:  8
+
+  R_long:
+    num_prompts:  8
+    prompt_words: 2000
+    max_new:     256
+    concurrency: 16

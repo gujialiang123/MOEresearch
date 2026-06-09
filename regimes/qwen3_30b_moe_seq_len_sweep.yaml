@@ -1,0 +1,33 @@
+# Sequence-length sweep — fixed concurrency=8, vary prompt length.
+# Use this to characterize prefill vs decode dominance + isolate kernel scaling
+# behaviour (which kernels grow with seq-len?).
+regimes:
+  L_200:
+    num_prompts: 16
+    prompt_words: 200
+    max_new: 256
+    concurrency: 8
+
+  L_800:
+    num_prompts: 16
+    prompt_words: 800
+    max_new: 256
+    concurrency: 8
+
+  L_2000:
+    num_prompts: 8
+    prompt_words: 2000
+    max_new: 256
+    concurrency: 8
+
+  L_4000:
+    num_prompts: 4
+    prompt_words: 4000
+    max_new: 256
+    concurrency: 8
+
+  L_8000:
+    num_prompts: 4
+    prompt_words: 8000
+    max_new: 256
+    concurrency: 4   # smaller concurrency to fit KV cache

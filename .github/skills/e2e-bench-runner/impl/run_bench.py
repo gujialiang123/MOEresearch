@@ -172,7 +172,11 @@ def main():
     ap.add_argument("--tag", required=True)
     ap.add_argument("--num-runs", type=int, default=3)
     ap.add_argument("--out-dir", required=True)
-    ap.add_argument("--regimes", default="R_short,R_medium,R_long")
+    ap.add_argument("--regimes", default="R_short,R_medium,R_long",
+                    help="Comma-separated regime IDs; used only when --regimes-file is absent")
+    ap.add_argument("--regimes-file", default=None,
+                    help="YAML file defining regimes (overrides --regimes and built-in defaults). "
+                         "Schema: {regimes: {<id>: {num_prompts,prompt_words,max_new,concurrency}}}")
     ap.add_argument("--model-name", default="qwen3-30b-a3b-moe",
                     help="vLLM endpoint requires this; sglang ignores it")
     args = ap.parse_args()
@@ -181,13 +185,44 @@ def main():
     (out_dir / "per_run").mkdir(parents=True, exist_ok=True)
     summary_path = out_dir / "bench_summary.json"
 
-    regimes = [r.strip() for r in args.regimes.split(",")]
-    for r in regimes:
-        if r not in REGIME_DEFS:
+    # Resolve regime definitions (built-in defaults OR loaded from YAML)
+    regime_defs = dict(REGIME_DEFS)
+    regimes_source = "built_in"
+    if args.regimes_file:
+        try:
+            import yaml  # PyYAML is a transitive dep of vllm/sglang envs
+        except ImportError:
             json.dump({"schema_version": SCHEMA_VERSION, "ok": False,
-                       "error": f"unknown regime '{r}'; known: {list(REGIME_DEFS)}"},
+                       "error": "PyYAML required for --regimes-file"},
                       summary_path.open("w"), indent=2)
             sys.exit(1)
+        try:
+            user_defs = yaml.safe_load(Path(args.regimes_file).read_text()) or {}
+            user_regimes = user_defs.get("regimes", {})
+            if not isinstance(user_regimes, dict) or not user_regimes:
+                raise ValueError("YAML must contain top-level 'regimes:' mapping with ≥1 entry")
+            # Validate each regime has required fields
+            REQUIRED = {"num_prompts", "prompt_words", "max_new", "concurrency"}
+            for r_id, r_def in user_regimes.items():
+                missing = REQUIRED - set(r_def or {})
+                if missing:
+                    raise ValueError(f"regime '{r_id}' missing fields: {missing}")
+            regime_defs = {str(k): dict(v) for k, v in user_regimes.items()}
+            regimes_source = str(args.regimes_file)
+            regimes = list(regime_defs.keys())
+        except Exception as e:
+            json.dump({"schema_version": SCHEMA_VERSION, "ok": False,
+                       "error": f"regimes-file load failed: {e}"},
+                      summary_path.open("w"), indent=2)
+            sys.exit(1)
+    else:
+        regimes = [r.strip() for r in args.regimes.split(",")]
+        for r in regimes:
+            if r not in regime_defs:
+                json.dump({"schema_version": SCHEMA_VERSION, "ok": False,
+                           "error": f"unknown regime '{r}'; known: {list(regime_defs)}"},
+                          summary_path.open("w"), indent=2)
+                sys.exit(1)
 
     # Pre-flight: server health
     try:
@@ -217,12 +252,13 @@ def main():
         "backend": args.backend,
         "num_runs_total": args.num_runs,
         "num_runs_used":  max(1, args.num_runs - 1),
+        "regimes_source": regimes_source,
         "regimes": {},
         "warnings": warnings,
     }
 
     for r_id in regimes:
-        regime = REGIME_DEFS[r_id]
+        regime = regime_defs[r_id]
         prompts = make_prompts(regime["num_prompts"], regime["prompt_words"])
         per_run_results = []
         for run_idx in range(args.num_runs):

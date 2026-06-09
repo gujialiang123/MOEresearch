@@ -1,0 +1,33 @@
+# Concurrency sweep — fixed prompt shape, vary parallel in-flight.
+# Use this to find scheduler / KV-cache cliffs and per-launch overhead.
+# Same shape as R_medium (800 in, 256 out), varies only concurrency.
+regimes:
+  C_1:
+    num_prompts: 16
+    prompt_words: 800
+    max_new: 256
+    concurrency: 1
+
+  C_4:
+    num_prompts: 16
+    prompt_words: 800
+    max_new: 256
+    concurrency: 4
+
+  C_8:
+    num_prompts: 16
+    prompt_words: 800
+    max_new: 256
+    concurrency: 8
+
+  C_16:
+    num_prompts: 32
+    prompt_words: 800
+    max_new: 256
+    concurrency: 16
+
+  C_32:
+    num_prompts: 64
+    prompt_words: 800
+    max_new: 256
+    concurrency: 32

@@ -1,5 +1,9 @@
 # Agent profiling 能力盘点 — 现状 / 缺口 / 需要 mentor 协助的部分
 
+> **2026-06-09 更新**: Part B 6 个 gap 里 **3 个已经修正**(B.1 nsys SQL 路线、B.3 vLLM torch profiler 接通、B.6 跨配置自动对比),**1 个有进展**(B.2 NCU 根因找清楚,已发请求);**2 个仍未解决**(B.4 内存压力、B.5 sglang/vLLM Python 状态)。详见每节标题旁的 ✅/🟨/❌ 状态。
+>
+> 同时 **5 个新 skill 上线**: `regime-sweep-runner`、`cross-regime-anomaly`、`profile-summary-unified`、`handoff-prompt-template`、`e2e-bench-runner` v1(支持 YAML regime)。新的 skill 流水线图见 `docs/2026-06-09/skill_architecture.md`。
+
 > 目的: 在讨论"如何把 agent 自动化"之前,先理清当前 agent (Copilot CLI with Claude) 在这次 sglang/vLLM/cutlass MoE 调研中实际用了哪些工具、拿到哪些信息、哪些拿不到、哪些将来构建真实 agent 时需要补。
 >
 > 时间: 2026-06-08 (一系列实验之后的复盘)
@@ -152,66 +156,59 @@ nsys stats --report cuda_api_sum --format csv output.nsys-rep
 
 # Part B — 当前拿不到 / 受限的信息
 
-## B.1 nsys GUI 时间线视图 ❌
+## B.1 nsys GUI 时间线视图 ❌ → ✅ **2026-06-09 部分修正**
 
-**看不到**:
-- Kernel 之间的 idle gap (能直接验证 max(CPU,GPU) 模型,不用算)
+**之前以为看不到**:
+- Kernel 之间的 idle gap
 - CPU thread 和 GPU stream 并排
 - cudaMemcpyAsync 和 kernel 的 overlap 程度
-- Cudagraph capture vs 真 inference 阶段的时段切分
 
-**为什么拿不到**: nsys GUI 是图形界面,我只能跑命令行。
+**真实情况(修正)**: 用 `nsys export --type sqlite` 能拿到 `CUPTI_ACTIVITY_KIND_KERNEL` 表,**每个 kernel 一行 + start/end 时间戳 + stream + grid/block**。GUI 看到的所有时间线数据都能用 SQL 算出。已经写进新 skill `nsys-timeline-sql`,默认 summary 自带"top 5 idle gaps"字段。
 
-**Workaround**: 让 mentor 把 .nsys-rep 下载到本地 GUI 打开。或者我们用 nvtx range 在 Python 代码里打 marker,然后 `nsys stats --report nvtx_sum` 能拿到 range 内的聚合 — 但我没真用过。
+**真实还看不到**(剩余缺口):
+- 颜色块时间轴(视觉一秒看出结构)
+- 鼠标 hover 看 kernel 全名(我必须 SELECT 查询)
+- GUI 的 stream overlap 拓扑视图
 
-## B.2 ncu (Nsight Compute) — kernel-level metrics ❌
+**详情**: `docs/2026-06-08/nsys_deep_dive_and_proton.md` 全文修正了这条 gap。
 
-**没用过**。能拿到:
-- 单 kernel 的 SM occupancy
-- L1/L2 cache hit rate
-- 带宽 vs FLOPs 的 roofline
-- "这个 kernel 到 peak FLOPs 多少 %"
+## B.2 ncu (Nsight Compute) — kernel-level metrics ❌ → 🟨 **2026-06-09 进展中**
 
-**为什么需要**: 想回答 "kernel 本身离 hardware peak 多远" — 现在我只能说 "cutlass 在 SM90 上 5-6× 比 fallback 快",但不能说 "tuned cutlass 离 H200 BF16 peak 多远"。后者才是 "还有多少头" 的问题。
+**仍然没用上**,但**根因找清楚了**:
+- NCU 二进制在 `/home/t-chendili/.conda/pkgs/nsight-compute-*` 已经装好
+- 撞 `ERR_NVGPUCTRPERM`:`/proc/driver/nvidia/params` 里 `RmProfilingAdminOnly=1`
+- t-jialianggu 账号**没有任何 sudo 权限**(已确认 — 不在 `sudo` 或 `wheel` group;没有 `/etc/sudoers.d/` 条目);chendi 有专门的 NOPASSWD 条目
+- **已发请求给 chendi**(2026-06-09): 加一条 `t-jialianggu ALL=(ALL) NOPASSWD: <ncu_path>` 或 reload nvidia driver 翻 `RmProfilingAdminOnly=0`
 
-**Agent 调用代价**: 高 (ncu 对每个 kernel sample 一次,慢 100×)。
+**等解锁后的 skill 计划**: 新增 `ncu-microarch` skill,出 SM occupancy / achieved FLOPs / L2 hit / register spills / top warp-stall reason。`profile_unified.json` 的 `kernel_micro` 字段(目前永远是 `available: false`)就能填上。流水线其他 skill 不需要改。
 
-## B.3 Python op-level 时间分布 ❌
+## B.3 Python op-level 时间分布 ❌ → ✅ **2026-06-09 修正**
 
-**没用过**: `torch.profiler`, `py-spy`, `cProfile`
+**这次的进展**:
+- vLLM 路径**已经接通**: server 启动加 `--profiler-config '{"profiler":"torch","torch_profiler_dir":...}'`,运行时通过 `/start_profile` / `/stop_profile` HTTP 端点抓 torch profiler trace
+- 实际用过: 2026-06-09 CUTLASS 调查整个 kernel breakdown 就是这么来的(`docs/2026-06-09/cutlass_vs_triton_e2e_investigation.md`)
+- 解析逻辑封装进 `profile-summary-unified` skill 的 `_from_torch_profile_text()` adapter,自动分类成 moe_gemm / dense_gemm / moe_routing / attention / norm / kv_cache / memcpy / elementwise
 
-**这次错过的洞察**:
-- buga_fix_validation.md 里我说 "wall 23ms decode - 14ms MoE kernel = 9ms 在 attn/wrapper/IPC/sample",这个 9ms 的分布我**完全不知道**
-- 没法回答 "Python wrapper 哪一行慢"
-- 没法回答 "sglang 跟 vLLM 在 Python 层差别在哪"
+**剩余缺口**:
+- sglang 路径已经有 `pytorch-profiling` skill 处理
+- proton (Triton 自带 profiler) 评估完了但**没接入**(`docs/2026-06-08/nsys_deep_dive_and_proton.md` Part 2 — 等真要做 in-source 优化时再接入)
 
-**为什么需要**: 我们假设 "差距在 CPU launch overhead",但实际可能是 Python 解释器 / scheduler / IPC,完全不同的优化路径。
+## B.4 内存压力 / HBM 带宽利用率 ❌ — 仍未解决
 
-## B.4 内存压力 / HBM 带宽利用率 ❌
+(需要 ncu — 见 B.2 — 等同一个 unlock)
 
-**没用过**: nsys 的 `--gpu-metrics-set`, ncu 的内存 section
+## B.5 sglang/vLLM 内部 Python 状态 ❌ — 仍未解决
 
-**这次错过的洞察**:
-- MoE GEMM 是 memory-bound 还是 compute-bound? 不知道
-- HBM 带宽达到峰值多少%? 不知道
-- 这直接关系到 "扩搜索空间能不能再榨性能" — 如果已经 memory-bound,扩 tile 没用
+(需要 source instrumentation,这是 mentor coordination 级别的事)
 
-## B.5 sglang/vLLM 内部 Python 状态 ❌
+## B.6 跨配置自动对比 ❌ → ✅ **2026-06-09 修正**
 
-**没用过**: 在 sglang 源码加 print/log/nvtx range
+**完成**: 三个新 skill 一起解决:
+- `regime-sweep-runner`: N (config × regime) 矩阵自动跑
+- `cross-regime-anomaly`: 自动 rank 5 种 anomaly kind(winner_inversion / large_uniform_gap / regime_dependent_gap / reliability_flag / failed_cell)
+- `profile-summary-unified` + `nsys-timeline-sql diff`: profile 层面的 before/after diff
 
-**这次错过的洞察**:
-- sglang `_dummy_run` 实际跑了什么 shape 的 forward?
-- sglang autotune warmup 时是否真的调到了 `cutlass_fused_moe`?
-- AutoTuner cache key 实际是什么?
-
-**为什么需要**: buga_fix_validation 那次 e2e 没变化,有 3 个假设但**一个也没验证**,就是因为我没在 sglang 源码加 instrumentation。
-
-## B.6 跨配置自动对比 ❌
-
-**没工具**: 现在我手动写脚本对比 4 个 .nsys-rep,但每次要重写。
-
-**需要**: 给定 N 个 nsys profile,自动出"哪个 kernel 在 A 跑了 X 次 / 在 B 跑了 Y 次,差异最大的 top-10"。
+**验证**: 用 2026-06-09 4-config 数据合成 sweep,跑 `cross-regime-anomaly` 正确识别 "sglang_cutlass 在所有 regime 上被 sglang_triton 大幅领先" → 自动推荐 `server-log-mining` 作为下一步。这正是我们之前手动诊断出的结论。
 
 ---
 

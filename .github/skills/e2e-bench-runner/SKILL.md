@@ -1,15 +1,16 @@
 ---
 name: e2e-bench-runner
-description: Run a 3-regime (short/medium/long) end-to-end benchmark against any OpenAI-compatible or sglang-native server, repeat N times with cold-run dropping, and emit a structured bench_summary.json with throughput + latency percentiles + run-to-run stddev.
-version: 0
+description: Run a multi-regime end-to-end benchmark against any OpenAI-compatible or sglang-native server, repeat N times with cold-run dropping, and emit a structured bench_summary.json with throughput + latency percentiles + run-to-run stddev. Regimes are configurable via YAML.
+version: 1
 stage: [1, 2, 3]
 inputs:
-  - url:        string  (e.g. "http://127.0.0.1:30000")
-  - backend:    enum["sglang", "vllm"]   (chooses request schema)
-  - tag:        string  (free-form, written into output for cross-run grouping)
-  - regimes:    list[regime_id]  default ["R_short", "R_medium", "R_long"]
-  - num_runs:   int     default 3   (run 1 always dropped — cold-start)
-  - out_dir:    path    (writes bench_summary.json + per_run/*.json)
+  - url:           string  (e.g. "http://127.0.0.1:30000")
+  - backend:       enum["sglang", "vllm"]
+  - tag:           string  (free-form, written into output for cross-run grouping)
+  - regimes:       comma list of regime IDs (used when --regimes-file absent)  — default ["R_short","R_medium","R_long"]
+  - regimes_file:  optional YAML defining regimes (overrides --regimes)         — schema: see below
+  - num_runs:      int     default 3   (run 1 always dropped — cold-start)
+  - out_dir:       path
 outputs:
   - bench_summary.json                  (the only file downstream skills should read)
   - per_run/<regime>_run<N>.json        (raw per-run dumps; kept for replay / SQL queries)
@@ -182,12 +183,36 @@ agents often need ad-hoc views. Three escape hatches:
 
 ## ROADMAP
 
-- **v1** — accept arbitrary regime YAMLs (not hardcoded R_short/medium/long).
+- ~~**v1** — accept arbitrary regime YAMLs (not hardcoded R_short/medium/long).~~ **DONE** (`--regimes-file`).
 - **v1** — per-request token-arrival timeline dump (for ITL distribution plots).
 - **v2** — auto-detect cold start from per-request series (e.g. first 10% of requests
   >2× mean → mark as warmup and exclude, even within a single run).
 - **v2** — multi-URL fan-out: run the same workload against N URLs in one invocation,
   emit a comparison table.
+
+## EXTENSION — regime YAML format
+
+When `--regimes-file <path.yaml>` is given, the built-in defaults are ignored.
+The YAML schema:
+
+```yaml
+# Top-level key is required.
+regimes:
+  R_short:
+    num_prompts:  8         # how many requests to send in one run
+    prompt_words: 200       # words per prompt (deterministic from seed=2026)
+    max_new:      64        # max output tokens per request
+    concurrency:  1         # parallel in-flight requests
+  R_medium:
+    num_prompts: 16
+    prompt_words: 800
+    max_new: 256
+    concurrency: 8
+  # ... any number of additional regimes
+```
+
+This makes the skill compositional with `regime-sweep-runner`, which can pass
+in an entire `regime_scout/<workload>.yaml` set.
 
 ## REFERENCES
 
