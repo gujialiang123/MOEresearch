@@ -1,0 +1,99 @@
+==PROF== Connected to process 932266 (/home/t-jialianggu/.conda/envs/sglang-dev/bin/python3.11)
+<frozen importlib._bootstrap_external>:1241: FutureWarning: The cuda.cudart module is deprecated and will be removed in a future release, please switch to use the cuda.bindings.runtime module instead.
+<frozen importlib._bootstrap_external>:1241: FutureWarning: The cuda.nvrtc module is deprecated and will be removed in a future release, please switch to use the cuda.bindings.nvrtc module instead.
+[2026-06-09 22:37:41 TP0] Init torch distributed begin.
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[2026-06-09 22:37:41 TP0] Init torch distributed ends. elapsed=0.39 s, mem usage=0.00 GB
+[2026-06-09 22:37:42 TP0] Ignore import error when loading sglang.srt.models.glm_ocr: No module named 'transformers.models.glm_ocr'
+[2026-06-09 22:37:42 TP0] Ignore import error when loading sglang.srt.models.glm_ocr_nextn: No module named 'transformers.models.glm_ocr'
+[2026-06-09 22:37:42 TP0] Ignore import error when loading sglang.srt.models.glmasr: cannot import name 'GlmAsrConfig' from 'transformers' (/home/t-jialianggu/.conda/envs/sglang-dev/lib/python3.11/site-packages/transformers/__init__.py)
+[2026-06-09 22:37:42 TP0] Load weight begin. avail mem=139.06 GB
+Loading safetensors checkpoint shards:   0% Completed | 0/16 [00:00<?, ?it/s]
+Loading safetensors checkpoint shards:   6% Completed | 1/16 [00:00<00:02,  5.59it/s]
+Loading safetensors checkpoint shards:  12% Completed | 2/16 [00:00<00:07,  1.88it/s]
+Loading safetensors checkpoint shards:  19% Completed | 3/16 [00:01<00:09,  1.37it/s]
+Loading safetensors checkpoint shards:  25% Completed | 4/16 [00:02<00:09,  1.22it/s]
+Loading safetensors checkpoint shards:  31% Completed | 5/16 [00:03<00:09,  1.14it/s]
+Loading safetensors checkpoint shards:  38% Completed | 6/16 [00:04<00:08,  1.16it/s]
+Loading safetensors checkpoint shards:  44% Completed | 7/16 [00:05<00:07,  1.15it/s]
+Loading safetensors checkpoint shards:  50% Completed | 8/16 [00:06<00:06,  1.18it/s]
+Loading safetensors checkpoint shards:  56% Completed | 9/16 [00:07<00:05,  1.20it/s]
+Loading safetensors checkpoint shards:  62% Completed | 10/16 [00:08<00:04,  1.21it/s]
+Loading safetensors checkpoint shards:  69% Completed | 11/16 [00:08<00:04,  1.22it/s]
+Loading safetensors checkpoint shards:  75% Completed | 12/16 [00:09<00:03,  1.16it/s]
+Loading safetensors checkpoint shards:  81% Completed | 13/16 [00:10<00:02,  1.18it/s]
+Loading safetensors checkpoint shards:  88% Completed | 14/16 [00:11<00:01,  1.14it/s]
+Loading safetensors checkpoint shards:  94% Completed | 15/16 [00:12<00:00,  1.11it/s]
+Loading safetensors checkpoint shards: 100% Completed | 16/16 [00:13<00:00,  1.13it/s]
+Loading safetensors checkpoint shards: 100% Completed | 16/16 [00:13<00:00,  1.20it/s]
+
+[2026-06-09 22:37:56 TP0] Load weight end. elapsed=13.69 s, type=Qwen3MoeForCausalLM, dtype=torch.bfloat16, avail mem=82.04 GB, mem usage=57.02 GB.
+[2026-06-09 22:37:56 TP0] Using KV cache dtype: torch.bfloat16
+[2026-06-09 22:37:56 TP0] KV Cache is allocated. #tokens: 754686, K size: 34.55 GB, V size: 34.55 GB
+[2026-06-09 22:37:56 TP0] Memory pool end. avail mem=10.84 GB
+[2026-06-09 22:37:57 TP0] Config file not found at /home/t-jialianggu/work/sglang/python/sglang/srt/layers/moe/fused_moe_triton/configs/triton_3_5_1/E=128,N=768,device_name=NVIDIA_H200.json. Fallback to triton version 3.2.0 and use MoE kernel config from /home/t-jialianggu/work/sglang/python/sglang/srt/layers/moe/fused_moe_triton/configs/triton_3_2_0/E=128,N=768,device_name=NVIDIA_H200.json. Performance might be sub-optimal!
+[2026-06-09 22:37:57 TP0] Using MoE kernel config with down_moe=False. Performance might be sub-optimal! Config file not found at /home/t-jialianggu/work/sglang/python/sglang/srt/layers/moe/fused_moe_triton/configs/triton_3_5_1/E=128,N=768,device_name=NVIDIA_H200_down.json, you can create them with https://github.com/sgl-project/sglang/tree/main/benchmark/kernels/fused_moe_triton
+==PROF== Connected to process 932714 (/home/t-jialianggu/.conda/envs/sglang-dev/bin/python3.11)
+==WARNING== Unable to access the following 6 metrics: ctc__rx_bytes_data_user.sum, ctc__rx_bytes_data_user.sum.pct_of_peak_sustained_elapsed, ctc__rx_bytes_data_user.sum.per_second, ctc__tx_bytes_data_user.sum, ctc__tx_bytes_data_user.sum.pct_of_peak_sustained_elapsed, ctc__tx_bytes_data_user.sum.per_second.
+
+
+==PROF== Profiling "void at::native::unrolled_elementwise_kernel<at::native::direct_copy_kernel_cuda(at::TensorIteratorBase &)::[lambda() (instance 3)]::operator ()() const::[lambda() (instance 3)]::operator ()() const::[lambda(int) (instance 1)], std::array<char *, (unsigned long)2>, (int)4, TrivialOffsetCalculator<(int)1, unsigned int>, TrivialOffsetCalculator<(int)1, unsigned int>, at::native::memory::LoadWithCast<(int)1>, at::native::memory::StoreWithCast<(int)1>>(int, T1, T2, T4, T5, T6, T7)": 0%
+==WARNING== Backing up device memory in system memory. Kernel replay might be slow. Consider using "--replay-mode application" to avoid memory save-and-restore.
+....50%....100% - 39 passes
+==PROF== Profiling "void at::native::index_elementwise_kernel<(int)128, (int)4, void at::native::gpu_index_kernel<void at::native::index_put_kernel_impl<at::native::OpaqueType<(int)4>>(at::TensorIterator &, c10::ArrayRef<long>, c10::ArrayRef<long>)::[lambda(char *, const char *, long) (instance 1)]>(at::TensorIteratorBase &, c10::ArrayRef<long>, c10::ArrayRef<long>, const T1 &, bool)::[lambda(int) (instance 1)]>(long, T3)": 0%....50%....100% - 39 passes
+==PROF== Profiling "void at::native::vectorized_elementwise_kernel<(int)2, at::native::CUDAFunctorOnSelf_add<long>, std::array<char *, (unsigned long)2>>(int, T2, T3)": 0%....50%....100% - 39 passes
+==PROF== Profiling "void at::native::vectorized_elementwise_kernel<(int)4, at::native::CUDAFunctorOnSelf_add<int>, std::array<char *, (unsigned long)2>>(int, T2, T3)": 0%....50%....100% - 39 passes
+==PROF== Profiling "_ZN2at6native29vectorized_elementwise_kernelILi4ENS0_21CUDAFunctorOnSelf_addIiEESt5arrayIPcLm2EEEEviT0_T1_": 0%....50%....100% - 39 passes
+==PROF== Profiling "void at::native::unrolled_elementwise_kernel<at::native::direct_copy_kernel_cuda(at::TensorIteratorBase &)::[lambda() (instance 3)]::operator ()() const::[lambda() (instance 3)]::operator ()() const::[lambda(int) (instance 1)], std::array<char *, (unsigned long)2>, (int)4, TrivialOffsetCalculator<(int)1, unsigned int>, TrivialOffsetCalculator<(int)1, unsigned int>, at::native::memory::LoadWithCast<(int)1>, at::native::memory::StoreWithCast<(int)1>>(int, T1, T2, T4, T5, T6, T7)": 0%....50%....100% - 39 passes
+==PROF== Profiling "void <unnamed>::elementwise_kernel_with_index<int, at::native::arange_cuda_out(const c10::Scalar &, const c10::Scalar &, const c10::Scalar &, at::Tensor &)::[lambda() (instance 1)]::operator ()() const::[lambda() (instance 3)]::operator ()() const::[lambda(long) (instance 1)]>(T1, T2, function_traits<T2>::result_type *)": 0%....50%....100% - 39 passes
+==PROF== Profiling "void at::native::unrolled_elementwise_kernel<at::native::direct_copy_kernel_cuda(at::TensorIteratorBase &)::[lambda() (instance 3)]::operator ()() const::[lambda() (instance 3)]::operator ()() const::[lambda(int) (instance 1)], std::array<char *, (unsigned long)2>, (int)4, TrivialOffsetCalculator<(int)1, unsigned int>, TrivialOffsetCalculator<(int)1, unsigned int>, at::native::memory::LoadWithCast<(int)1>, at::native::memory::StoreWithCast<(int)1>>(int, T1, T2, T4, T5, T6, T7)": 0%....50%....100% - 39 passes
+==PROF== Profiling "void at_cuda_detail::cub::DeviceScanInitKernel<at_cuda_detail::cub::ScanTileState<int, (bool)1>>(T1, int)": 0%....50%....100% - 39 passes
+==PROF== Profiling "void at_cuda_detail::cub::DeviceScanKernel<at_cuda_detail::cub::DeviceScanPolicy<int, std::plus<int>>::Policy900, const int *, int *, at_cuda_detail::cub::ScanTileState<int, (bool)1>, std::plus<int>, at_cuda_detail::cub::NullType, unsigned int, int, (bool)0>(T2, T3, T4, int, T5, T6, T7)": 0%....50%....100% - 39 passes
+==PROF== Profiling "void at::native::vectorized_elementwise_kernel<(int)4, at::native::FillFunctor<int>, std::array<char *, (unsigned long)1>>(int, T2, T3)": 0%....50%....100% - 39 passes
+==PROF== Profiling "void at::native::index_elementwise_kernel<(int)128, (int)4, void at::native::gpu_index_kernel<void at::native::index_kernel_impl<at::native::OpaqueType<(int)4>>(at::TensorIteratorBase &, c10::ArrayRef<long>, c10::ArrayRef<long>)::[lambda(char *, const char *, long) (instance 1)]>(at::TensorIteratorBase &, c10::ArrayRef<long>, c10::ArrayRef<long>, const T1 &, bool)::[lambda(int) (instance 1)]>(long, T3)": 0%....50%....100% - 39 passes
+==PROF== Profiling "void at::native::<unnamed>::indexSelectSmallIndex<c10::BFloat16, long, unsigned int, (int)2, (int)2, (int)-2>(at::cuda::detail::TensorInfo<T1, T3>, at::cuda::detail::TensorInfo<const T1, T3>, at::cuda::detail::TensorInfo<const T2, T3>, int, int, T3, long)": 0%....50%....100% - 39 passes
+==PROF== Profiling "void flashinfer::norm::RMSNormKernel<(unsigned int)8, __nv_bfloat16>(T2 *, T2 *, T2 *, unsigned int, unsigned int, unsigned int, float, float)": 0%....50%....100% - 39 passes
+==PROF== Profiling "_ZN10flashinfer4norm13RMSNormKernelILj8E13__nv_bfloat16EEvPT0_S4_S4_jjjff": 0%....50%....100% - 39 passes
+==PROF== Profiling "void <unnamed>::fused_qknorm_warp<(long)128, (bool)1, __nv_bfloat16>(<unnamed>::QKNormParams)": 0%....50%....100% - 39 passes
+==PROF== Profiling "void flashinfer::BatchQKApplyRotaryPosIdsCosSinCacheEnhancedHeadParallelismKernel<(bool)1, (bool)0, (unsigned int)128, (unsigned int)8, (unsigned int)16, __nv_bfloat16, long>(T6 *, T6 *, T6 *, T6 *, T6 *, T6 *, T6 *, float *, T7 *, unsigned int, unsigned int, unsigned int, unsigned int, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, T7 *)": 0%....50%....100% - 39 passes
+==PROF== Profiling "void at::native::elementwise_kernel<(int)128, (int)4, void at::native::gpu_kernel_impl_nocast<at::native::direct_copy_kernel_cuda(at::TensorIteratorBase &)::[lambda() (instance 3)]::operator ()() const::[lambda() (instance 12)]::operator ()() const::[lambda(c10::BFloat16) (instance 1)]>(at::TensorIteratorBase &, const T1 &)::[lambda(int) (instance 1)]>(int, T3)": 0%....50%....100% - 39 passes
+==PROF== Profiling "void flash::prepare_varlen_num_blocks_kernel<(int)1, (bool)1>(int, int, int, const int *, const int *, const int *, const int *, const int *, const int *, int, int, int, int, int, cutlass::FastDivmod, cutlass::FastDivmod, int *, int *, int *, int *, int *, bool, bool, bool, int)": 0%....50%....100% - 39 passes
+==PROF== Profiling "void cutlass::device_kernel<flash::enable_sm90_or_later<flash::FlashAttnFwdSm90<flash::CollectiveMainloopFwdSm90<(int)2, cute::tuple<cute::C<(int)1>, cute::C<(int)1>, cute::C<(int)1>>, cute::tuple<cute::C<(int)128>, cute::C<(int)128>, cute::C<(int)128>>, (int)128, cutlass::bfloat16_t, float, cutlass::arch::Sm90, (bool)1, (bool)0, (bool)0, (bool)1, (bool)1, (bool)0, (bool)0, (bool)1, (bool)1, (bool)1, (bool)1, (bool)0, cutlass::bfloat16_t>, flash::CollectiveEpilogueFwd<cute::tuple<cute::C<(int)128>, cute::C<(int)128>, cute::C<(int)128>>, cute::tuple<cute::C<(int)1>, cute::C<(int)1>, cute::C<(int)1>>, cutlass::bfloat16_t, cutlass::arch::Sm90, (int)256, (bool)1, (bool)1, (bool)1, (bool)0>, flash::VarlenDynamicPersistentTileScheduler<(int)128, (int)128, (int)256, (int)128, (bool)1, (bool)1, (bool)1, (bool)1, (bool)1, (bool)1>>>>(T1::Params)": 0%....50%....100% - 39 passes
+==PROF== Profiling "void cutlass::device_kernel<flash::FlashAttnFwdCombine<cute::tuple<cute::C<(int)8>, cute::C<(int)128>>, (int)5, (int)256, (int)1, (bool)0, (bool)1, cutlass::bfloat16_t, float, cutlass::arch::Sm90>>(T1::Params)": 0%....50%....100% - 39 passes
+==PROF== Profiling "_ZN7cutlass13device_kernelIN5flash19FlashAttnFwdCombineIN4cute5tupleIJNS3_1CILi8EEENS5_ILi128EEEEEELi5ELi256ELi1ELb0ELb1ENS_10bfloat16_tEfNS_4arch4Sm90EEEEEvNT_6ParamsE": 0%....50%....100% - 39 passes
+==PROF== Profiling "void cublasLt::splitKreduce_kernel<(int)32, (int)16, int, float, __nv_bfloat16, float, __nv_bfloat16, (bool)0, float, __nv_bfloat16, __nv_bfloat16, (bool)1, (bool)0, (bool)0>(cublasLt::cublasSplitKParams<T6>, const T4 *, const T10 *, T9 *, T5 *, const T6 *, const T6 *, const T11 *, const T4 *, T11 *, void *, long, T6 *, int *, T6 *, T6 *, const T6 *, const T6 *, const T6 *, const T6 *, const T6 *)": 0%....50%....100% - 39 passes
+==PROF== Profiling "void flashinfer::norm::FusedAddRMSNormKernel<(unsigned int)8, __nv_bfloat16>(T2 *, T2 *, T2 *, unsigned int, unsigned int, unsigned int, float, float)": 0%....50%....100% - 39 passes
+==PROF== Profiling "_ZN10flashinfer4norm21FusedAddRMSNormKernelILj8E13__nv_bfloat16EEvPT0_S4_S4_jjjff": 0%....50%....100% - 39 passes
+==PROF== Profiling "void topkGatingSoftmax<__nv_bfloat16, (int)8, (int)128, (int)4, (int)16>(const T1 *, const bool *, float *, int, int *, int, int, int, bool, float, const float *)": 0%....50%....100% - 39 passes
+==PROF== Profiling "void moe_align_block_size_kernel<int>(const T1 *, int *, int *, int *, int, int, unsigned long, int *, bool, int, int)": 0%....50%....100% - 39 passes
+==PROF== Profiling "void count_and_sort_expert_tokens_kernel<int>(const T1 *, int *, int *, unsigned long)": 0%....50%....100% - 39 passes
+==PROF== Profiling "_Z35count_and_sort_expert_tokens_kernelIiEvPKT_PiS3_m": 0%....50%....100% - 39 passes
+==PROF== Profiling "void flashinfer::activation::act_and_mul_kernel<__nv_bfloat16, &silu<float>>(T1 *, const T1 *, int)": 0%....50%....100% - 39 passes
+==PROF== Disconnected from process 932714
+max_total_num_tokens=754686
+Warmup ...
+Prefill. latency: 0.98259 s, throughput:  13026.77 token/s
+Decode 0. Batch size: 8, latency: 1.81016 s, throughput:      4.42 token/s
+Decode 1. Batch size: 8, latency: 0.13259 s, throughput:     60.34 token/s
+Decode 2. Batch size: 8, latency: 0.13607 s, throughput:     58.79 token/s
+Decode 3. Batch size: 8, latency: 0.13484 s, throughput:     59.33 token/s
+Decode 4. Batch size: 8, latency: 0.13393 s, throughput:     59.73 token/s
+Decode.  median latency: 0.13484 s, median throughput:     59.33 token/s
+Total. latency:  6.849 s, throughput:   1906.19 token/s
+Benchmark ...
+Prefill. latency: 0.18452 s, throughput:  69370.80 token/s
+Decode 0. Batch size: 8, latency: 0.13328 s, throughput:     60.03 token/s
+Decode 1. Batch size: 8, latency: 0.13220 s, throughput:     60.52 token/s
+Decode 2. Batch size: 8, latency: 0.13153 s, throughput:     60.82 token/s
+Decode 3. Batch size: 8, latency: 0.13334 s, throughput:     60.00 token/s
+Decode 4. Batch size: 8, latency: 0.13244 s, throughput:     60.40 token/s
+CUDA Profiler started (nsys will begin capturing)
+CUDA Profiler stopped (nsys should dump traces)
+CUDA profiler trace for decode completed
+Decode.  median latency: 0.13323 s, median throughput:     60.04 token/s
+Total. latency: 1988.369 s, throughput:      7.47 token/s
+[rank0]:[W609 23:11:13.812291117 ProcessGroupNCCL.cpp:1524] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+==PROF== Disconnected from process 932266
+==PROF== Report: /home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-06-09_sglang_triton_sweep/ncu/R_medium_balanced/R_medium_balanced_ncu.ncu-rep

@@ -1,0 +1,1 @@
+{"run_name": "R_medium_balanced_ncu_full", "batch_size": 8, "input_len": 1600, "output_len": 256, "prefill_latency": 0.1845156759954989, "prefill_throughput": 69370.79969461373, "median_decode_latency": 0.13323372695595026, "median_decode_throughput": 60.0448563796835, "total_latency": 1988.3692280934192, "overall_throughput": 7.467425964058623}

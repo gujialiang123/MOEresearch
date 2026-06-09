@@ -1,0 +1,1 @@
+{"run_name": "R_concurrent_decode_ncu_full", "batch_size": 32, "input_len": 400, "output_len": 256, "prefill_latency": 0.17415128089487553, "prefill_throughput": 73499.31584899784, "median_decode_latency": 0.12955655017867684, "median_decode_throughput": 246.99638849496583, "total_latency": 2059.263715854846, "overall_throughput": 10.1939347730826}
