@@ -112,6 +112,10 @@ Good: `server-log-mining`, `noise-aware-scoring`, `minimal-repro-shrink`.
 | [`failure-classification`](.github/skills/failure-classification/SKILL.md) | 1, 2, 3 | Classify a failed run into one of: oom / server_crash / benchmark_timeout / kv_pressure / partial_success / parse_error / unknown. | ✅ v1 implemented |
 | [`suspicion-scoring`](.github/skills/suspicion-scoring/SKILL.md) | 1 | Combine server-log-mining + noise-aware-scoring + failure-classification + local-nonlinearity into one suspicion score per workload run, with full evidence audit trail. | ✅ v1 implemented |
 | [`minimal-repro-shrink`](.github/skills/minimal-repro-shrink/SKILL.md) | 1 (late), 2 | Binary-shrink a workload along (num_prompts, max_concurrency, input_len, output_len) until the symptom disappears. | 🟨 SKILL.md only; impl deferred to v0.4 |
+| [`e2e-bench-runner`](.github/skills/e2e-bench-runner/SKILL.md) | 1, 2, 3 | Run a 3-regime end-to-end benchmark N times (drop run 1), emit bench_summary.json with throughput + latency percentiles + stddev. Includes "which metric flags which problem" guide. | ✅ v0 implemented |
+| [`nsys-capture`](.github/skills/nsys-capture/SKILL.md) | 1, 2, 3 | Wrap an action with `nsys profile`, force flush, and immediately export to .sqlite for downstream SQL analysis. | ✅ v0 implemented |
+| [`nsys-timeline-sql`](.github/skills/nsys-timeline-sql/SKILL.md) | 1, 2, 3 | Reduce nsys SQLite to timeline_summary.json (top kernels, idle gaps, CPU launch counts, cudagraph ratio, memcpy). Plus `query` sub-command for arbitrary read-only SQL. | ✅ v0 implemented |
+| [`pytorch-profiling`](.github/skills/pytorch-profiling/SKILL.md) | 1, 2 | Capture sglang Torch profile, reduce to phase + top-kernel + MoE + cudagraph summary. | ✅ v0 implemented (now with metric-to-problem guide) |
 
 ## 7. How to add a new skill
 

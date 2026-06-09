@@ -198,3 +198,62 @@ field.
 - **v3** — diff mode: given two `profile_summary.json` (before/after a fix),
   emit the regression/improvement table per kernel so the solver-orchestrator
   can verify the fix landed in the expected kernel rather than elsewhere.
+
+## WHICH METRIC HELPS WHICH PROBLEM
+
+The bench layer (`e2e-bench-runner`) tells you **whether** to dig; this skill
+tells you **where** kernel-shaped problems sit. The mapping:
+
+| Look at | Says what | Action |
+|---|---|---|
+| `totals.gpu_utilization_pct` | Overall busy-ness | <60% → not a kernel-speed problem; check `phase_breakdown_pct` for scheduler/tokenize dominance, or escalate to `nsys-timeline-sql` `largest_idle_gaps` for stalls. |
+| `phase_breakdown_pct.scheduler` | Time outside prefill+decode | >15% → schedule overhead; consider larger `max_running_requests`, batching changes. |
+| `phase_breakdown_pct.tokenize` | Tokenizer cost | >5% → unusual; could be unicode-heavy prompts or slow tokenizer build. |
+| `top_kernels[0].self_time_pct` | Single kernel dominance | >25% → kernel-source optimization is high ROI; specifically: cross-check the kernel name against the expected backend (CUTLASS vs Triton vs flashinfer). |
+| `top_kernels[].name` contains an *unexpected* backend | Wrong code path | E.g. expected `flashinfer::SinglePrefillWithKVCacheKernel` but seeing `vllm::xformers::*` — config is wrong. |
+| `moe_overhead.total_routing_pct` | MoE dispatch tax | >25% (`verdict: high`) → all-to-all or topk is the bottleneck, NOT the expert GEMM. Common false alarm: blaming MoE GEMM when routing is the actual cost. |
+| `moe_overhead.applicable=true, total_routing_pct≈0` | MoE routing fused into GEMM | Means we **can't separately measure** routing here; need `nsys-timeline-sql` `query` with kernel-name filter. |
+| `cuda_graph.decode_steps_outside_graph_pct > 30` | Decode escaping cudagraph | Hot path: check why — usually capture range mismatch (`captured_bs_range` vs actual concurrency) or model-side eager fallback. |
+| `cuda_graph.captured_bs_range[1] < workload_concurrency` | Concurrency exceeds graph cap | Direct fix: raise `cuda_graph_max_bs` (sglang) / `--cuda-graph-sizes` (vllm). |
+| `warnings` includes "cold-start tail detected" | Profile is biased | Re-run with more `--profile-num-steps` OR add warmup-requests before profile. |
+| `warnings` includes "trace truncated" | Lost data | Reduce num_steps; per-kernel ranking is still usable but absolute time is not. |
+
+**Cross-skill bridge**: when `top_kernels[0]` doesn't explain the gap (i.e. it
+matches between two configs being compared), torch.profiler is too coarse — escalate
+to `nsys-timeline-sql` to look at idle gaps and per-launch CPU cost, which are
+invisible at the torch.profiler "op" level.
+
+## METHODOLOGY — predict-then-verify
+
+Same rule as `e2e-bench-runner` and `nsys-capture`: write a one-sentence
+prediction **before** running the profile.
+
+> "I expect `top_kernels[0]` to be `<kernel>` taking >X% self time, OR
+>  `phase_breakdown_pct.scheduler` to exceed Y% explaining the gap."
+
+After parse, compare. The four documented errors in
+`docs/agent_profiling_capability_audit.md` Part E were all the same shape:
+running a profile, reading the numbers, **then** inventing a story. A profile
+without a prior prediction is just expensive noise.
+
+## EXTENSION — what to do when the default summary doesn't answer your question
+
+Three escape hatches, in order of cost:
+
+1. **Re-parse the raw trace** — `raw_trace/*.pt.trace.json` is kept around (Chrome
+   Trace format, well-documented). Agent can write a one-off Python script using
+   `json.load` + filter by `name`/`cat`/`ph` to compute any custom aggregate.
+2. **Re-run with NVTX-annotated source** — torch.profiler honors
+   `torch.profiler.record_function("my_label")` blocks. Insert one around the
+   suspect code path, re-profile, and the trace will have it as a synchronous
+   range. Especially useful for per-layer breakdowns.
+3. **Drop down to nsys** — torch.profiler hides CUDA-API timestamps and stream IDs
+   that nsys exposes. If the question is about launch overhead / stream
+   parallelism / cudagraph node behavior, **stop here and use `nsys-capture` +
+   `nsys-timeline-sql` instead** — torch.profiler can't answer those.
+
+## REFERENCES
+
+- nsys deep-dive (the alternative when this skill is too coarse): `docs/nsys_deep_dive_and_proton.md`
+- proton evaluation (lightweight Python-scope alternative): `docs/nsys_deep_dive_and_proton.md` Part 2
+- Capability audit (what we can/can't see): `docs/agent_profiling_capability_audit.md`
