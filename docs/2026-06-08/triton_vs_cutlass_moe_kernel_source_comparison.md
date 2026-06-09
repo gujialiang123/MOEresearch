@@ -4,7 +4,7 @@
 > 放在一起,让你 (人工 reviewer) 看一下两边在 tile/搜索空间/累加器/epilogue 等设计
 > 上的具体差别,自己判断是不是 "tuning 不足" 导致 §12 看到的 conc 反转。
 >
-> 配套数据: `docs/sglang_vs_vllm_flashinfer_cutlass_analysis.md` §12 (regime sweep)
+> 配套数据: `docs/2026-06-08/sglang_vs_vllm_flashinfer_cutlass_analysis.md` §12 (regime sweep)
 >
 > 测试 case: Qwen3-30B-A3B (E=128, N=768, K=2048), H200 sm_90a, bf16, TP=1
 
@@ -513,7 +513,7 @@ CUTLASS SM90 grouped-GEMM kernel **结构性地**只能高效跑 M=128 / 256 til
   —— `generate_sm90_grouped_gemm_operations`,JIT 编译时 kernel 实例化的总列表
 
 ### Cross-reference
-- `docs/sglang_vs_vllm_flashinfer_cutlass_analysis.md` —— 主分析文档 (1027 行)
+- `docs/2026-06-08/sglang_vs_vllm_flashinfer_cutlass_analysis.md` —— 主分析文档 (1027 行)
   - §10: SM90 vs SM100 四层根因
   - §12: regime sweep 实测数据 (conc=1 Triton 赢, conc=64 CUTLASS 赢)
   - §4: sglang 9× kernel launch 根因 (AutoTuner re-benchmark)

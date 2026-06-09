@@ -4,7 +4,7 @@
 >
 > **Date**: 2026-06-04 · **Status**: comprehensive enumeration of every MoE backend dispatch branch in both frameworks, with code-snippet + file:line evidence
 >
-> Companion to `docs/triton_rewrite_investigation.md` (§17 has the high-level comparison). This doc is the **exhaustive catalog** with all special cases collected for follow-up investigation.
+> Companion to `docs/2026-06-04/triton_rewrite_investigation.md` (§17 has the high-level comparison). This doc is the **exhaustive catalog** with all special cases collected for follow-up investigation.
 
 ## TL;DR
 
@@ -567,7 +567,7 @@ If they pass `--moe-runner-backend=flashinfer_cutlass`:
 
 > **日期**: 2026-06-04 · **状态**: 全面枚举两个框架所有 MoE backend dispatch 分支,带代码片段 + file:line 证据
 >
-> `docs/triton_rewrite_investigation.md` (§17 有 high-level 对比) 的伴生文档。本文是**详尽 catalog**,把所有特殊 case 收集起来供后续研究。
+> `docs/2026-06-04/triton_rewrite_investigation.md` (§17 有 high-level 对比) 的伴生文档。本文是**详尽 catalog**,把所有特殊 case 收集起来供后续研究。
 
 ## TL;DR
 

@@ -184,6 +184,6 @@ Two escape hatches when the default capture isn't enough:
 
 ## REFERENCES
 
-- nsys deep-dive (what each report contains): `docs/nsys_deep_dive_and_proton.md`
-- Past nsys-based validation: `docs/nsys_2x2_validation_and_nsys_usage.md`
-- Capability audit (what nsys can / can't see): `docs/agent_profiling_capability_audit.md` Part B
+- nsys deep-dive (what each report contains): `docs/2026-06-08/nsys_deep_dive_and_proton.md`
+- Past nsys-based validation: `docs/2026-06-08/nsys_2x2_validation_and_nsys_usage.md`
+- Capability audit (what nsys can / can't see): `docs/2026-06-08/agent_profiling_capability_audit.md` Part B

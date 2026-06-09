@@ -143,7 +143,7 @@ context) a one-sentence prediction:
 
 After the bench, the agent **must** compare measured vs predicted **before**
 drawing any conclusion about the underlying mechanism. The 5 wrong root-cause
-errors documented in `docs/agent_profiling_capability_audit.md` Part E all share
+errors documented in `docs/2026-06-08/agent_profiling_capability_audit.md` Part E all share
 the same shape: evidence → narrative → no falsification step. This skill exists
 in part to enforce that step.
 
@@ -192,5 +192,5 @@ agents often need ad-hoc views. Three escape hatches:
 ## REFERENCES
 
 - Existing harness this skill replaces: `results/4way_bench/scripts/run_bench_4way.py`
-- Documented bench-conclusion errors: `docs/agent_profiling_capability_audit.md` Part E
-- Run-1 cold-start finding: `docs/vllm_2x2_autotune_cudagraph_matrix.md` "noise" section
+- Documented bench-conclusion errors: `docs/2026-06-08/agent_profiling_capability_audit.md` Part E
+- Run-1 cold-start finding: `docs/2026-06-08/vllm_2x2_autotune_cudagraph_matrix.md` "noise" section

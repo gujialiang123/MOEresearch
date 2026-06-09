@@ -1,6 +1,6 @@
 # nsys 能拿到什么 + proton 是什么 — 二级 profiling 工具盘点
 
-> 配合 `docs/agent_profiling_capability_audit.md` 阅读。
+> 配合 `docs/2026-06-08/agent_profiling_capability_audit.md` 阅读。
 > 本文修正 audit 中一个**重大错误**: 我之前以为"看不到 GUI 时间线 = 拿不到时间线数据"。**错了**。
 > 通过 `nsys export --type sqlite` 我能拿到 GUI 背后的**全部原始事件表**,
 > 包括每个 kernel 的 start/end 时间戳、grid/block shape、stream id 等。

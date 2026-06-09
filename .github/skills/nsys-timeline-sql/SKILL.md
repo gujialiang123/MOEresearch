@@ -303,6 +303,6 @@ If the agent reuses a query across investigations, promote it to a recipe.
 
 ## REFERENCES
 
-- nsys deep-dive (the SQLite tables): `docs/nsys_deep_dive_and_proton.md`
-- 2x2 validation that used proto-recipes by hand: `docs/nsys_2x2_validation_and_nsys_usage.md`
-- Capability audit, Gap 1 (corrected — we CAN see timeline data via SQL): `docs/agent_profiling_capability_audit.md`
+- nsys deep-dive (the SQLite tables): `docs/2026-06-08/nsys_deep_dive_and_proton.md`
+- 2x2 validation that used proto-recipes by hand: `docs/2026-06-08/nsys_2x2_validation_and_nsys_usage.md`
+- Capability audit, Gap 1 (corrected — we CAN see timeline data via SQL): `docs/2026-06-08/agent_profiling_capability_audit.md`

@@ -232,7 +232,7 @@ prediction **before** running the profile.
 >  `phase_breakdown_pct.scheduler` to exceed Y% explaining the gap."
 
 After parse, compare. The four documented errors in
-`docs/agent_profiling_capability_audit.md` Part E were all the same shape:
+`docs/2026-06-08/agent_profiling_capability_audit.md` Part E were all the same shape:
 running a profile, reading the numbers, **then** inventing a story. A profile
 without a prior prediction is just expensive noise.
 
@@ -254,6 +254,6 @@ Three escape hatches, in order of cost:
 
 ## REFERENCES
 
-- nsys deep-dive (the alternative when this skill is too coarse): `docs/nsys_deep_dive_and_proton.md`
-- proton evaluation (lightweight Python-scope alternative): `docs/nsys_deep_dive_and_proton.md` Part 2
-- Capability audit (what we can/can't see): `docs/agent_profiling_capability_audit.md`
+- nsys deep-dive (the alternative when this skill is too coarse): `docs/2026-06-08/nsys_deep_dive_and_proton.md`
+- proton evaluation (lightweight Python-scope alternative): `docs/2026-06-08/nsys_deep_dive_and_proton.md` Part 2
+- Capability audit (what we can/can't see): `docs/2026-06-08/agent_profiling_capability_audit.md`

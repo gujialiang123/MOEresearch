@@ -5,7 +5,7 @@
 **Author**: Jialiang Gu · **Date**: 2026-06-01 · **Hardware**: 8× NVIDIA H200 (143 GB), single-GPU per run · **SGLang**: 0.5.12.post1 · **Framework**: 2-round experiment (workload sweep + hardware/kernel profile) on **3 models × 8 regimes**.
 
 > Full details and reproducibility instructions live in
-> [`docs/regime_benchmark_experiment.md`](./regime_benchmark_experiment.md) (1 700 lines, EN + CN).
+> [`docs/2026-06-01/regime_benchmark_experiment.md`](./regime_benchmark_experiment.md) (1 700 lines, EN + CN).
 > This is the meeting-facing summary — every table here is the headline version of a table in the full doc.
 
 ---
@@ -451,7 +451,7 @@ sglang has **no single "optimization level"** — it has 30+ flags. We picked 7 
 
 ## 7. C6 piecewise CUDA graph — what actually changed inside sglang
 
-C6 (`enable-piecewise-cuda-graph: true`) was the winner in §6 (+19 % throughput). Here's exactly **what's happening under the hood** that produces the speedup. Full deep-dive in `docs/regime_benchmark_experiment.md §20`.
+C6 (`enable-piecewise-cuda-graph: true`) was the winner in §6 (+19 % throughput). Here's exactly **what's happening under the hood** that produces the speedup. Full deep-dive in `docs/2026-06-01/regime_benchmark_experiment.md §20`.
 
 ### 7.1 The mechanism
 
@@ -614,7 +614,7 @@ python scripts/regime_study/aggregate_hw_view.py          # round 2
 python scripts/regime_study/aggregate_moe_opt_levels.py   # §6 knob study
 ```
 
-All outputs in `results/regime_bench/`; full doc in `docs/regime_benchmark_experiment.md`; repo at <https://github.com/gujialiang123/end2end-optimization>.
+All outputs in `results/regime_bench/`; full doc in `docs/2026-06-01/regime_benchmark_experiment.md`; repo at <https://github.com/gujialiang123/end2end-optimization>.
 
 ---
 

@@ -4,7 +4,7 @@
 > 真正的 9x kernel launch 差距来源是 **cudagraph 覆盖度**,不是 AutoTuner re-benchmark。
 > `flashinfer/autotuner.py:432-451` 显示 runtime `choose_one` 在 `is_tuning_mode=False`
 > (默认) 时直接返回 fallback tactic,根本不 launch 候选 kernel sweep。
-> 详见 `docs/fix1_invalidated.md`。
+> 详见 `docs/2026-06-08/fix1_invalidated.md`。
 
 本文以下内容已过时,保留只是 history。
 
