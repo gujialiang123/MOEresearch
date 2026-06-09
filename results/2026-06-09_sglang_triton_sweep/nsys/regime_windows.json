@@ -1,0 +1,29 @@
+{
+  "windows": [
+    {
+      "regime": "R_short_decode",
+      "start_ns": 2162770973768283,
+      "end_ns": 2162862420213695,
+      "dur_s": 91.446445412
+    },
+    {
+      "regime": "R_medium_balanced",
+      "start_ns": 2162862423682738,
+      "end_ns": 2162888981192608,
+      "dur_s": 26.55750987
+    },
+    {
+      "regime": "R_long_prefill",
+      "start_ns": 2162888986048264,
+      "end_ns": 2162890755858297,
+      "dur_s": 1.769810033
+    },
+    {
+      "regime": "R_concurrent_decode",
+      "start_ns": 2162890757817106,
+      "end_ns": 2162904369020970,
+      "dur_s": 13.611203864
+    }
+  ],
+  "epoch_offset_s": 1781038007.4582496
+}

@@ -1,0 +1,508 @@
+{
+  "schema_version": 0,
+  "ok": true,
+  "captured_from": "results/2026-06-09_sglang_triton_sweep/nsys/sglang_all4regimes.sqlite",
+  "analysis_window_ns": [
+    175784048823,
+    189395252687
+  ],
+  "wall_ns": 13611183301,
+  "gpu": {
+    "device_name": "NVIDIA H200",
+    "sm_arch": "9.0",
+    "num_sms": 132
+  },
+  "streams": {
+    "primary_stream_id": 13,
+    "active_streams": [
+      13,
+      7
+    ],
+    "per_stream": {
+      "13": {
+        "active_ms": 2101.319968,
+        "idle_ms": 11509.863333,
+        "kernel_count": 226149
+      },
+      "7": {
+        "active_ms": 2.091795,
+        "idle_ms": 13520.179238,
+        "kernel_count": 1642
+      }
+    }
+  },
+  "totals_primary_stream": {
+    "gpu_active_ms": 2101.319968,
+    "gpu_idle_ms": 11509.863333,
+    "gpu_util_pct": 15.438187272414575,
+    "kernel_count": 226149
+  },
+  "top_kernels": [
+    {
+      "rank": 1,
+      "short_name": "fused_moe_kernel",
+      "self_ms": 1143.408373,
+      "self_pct_of_active": 54.413815621248595,
+      "calls": 24473,
+      "avg_us": 46.72121819964859,
+      "max_us": 1136.484,
+      "register_per_thread": 242,
+      "max_grid": [
+        7024,
+        1,
+        1
+      ],
+      "max_block": [
+        256,
+        1,
+        1
+      ]
+    },
+    {
+      "rank": 2,
+      "short_name": "device_kernel",
+      "self_ms": 217.179745,
+      "self_pct_of_active": 10.335396241758838,
+      "calls": 14733,
+      "avg_us": 14.741040181904568,
+      "max_us": 763.427,
+      "register_per_thread": 168,
+      "max_grid": [
+        132,
+        1,
+        8
+      ],
+      "max_block": [
+        384,
+        1,
+        1
+      ]
+    },
+    {
+      "rank": 3,
+      "short_name": "nvjet_tst_64x32_64x16_4x1_v_bz_TNT",
+      "self_ms": 77.579526,
+      "self_pct_of_active": 3.691942549512764,
+      "calls": 9549,
+      "avg_us": 8.124361294376374,
+      "max_us": 10.304,
+      "register_per_thread": 168,
+      "max_grid": [
+        4,
+        20,
+        1
+      ],
+      "max_block": [
+        384,
+        1,
+        1
+      ]
+    },
+    {
+      "rank": 4,
+      "short_name": "nvjet_tst_64x32_64x16_4x1_v_bz_splitK_TNT",
+      "self_ms": 74.049686,
+      "self_pct_of_active": 3.523960516611814,
+      "calls": 9549,
+      "avg_us": 7.754705833071525,
+      "max_us": 9.889,
+      "register_per_thread": 168,
+      "max_grid": [
+        4,
+        24,
+        1
+      ],
+      "max_block": [
+        384,
+        1,
+        1
+      ]
+    },
+    {
+      "rank": 5,
+      "short_name": "FusedAddRMSNormKernel",
+      "self_ms": 61.947585,
+      "self_pct_of_active": 2.948031996239042,
+      "calls": 24473,
+      "avg_us": 2.5312624116373144,
+      "max_us": 49.536,
+      "register_per_thread": 31,
+      "max_grid": [
+        11997,
+        1,
+        1
+      ],
+      "max_block": [
+        32,
+        8,
+        1
+      ]
+    },
+    {
+      "rank": 6,
+      "short_name": "nvjet_tst_64x8_64x16_2x4_v_bz_TNT",
+      "self_ms": 50.774248,
+      "self_pct_of_active": 2.4163025514065835,
+      "calls": 9549,
+      "avg_us": 5.317231961461933,
+      "max_us": 6.144,
+      "register_per_thread": 168,
+      "max_grid": [
+        8,
+        1,
+        1
+      ],
+      "max_block": [
+        384,
+        1,
+        1
+      ]
+    },
+    {
+      "rank": 7,
+      "short_name": "elementwise_kernel",
+      "self_ms": 41.509818,
+      "self_pct_of_active": 1.9754163398308315,
+      "calls": 12237,
+      "avg_us": 3.3921564108850206,
+      "max_us": 124.96,
+      "register_per_thread": 18,
+      "max_grid": [
+        95976,
+        1,
+        1
+      ],
+      "max_block": [
+        128,
+        1,
+        1
+      ]
+    },
+    {
+      "rank": 8,
+      "short_name": "prepare_varlen_num_blocks_kernel",
+      "self_ms": 41.171986,
+      "self_pct_of_active": 1.959339207116886,
+      "calls": 12237,
+      "avg_us": 3.3645489907657105,
+      "max_us": 4.32,
+      "register_per_thread": 27,
+      "max_grid": [
+        1,
+        1,
+        1
+      ],
+      "max_block": [
+        64,
+        1,
+        1
+      ]
+    },
+    {
+      "rank": 9,
+      "short_name": "topkGatingSoftmax",
+      "self_ms": 40.844348,
+      "self_pct_of_active": 1.9437471980468992,
+      "calls": 12237,
+      "avg_us": 3.337774617961919,
+      "max_us": 12.96,
+      "register_per_thread": 32,
+      "max_grid": [
+        1500,
+        1,
+        1
+      ],
+      "max_block": [
+        32,
+        4,
+        1
+      ]
+    },
+    {
+      "rank": 10,
+      "short_name": "moe_align_block_size_kernel",
+      "self_ms": 31.79735,
+      "self_pct_of_active": 1.5132083873101994,
+      "calls": 12237,
+      "avg_us": 2.598459589768734,
+      "max_us": 23.456,
+      "register_per_thread": 27,
+      "max_grid": [
+        2,
+        1,
+        1
+      ],
+      "max_block": [
+        1024,
+        1,
+        1
+      ]
+    },
+    {
+      "rank": 11,
+      "short_name": "nvjet_tst_384x32_64x4_2x1_v_bz_TNT",
+      "self_ms": 30.680685,
+      "self_pct_of_active": 1.4600672656816442,
+      "calls": 199,
+      "avg_us": 154.17429648241205,
+      "max_us": 161.536,
+      "register_per_thread": 168,
+      "max_grid": [
+        2,
+        66,
+        1
+      ],
+      "max_block": [
+        384,
+        1,
+        1
+      ]
+    },
+    {
+      "rank": 12,
+      "short_name": "act_and_mul_kernel",
+      "self_ms": 30.261194,
+      "self_pct_of_active": 1.4401040517785628,
+      "calls": 12237,
+      "avg_us": 2.472925880526273,
+      "max_us": 117.921,
+      "register_per_thread": 31,
+      "max_grid": [
+        95976,
+        1,
+        1
+      ],
+      "max_block": [
+        96,
+        1,
+        1
+      ]
+    },
+    {
+      "rank": 13,
+      "short_name": "triton_per_fused_copy__mul_sum_0",
+      "self_ms": 29.195341,
+      "self_pct_of_active": 1.389381029286445,
+      "calls": 12044,
+      "avg_us": 2.4240568747924276,
+      "max_us": 3.616,
+      "register_per_thread": 19,
+      "max_grid": [
+        2048,
+        1,
+        1
+      ],
+      "max_block": [
+        64,
+        1,
+        1
+      ]
+    },
+    {
+      "rank": 14,
+      "short_name": "BatchQKApplyRotaryPosIdsCosSinCacheEnhancedHeadParallelismKernel",
+      "self_ms": 27.839704,
+      "self_pct_of_active": 1.3248674368471998,
+      "calls": 12188,
+      "avg_us": 2.2841896947817526,
+      "max_us": 44.928,
+      "register_per_thread": 48,
+      "max_grid": [
+        773,
+        36,
+        1
+      ],
+      "max_block": [
+        16,
+        8,
+        1
+      ]
+    },
+    {
+      "rank": 15,
+      "short_name": "fused_qknorm_warp",
+      "self_ms": 25.931782,
+      "self_pct_of_active": 1.2340710788886389,
+      "calls": 12236,
+      "avg_us": 2.119302222948676,
+      "max_us": 63.007,
+      "register_per_thread": 28,
+      "max_grid": [
+        2112,
+        1,
+        1
+      ],
+      "max_block": [
+        128,
+        1,
+        1
+      ]
+    }
+  ],
+  "largest_idle_gaps": [
+    {
+      "rank": 1,
+      "gap_ms": 455.165542,
+      "start_ns": 178541642097,
+      "end_ns": 178996807639,
+      "before_kernel": "count_and_sort_expert_tokens_kernel",
+      "after_kernel": "fused_moe_kernel",
+      "likely_cause": null
+    },
+    {
+      "rank": 2,
+      "gap_ms": 454.114242,
+      "start_ns": 178996938199,
+      "end_ns": 179451052441,
+      "before_kernel": "act_and_mul_kernel",
+      "after_kernel": "fused_moe_kernel",
+      "likely_cause": null
+    },
+    {
+      "rank": 3,
+      "gap_ms": 208.650315,
+      "start_ns": 179790459726,
+      "end_ns": 179999110041,
+      "before_kernel": "act_and_mul_kernel",
+      "after_kernel": "fused_moe_kernel",
+      "likely_cause": null
+    },
+    {
+      "rank": 4,
+      "gap_ms": 196.496447,
+      "start_ns": 179593864782,
+      "end_ns": 179790361229,
+      "before_kernel": "count_and_sort_expert_tokens_kernel",
+      "after_kernel": "fused_moe_kernel",
+      "likely_cause": null
+    },
+    {
+      "rank": 5,
+      "gap_ms": 32.712058,
+      "start_ns": 176732694572,
+      "end_ns": 176765406630,
+      "before_kernel": "reduce_kernel",
+      "after_kernel": "triton_poi_fused_clamp_copy__index_lt_neg_where_0",
+      "likely_cause": null
+    },
+    {
+      "rank": 6,
+      "gap_ms": 18.210884,
+      "start_ns": 178511424896,
+      "end_ns": 178529635780,
+      "before_kernel": "reduce_kernel",
+      "after_kernel": "triton_poi_fused_clamp_copy__index_lt_neg_where_0",
+      "likely_cause": null
+    },
+    {
+      "rank": 7,
+      "gap_ms": 4.821266,
+      "start_ns": 180049389461,
+      "end_ns": 180054210727,
+      "before_kernel": "reduce_kernel",
+      "after_kernel": "triton_poi_fused_clamp_copy__index_lt_neg_where_0",
+      "likely_cause": null
+    },
+    {
+      "rank": 8,
+      "gap_ms": 4.611985,
+      "start_ns": 179492806421,
+      "end_ns": 179497418406,
+      "before_kernel": "reduce_kernel",
+      "after_kernel": "triton_poi_fused_clamp_copy__index_lt_neg_where_0",
+      "likely_cause": null
+    },
+    {
+      "rank": 9,
+      "gap_ms": 4.157936,
+      "start_ns": 178537152384,
+      "end_ns": 178541310320,
+      "before_kernel": "FusedAddRMSNormKernel",
+      "after_kernel": "nvjet_tst_64x8_64x16_2x4_h_bz_TNT",
+      "likely_cause": null
+    },
+    {
+      "rank": 10,
+      "gap_ms": 3.805166,
+      "start_ns": 176837558674,
+      "end_ns": 176841363840,
+      "before_kernel": "FusedAddRMSNormKernel",
+      "after_kernel": "nvjet_tst_128x96_64x7_1x2_h_bz_TNT",
+      "likely_cause": null
+    },
+    {
+      "rank": 11,
+      "gap_ms": 3.379661,
+      "start_ns": 179503101883,
+      "end_ns": 179506481544,
+      "before_kernel": "FusedAddRMSNormKernel",
+      "after_kernel": "nvjet_tst_64x96_64x10_2x1_v_bz_TNT",
+      "likely_cause": null
+    },
+    {
+      "rank": 12,
+      "gap_ms": 3.373133,
+      "start_ns": 178530202534,
+      "end_ns": 178533575667,
+      "before_kernel": "RMSNormKernel",
+      "after_kernel": "nvjet_tst_128x72_64x8_4x1_v_bz_TNT",
+      "likely_cause": null
+    },
+    {
+      "rank": 13,
+      "gap_ms": 3.3571,
+      "start_ns": 176769010259,
+      "end_ns": 176772367359,
+      "before_kernel": "FusedAddRMSNormKernel",
+      "after_kernel": "nvjet_tst_64x80_64x11_2x4_h_bz_TNT",
+      "likely_cause": null
+    },
+    {
+      "rank": 14,
+      "gap_ms": 3.090444,
+      "start_ns": 178533966388,
+      "end_ns": 178537056832,
+      "before_kernel": "device_kernel",
+      "after_kernel": "nvjet_tst_64x72_64x12_4x1_v_bz_TNT",
+      "likely_cause": null
+    },
+    {
+      "rank": 15,
+      "gap_ms": 2.492585,
+      "start_ns": 179588444826,
+      "end_ns": 179590937411,
+      "before_kernel": "RMSNormKernel",
+      "after_kernel": "nvjet_tst_64x32_64x16_4x1_v_bz_TNT",
+      "likely_cause": null
+    }
+  ],
+  "cuda_api": {
+    "launch_kernel_count": 227791,
+    "launch_kernel_total_ms": 1239.88024,
+    "launch_kernel_avg_us": 5.443060700378856,
+    "graph_launch_count": 0,
+    "graph_launch_total_ms": 0.0,
+    "launch_ratio_graph_to_eager": 0.0,
+    "verdict": "eager_dominated"
+  },
+  "memcpy": {
+    "h2d_bytes": 181480,
+    "h2d_ms": 0.054752,
+    "d2h_bytes": 53280,
+    "d2h_ms": 0.612218,
+    "d2d_bytes": 0,
+    "d2d_ms": 0.0,
+    "h2d_avg_gb_s": 3.3145821157218003,
+    "d2h_avg_gb_s": 0.08702782342237568
+  },
+  "recipes_run": [
+    "top_kernels_by_self_time",
+    "largest_idle_gaps",
+    "api_launch_counts",
+    "memcpy_aggregate",
+    "per_stream_breakdown"
+  ],
+  "warnings": [
+    "gpu_util_pct=15.4 \u2014 primary stream is mostly idle; check largest_idle_gaps + launch_kernel_count"
+  ]
+}

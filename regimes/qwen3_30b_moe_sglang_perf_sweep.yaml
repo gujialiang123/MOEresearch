@@ -1,0 +1,43 @@
+# sglang triton MoE — perf-relevant regime sweep
+#
+# Designed to span the 3 axes that most affect MoE perf:
+#   1. Expert utilization (low for small batch, since top-8 of 128 means many
+#      experts get 0 tokens at small B)
+#   2. Prefill-vs-decode ratio (input length × output length)
+#   3. Concurrency (parallel in-flight requests)
+#
+# Regimes dropped intentionally (low perf signal):
+#   - R_short (b=1, short in+out): same kernels as R_short_decode, no extra info
+#   - random middle-of-spectrum sweeps (won't differentiate kernels)
+#
+# These 4 are enough to find regime-dependent bottlenecks WITHOUT redundancy.
+regimes:
+  R_short_decode:
+    # Very low expert utilization (batch=1 → 8 of 128 experts get 1 token each).
+    # Tests "what does sglang do when MoE GEMM is tiny?"
+    num_prompts:   8
+    prompt_words:  100
+    max_new:       256
+    concurrency:   1
+
+  R_medium_balanced:
+    # Typical batch=8 decode. Most experts active. Reference workload.
+    num_prompts:  16
+    prompt_words: 800
+    max_new:      256
+    concurrency:  8
+
+  R_long_prefill:
+    # Long input, short output → prefill-dominated. Attention kernels visible.
+    num_prompts:  4
+    prompt_words: 4000
+    max_new:      32
+    concurrency:  4
+
+  R_concurrent_decode:
+    # High concurrency, short prompts, long output → decode bandwidth-bound.
+    # Tests "does triton MoE kernel scale with batch?"
+    num_prompts:  32
+    prompt_words: 200
+    max_new:      256
+    concurrency:  32

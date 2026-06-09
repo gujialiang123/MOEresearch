@@ -1,0 +1,4 @@
+# Don't commit large profile artifacts
+*.nsys-rep
+*.sqlite
+*.ncu-rep
