@@ -134,6 +134,52 @@ differently depending on regime:
   weight prefetch, persistent kernels) is orthogonal to one that helps prefill
   (tile-size search, TC scheduling). You'd want both, or workload-aware dispatch.
 
+### "Same kernel" — but is it really? (Triton autotune specialization evidence)
+
+`fused_moe_kernel` is one Triton `@triton.jit` function in sglang source, but
+Triton **autotunes** it: at runtime, it picks a (BLOCK_M, BLOCK_N, BLOCK_K,
+num_warps, num_stages) combo per call-site shape. Different combos compile to
+different SASS, different register counts, different shared-mem layouts —
+effectively different kernels with the same name.
+
+We confirmed this by inspecting NCU's `Block Size` / `Grid Size` /
+`registers/thread` columns per launch:
+
+| Regime | Block Size | Grid Size (X) | Registers/thread | num_warps inferred |
+|---|---|---|---|---|
+| R_short_decode (B=1)       | (128, 1, 1) | 192–256       |  56     | 4 |
+| R_medium_balanced (B=8)    | (128, 1, 1) | 1,536         |  64     | 4 |
+| R_concurrent_decode (B=32) | (128, 1, 1) | 3,288         |  64     | 4 |
+| **R_long_prefill**         | **(256, 1, 1)** | **12,768–17,024** | **194–196** | **8** |
+
+Key observations:
+- **Block size 256 (prefill) vs 128 (decode)** — `num_warps=8` vs `num_warps=4`.
+  Different autotune specialization.
+- **Registers/thread 194-196 (prefill) vs 56-64 (decode)** — prefill kernel uses
+  ~3× more registers. Strong hint of wgmma/TMA software pipelining (deep
+  num_stages) with large tile (likely BLOCK_K=64+). 196 is 77% of H200's 255
+  register cap.
+- **Grid 17,024 (prefill) vs 192 (decode)** — prefill has ~88× more thread blocks,
+  enough to saturate 132 SMs by a wide margin. Decode's 192 blocks barely fill
+  the SMs at all (one wave on H200 fits ~528 blocks at this register count).
+
+**So "the same Triton kernel" is actually two different kernel implementations
+that share a source file but get specialized differently at runtime**. The
+prefill specialization uses TC effectively because it has the registers + grid
++ tile shape to do so. The decode specialization sacrifices TC utilization for
+lower register pressure and more concurrent decode batches.
+
+**Implication for optimization** (refining earlier section):
+- "Optimizing fused_moe_kernel" needs to specify WHICH specialization. Improving
+  the prefill 256-block 196-reg variant doesn't help decode's 128-block 64-reg
+  variant.
+- The TRUE optimization target for decode is probably **not** in the Triton
+  kernel itself, but in: (a) expert-weight prefetch / on-chip residency
+  strategies, (b) batch composition (more tokens per forward pass via prefill
+  chunking), (c) a different MoE backend entirely (e.g. flashinfer cutlass
+  with autotune that can find a decode-tuned tactic — the path our morning
+  investigation looked at).
+
 ### Other kernels — patterns
 
 **cuBLAS Hopper GEMM (`nvjet_*`)** — these are the QKV/MLP linears (non-MoE):
