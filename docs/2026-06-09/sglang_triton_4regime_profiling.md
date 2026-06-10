@@ -1,6 +1,8 @@
 # sglang Triton MoE — 4-regime nsys + ncu profiling sweep
 ## 2026-06-09 evening run
 
+> 🇬🇧 English version · [跳转中文版](sglang_triton_4regime_profiling.zh.md)
+
 > **Status**: ✅ **COMPLETE** — all 4 regimes profiled with nsys (200 MB
 > .nsys-rep, sliced per regime) + ncu (`--set full`, `--kernel-name regex:.*`,
 > 30-50 unique kernels per regime). All 4 `profile_unified.json` artifacts
