@@ -16,15 +16,20 @@
 
 ## 0. TL;DR（最想让 Ofer 记住的三件事）
 
-1. **vLLM 比 sglang 在同一台 H200 上跑同一模型快 3.4–4.7×。**  根因不是 kernel 实现，而是 **backend 选择 + autotune 启动逻辑**：vLLM 默认走 flashinfer_cutlass + 启动期 autotune，sglang 默认走 triton；即使把 sglang 强行切到 flashinfer_cutlass，它的 autotune allowlist 也把 cutlass 排除掉了，最终落到 flashinfer 内部的 fallback tactic 0，比 autotuned 配置慢 3–6×（CUTLASS microbench 实测）。
-2. **"Triton fused_moe_kernel" 不是一个 kernel，是一族 kernel。**  在 4 个 regime 下，**Block / Grid / regs/thread / num_warps 全都不同**，因此 decode 阶段它被 NCU 判为 *memory_bound*，prefill 阶段同一行源码却是 *compute-leaning (TC 70%)*。"瓶颈类型"会随 batch 和 seqlen 翻转，**单一 kernel-level 的优化建议不可移植**。
-3. **autotune 和 cudagraph 必须成对开启**才有大幅收益。2×2 矩阵实测：单开任一个只有 1.0–1.5× 提升，**两个同时开启 → 5.0× 提升**。背后的物理模型是 `latency = max(CPU_work, GPU_work)`：autotune 降 GPU，cudagraph 降 CPU，只降一边就被另一边卡住。这把以前所有"开了 cudagraph 没用 / 开了 autotune 没用"的负面报告全部解释清楚。
+1. **按默认配置，sglang 和 vLLM 在这个机器+模型上其实是打平的**（sglang_triton vs vllm_triton ≈ 1.00–1.05×）。**两边的默认 MoE backend 都是 Triton**——sglang 没有别的选项可走（cutlass 被排除在 autotune allowlist 外），vLLM 则是 oracle 主动把 Triton 排在 cutlass 前（`unquantized.py:71`，因为默认开 cudagraph 时 cutlass GPU kernel 反而慢一点）。**"sglang 慢"这个我们一开始以为的故事不成立**。
+2. **真正的差距出现在"两边都手动强制走 CUTLASS"时：sglang 比 vLLM 慢 3.4–4.7×。**  根因不是 kernel 实现，是 sglang 的 cutlass 路径同时被 autotune 没跑 + cudagraph capture 失败两个 bug 打：fallback 到 flashinfer 内部 tactic 0，比 autotuned 慢 3–6×（CUTLASS microbench 实测）。**这是一条"可选优化路径被堵死"的问题，不是"默认配置太烂"。**
+3. **"Triton fused_moe_kernel" 不是一个 kernel，是一族 kernel。**  4 个 regime 下 **Block / Grid / regs/thread / num_warps 全不同**，decode 阶段被 NCU 判为 *memory_bound*（TC 8%），prefill 阶段同源码却是 *compute-leaning*（TC 70%）。"瓶颈类型"会随 batch 和 seqlen 翻转，**单一 kernel-level 的优化建议不可移植**。
+4. **autotune × cudagraph 必须成对开启才有大幅收益**（强制 vLLM CUTLASS 路径上的 2×2 矩阵）：单开任一个 1.0–1.5×，**两个同开 → 5.0×**。背后是 `latency = max(CPU_work, GPU_work)`：autotune 降 GPU，cudagraph 降 CPU，只降一边就被另一边卡住。这把以前所有"开了 cudagraph 没用 / 开了 autotune 没用"的负面报告解释清楚——也解释了为什么 sglang_cutlass 路径上"补一边"补不动。
 
 ---
 
-## 1. 背景：项目原始动机
+## 1. 背景：项目原始动机 + 这周的认知更正
 
-我们做的是 **end-to-end 自动优化 agent**，目标是给定 (model, hardware) 自动找出最优的 sglang 启动配置。第一步是搞清楚 sglang 在我们关心的场景里**到底慢在哪、为什么慢、和 vLLM 差在哪**。这份报告就是这一步的产物。
+我们做的是 **end-to-end 自动优化 agent**，目标是给定 (model, hardware) 自动找出最优的 sglang 启动配置。第一步是搞清楚 sglang 在我们关心的场景里**到底慢在哪、为什么慢、和 vLLM 差在哪**。
+
+**这周最重要的认知更正**：项目一开始我们带着"sglang 比 vLLM 慢"的假设进来，几天工作之后发现 —— 在 H200 + Qwen3-30B-A3B + 默认配置下，**sglang ≈ vLLM**（数据见 §2.3）。所谓 3.4–4.7× 的差距是我们**手动把两边都切到 CUTLASS** 才出现的，而那条路径是用户选择 SM100/B200 上更优 backend 时会走到的（在 SM90 上其实不该选）。
+
+所以问题被重新定义为：**"sglang 在用户主动追求 CUTLASS 优化时被一系列工程 bug 堵住"**，而不是"sglang 默认就慢"。
 
 工作平台：
 
@@ -39,25 +44,29 @@
 
 这是会议要回答的第一个问题：**两个框架默认会选什么 backend，差在哪？**
 
+> ⚠️ **重要更正**：早期分析里我曾说"vLLM 默认 cutlass、sglang 默认 triton"——这是错的。**两边默认都是 Triton**。下面是核对清楚之后的事实。
+
 ### 2.1 默认行为
 
 | 维度 | vLLM (main) | sglang (main) |
 |---|---|---|
-| MoE backend（Qwen3-30B-A3B, H200） | **flashinfer_cutlass** | **triton** |
+| **MoE backend（Qwen3-30B-A3B, H200，无任何 flag）** | **triton**（oracle `unquantized.py:71` 主动选） | **triton**（cutlass 在 allowlist 外，无法 autotune，实际用不起来） |
+| Oracle 为何不选 cutlass | cudagraph 模式下 cutlass 的 GPU kernel 时间 > triton（PR #21872 数据） | 不存在 oracle，直接靠 allowlist 写死 |
 | Attention backend | flashinfer | flashinfer |
-| 启动期 autotune | **默认开启**（`kernel_warmup()`，SM90+） | **默认关闭** for cutlass; 仅对 triton/flashinfer_trtllm 开 |
+| 启动期 autotune | **对 cutlass 开启**（`kernel_warmup()`，SM90+），但**默认不会触发，因为默认 backend 是 triton** | **对 cutlass 关闭**（cutlass 不在 allowlist），对 triton 通过 `@triton.autotune` 在线触发 |
 | CUDA Graph | 默认开启 | 默认开启 |
-| 静态化策略 | autotune 在 warmup 阶段完成、结果写入内存表 | triton autotune 通过 `@triton.autotune` 装饰器在线进行（首次调用时） |
+| Triton autotune 触发时机 | 首次见到新 (M,N,K) 时通过 `@triton.autotune` 装饰器 | 同左 |
 
 ### 2.2 关键源码 anchor（已读、已验证）
 
+- **vLLM oracle 把 Triton 排在 cutlass 前**：`vllm/.../unquantized.py:71` 注释 "FlashInfer is slower than Triton on Hopper"（这条注释在 PR #21872 的 cudagraph 场景下成立）
 - **flashinfer 的 autotune 闸口**：`flashinfer/autotuner.py:432-451`
   ```python
   if not self.is_tuning_mode:
       return fallback_tactic   # 直接返回 tactic 0
   ```
   → 没进 tuning context 的话，所有 GEMM 都用 fallback，**不查 cache 也不挑形状**。
-- **fallback tactic 定义**：`flashinfer/.../flashinfer_cutlass_fused_moe_binding.cu:638`
+- **flashinfer fallback tactic 定义**：`flashinfer/.../flashinfer_cutlass_fused_moe_binding.cu:638`
   ```cpp
   return mAllProfiles.front();   // 第 0 条 profile
   ```
@@ -70,14 +79,31 @@
       with fi_utils.autotune():
           flashinfer_autotune(...)
   ```
-  → vLLM 在 SM90+ 上**显式进入** autotune ctx，跑一遍 dummy forward 把 cache 填满。
+  → vLLM 在 SM90+ 上**显式进入** autotune ctx；但**默认 backend 是 triton 的话，这段也跑，只是缓存出来的 cutlass 配置后续没人用到**。
 - **sglang 的 autotune 排除**：`sglang/.../model_runner.py:1829-1857`，函数 `_should_run_flashinfer_autotune()`
   - allowlist 里**没有** cutlass（line 1841 注释：`# cutlass disabled, TODO: flashinfer compilation errors`）
   - 这意味着即使用户传 `--moe-runner-backend flashinfer_cutlass`，autotune 也不会跑
 
-### 2.3 结果（端到端实测）
+### 2.3 4-way bench 实测（warm-only req/s，3 regime × 3 runs）
 
-CUTLASS microbench（H200, SM90, Qwen3-30B-A3B 真实 shape）：
+来源：`docs/2026-06-08/sglang_vs_vllm_flashinfer_cutlass_analysis.md` §1
+
+| Regime | sglang_triton（默认） | sglang_cutlass（手动强制） | vllm_triton（默认） | vllm_cutlass（手动强制） |
+|---|---|---|---|---|
+| R_short  | 3.22 | 0.71 | 3.31 | 3.32 |
+| R_medium | 4.49 | 1.31 | 4.71 | 4.72 |
+| R_long   | 4.50 | 1.33 | 4.44 | 4.52 |
+
+两组相对比：
+
+| 对比维度 | R_short | R_medium | R_long |
+|---|---|---|---|
+| **默认 vs 默认**（sglang_triton → vllm_triton） | 1.03× | 1.05× | 0.99× |
+| **手动强制 cutlass 时**（sglang_cutlass → vllm_cutlass） | **4.70×** | **3.59×** | **3.41×** |
+| **vLLM 自己** triton → cutlass | 1.00× | 1.00× | 1.02× |
+| **sglang 自己** triton → cutlass | **0.22×**（4.5× 慢） | **0.29×**（3.4× 慢） | **0.29×**（3.4× 慢） |
+
+CUTLASS microbench（H200 SM90，Qwen3-30B-A3B 真实 shape，仅 kernel 层）：
 
 | batch | fallback (tactic 0) | tuned (best tactic) | 倍数 |
 |---|---|---|---|
@@ -86,14 +112,12 @@ CUTLASS microbench（H200, SM90, Qwen3-30B-A3B 真实 shape）：
 | 64 | 1.936 ms | 0.303 ms | **6.39×** |
 | 2048 | 2.421 ms | 0.657 ms | **3.69×** |
 
-端到端 throughput（同 regime，同 batch，同 prompt）：
+**正确的结论**：
 
-| 配置 | req/s |
-|---|---|
-| sglang + triton（默认） | baseline = 1.0 |
-| vLLM + flashinfer_cutlass + autotune + cudagraph | **3.4–4.7×** |
-
-**结论**：vLLM 快不是因为它的 kernel 写得更好，是因为它 **(a) 默认就走 cutlass**，**(b) 启动期帮你跑完 autotune**，**(c) cudagraph 一起开**。sglang 三件事都没做到，所以慢。
+1. **默认配置下 sglang ≈ vLLM**（都走 Triton，几乎打平）。一开始以为的"sglang 比 vLLM 慢一大截"故事是错的。
+2. **如果用户主动选 CUTLASS（合理诉求，因为 SM100/B200 上 cutlass 是更快的）**，sglang 上这条路径会比 vLLM 慢 3.4–4.7×。这是个**"可选优化被堵死"的工程 bug**，不是产品默认性能问题。
+3. vLLM 自己内部 cutlass ≈ triton，**vLLM oracle 选 triton 是因为 cudagraph 下 cutlass 略慢**——这个判断在 SM90+H200 上是对的，在 SM100/B200 上会反过来。
+4. **真正的科学问题**是：在 SM90+H200 上 cutlass 不值得选，那么 sglang 把 cutlass 排除其实和 vLLM oracle 判断一致；问题在于这个排除**是 hardcode 而不是 oracle**，到了 SM100/B200 上 sglang 仍然走不到 cutlass。
 
 ---
 
@@ -283,11 +307,12 @@ total_latency ≈ max(CPU_dispatch_time, GPU_compute_time)
 - capture 阶段直接 crash（细节在 `docs/2026-06-08/sglang_vs_vllm_flashinfer_cutlass_analysis.md`）
 - 暂未排查根因。这是另一个会让"开了 cudagraph 没用"的隐藏 bug。
 
-### 6.7 vLLM 的 startup autotune 实际不便宜
+### 6.7 vLLM 的 startup autotune 实际不便宜（但用户感知不到，因为默认不走 cutlass）
 
-- vLLM 启动会多出约 60–90s（H200, Qwen3-30B-A3B）
-- 用户感知是"vLLM 启动慢"，但运行起来快 3–4×
-- **这是个延迟换吞吐的隐式权衡**，文档里没有强调
+- vLLM SM90+ 启动会跑 `flashinfer_autotune()`，多出约 60–90s（H200, Qwen3-30B-A3B）
+- 但是！**默认 backend 是 Triton 的情况下，这段 autotune 出来的 cutlass cache 后续根本没人用**
+- 只有当用户显式 `--kernel-config '{"moe_backend":"flashinfer_cutlass"}'` 时才发挥作用
+- **这是个"暗收益"**：vLLM 替你提前买好了切到 cutlass 的票，但默认不让你用
 
 ---
 
@@ -316,15 +341,13 @@ total_latency ≈ max(CPU_dispatch_time, GPU_compute_time)
 
 按优先级排序，希望在会议上听到他的意见：
 
+0. **认知更正后，项目方向是否要调整**：默认配置下 sglang ≈ vLLM，"sglang 慢"不成立。那这个 end-to-end 优化 agent 的真正价值定位应该是 (a) 在 SM100/B200 这种新硬件上自动选对 backend、(b) 在用户主动选 cutlass 时自动绕开/修补 sglang 的工程 bug、还是 (c) 不局限 sglang，直接做"给定 (model, hw) 推荐最佳框架+backend+flag 组合"？
 1. **sglang `# TODO: flashinfer compilation errors` 这条注释**：他知不知道现在还成不成立？是不是 sglang 那边的 P1 修复就能让我们少走半个月弯路？
 2. **H200 上离线 dump flashinfer MoE config 表**：这件事到底是 sglang 的活、flashinfer 的活、还是用户的活？我们要不要主动贡献给 flashinfer？
 3. **`count_and_sort_expert_tokens` 的 atomics 瓶颈**：vLLM 是不是也有？有没有内部知道的更好方案（segment sort? cub::DeviceRadixSort?）
 4. **regime 设计**：我们手工挑的 4 个 regime 是不是合理？production 上是否有更值得关注的 (batch, seqlen) 分布？
-5. **profile-driven optimization agent 的形态**：他希望这个 agent 最终是
-   - (a) 自动给用户出 "用 vLLM 而不是 sglang" 这种顶层建议
-   - (b) 自动 patch sglang 源码补齐缺失能力
-   - (c) 只做诊断、把锅丢给框架社区
-6. **跨框架 transfer**：我们这套 (4 regime × bench + nsys + ncu + unified) 流水线要不要也对 vLLM / TensorRT-LLM 做一遍，建立同样基线？
+5. **跨框架 transfer**：我们这套 (4 regime × bench + nsys + ncu + unified) 流水线要不要也对 vLLM / TensorRT-LLM 做一遍，建立同样基线？
+6. **SM100 / B200 access**：能不能给我们一台短期借用？目前所有结论都局限在 SM90，没法验证"cutlass 在 SM100 上反超 triton"这条 vLLM oracle 行为的另一半。
 
 ---
 
