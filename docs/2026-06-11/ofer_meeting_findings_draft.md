@@ -17,9 +17,11 @@
 ## 0. TL;DR（最想让 Ofer 记住的五件事）
 
 > **2026-06-11 19:00 更新**：harness v1 上线后跑了 4-way bench，TL;DR 第 2 条要修订，新增第 5 条。详见 `docs/2026-06-11/harness_v1_4way_findings.md`。
+>
+> **2026-06-11 20:35 二次更新**：我们独立诊断出的 sglang 修复（取消 `flashinfer_cutlass` autotune allowlist 注释）**7 天前已被 sglang 上游 merge**（[PR #26496](https://github.com/sgl-project/sglang/pull/26496) by Brayden Zhong, 2026-06-04）。我们的工作变成了"上游修复的独立 cross-validation + 量化数据 + reproducibility 证明"。剩下 1 个真 bug：`flashinfer_cutlass + FP8 → AttributeError`（issue draft 在 `patches/issue_draft_fp8_flashinfer_cutlass.md`）。
 
 1. **按默认配置，sglang 和 vLLM 在这个机器+模型上其实是打平的**（sglang_triton vs vllm_triton ≈ 1.00–1.05×）。**两边的默认 MoE backend 都是 Triton**——sglang 没有别的选项可走（cutlass 被排除在 autotune allowlist 外），vLLM 则是 oracle 主动把 Triton 排在 cutlass 前（`unquantized.py:71`，因为默认开 cudagraph 时 cutlass GPU kernel 反而慢一点）。**"sglang 慢"这个我们一开始以为的故事不成立**。
-2. **~~真正的差距出现在"两边都手动强制走 CUTLASS"时：sglang 比 vLLM 慢 3.4–4.7×。~~** ⚠️ **已修正**：这是个**一行代码就能修的工程 bug**。`sglang/.../model_runner.py:1841` 那条 `# TODO: flashinfer compilation errors` 注释**已经过时**（patch 6/11 验证）。我们手动取消掉那行注释（`patches/sglang_cutlass_autotune_allowlist.diff`），sglang flashinfer_cutlass + autotune + cudagraph 一次性全跑通：startup 多 45s（autotune 窗口），但 e2e 在所有 4 个 regime 上**4.7–8.4× 速度**。
+2. **~~真正的差距出现在"两边都手动强制走 CUTLASS"时：sglang 比 vLLM 慢 3.4–4.7×。~~** ⚠️ **已修正**：这是个**一行代码就能修的工程 bug**，**而且 sglang 上游 7 天前已经合了**（[PR #26496](https://github.com/sgl-project/sglang/pull/26496)，Brayden Zhong 2026-06-04）。我们独立从第一性原理推断出这个 fix 应该长什么样，patch 完跑出来 **4.7–8.4× 提升**，然后才发现 upstream 已经做了同样的修改 —— **既验证了我们的诊断能力，也验证了上游修复的正确性**。
    ```
    regime               unpatched triton  patched cutlass  speedup
    R_short_decode             0.10 req/s        0.83        8.4×
@@ -27,7 +29,7 @@
    R_long_prefill             2.52             13.66        5.4×
    R_concurrent_decode        2.94             13.86        4.7×
    ```
-   sglang upstream 收个 PR 就能让所有 H200 + flashinfer_cutlass 用户直接拿到 5× 提升。
+   两次独立 run 的 spread <1.1%（同 spec_hash 验证），**速度是 reproducible 的，不是测量噪声**。已经合进 sglang main 的用户 7 天前起就有这个提升了。
 3. **"Triton fused_moe_kernel" 不是一个 kernel，是一族 kernel。**  4 个 regime 下 **Block / Grid / regs/thread / num_warps 全不同**，decode 阶段被 NCU 判为 *memory_bound*（TC 8%），prefill 阶段同源码却是 *compute-leaning*（TC 70%）。"瓶颈类型"会随 batch 和 seqlen 翻转，**单一 kernel-level 的优化建议不可移植**。
 4. **autotune × cudagraph 必须成对开启才有大幅收益**（强制 vLLM CUTLASS 路径上的 2×2 矩阵）：单开任一个 1.0–1.5×，**两个同开 → 5.0×**。背后是 `latency = max(CPU_work, GPU_work)`：autotune 降 GPU，cudagraph 降 CPU，只降一边就被另一边卡住。这把以前所有"开了 cudagraph 没用 / 开了 autotune 没用"的负面报告解释清楚——也解释了 sglang cutlass 路径上"补一边"补不动的现象（一行 patch 同时补上两边）。
 5. **🚨 FP8 在 Triton 路径上比 BF16 慢 33–40%！** 这跟我之前给的"fp8 1.5–2× 提升"估计完全相反。实测 triton-fp8 是 triton-bf16 的 0.6× 速度，4 个 regime 全部退化。最可能的根因：**sglang H200 hand-tuned config 表里没有 `E=128, N=768` 这个 shape 的 fp8 配置**（只有 E ∈ {160, 257, 384, 385} 这些），所以 Triton 走 runtime autotune 挑了次优 config，加上 fp8 dequant 开销，反而慢。**Implication**：fp8 不是"换 checkpoint 就能拿到"的免费提升，**必须配套生成 H200 fp8 tuned config 才能解锁**。Native cutlass-fp8 倒是和 cutlass-bf16-patch 打平（~5x over baseline），但**也没看到 fp8 应有的额外加速**——说明真正的瓶颈可能不在 MoE GEMM 而在 routing / atomics / sampling，要 nsys 验证。

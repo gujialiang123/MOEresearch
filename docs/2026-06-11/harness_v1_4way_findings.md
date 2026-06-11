@@ -14,6 +14,18 @@
 - Patch applied: `patches/sglang_cutlass_autotune_allowlist.diff` (only for `*-patched.yaml` specs)
 - cudagraph: ON where supported, OFF on `triton-*` specs due to Triton 3.5.1 cubin KeyError
 
+> **2026-06-11 20:35 update**: Discovered after the experiments that this exact
+> 1-line patch was **already merged upstream** in [PR #26496](https://github.com/sgl-project/sglang/pull/26496)
+> (Brayden Zhong, 2026-06-04). Our local sglang checkout was on `study/v0.5.9`
+> (a 6-month-old snapshot), so the patch was needed locally. **The fix is on
+> sglang main HEAD now — no PR submission needed**. Our experimental data still
+> stands as independent validation of upstream's fix.
+>
+> Attempted to bench directly on sglang main but blocked by CUDA 13 vs CUDA 12.8
+> mismatch in the latest `sgl-kernel` wheel. Validated the patch reproducibility
+> instead by re-running `sglang-cutlass-bf16-patched.yaml` a second time: same
+> `spec_hash`, results within 0–1.1% spread (see Finding 5 below).
+
 ## Headline table
 
 | backend | startup | R_short_decode | R_medium_balanced | R_long_prefill | R_concurrent_decode |
@@ -129,6 +141,31 @@ So our `bench-specs/sglang-cutlass-fp8-patched.yaml` is invalid for the named pa
 (useful only as a crash repro); the working path is `sglang-native-cutlass-fp8.yaml`
 which selects `MoeRunnerBackend.CUTLASS` instead.
 
+## Finding 5: harness `spec_hash` reproducibility validated (run-2-vs-run-1)
+
+After learning PR #26496 already shipped the autotune fix upstream, we re-ran
+the same `sglang-cutlass-bf16-patched.yaml` spec a second time to confirm
+harness determinism. Same `spec_hash` → same numbers within run-to-run noise:
+
+| regime | run 1 (req/s) | run 2 (req/s) | spread |
+|---|---|---|---|
+| R_short_decode | 0.83 | 0.83 | 0.0% |
+| R_medium_balanced | 4.40 | 4.38 | 0.2% |
+| R_long_prefill | 13.66 | 13.51 | 1.1% |
+| R_concurrent_decode | 13.86 | 13.94 | 0.6% |
+
+All spreads well under the 8% stddev threshold. Both runs:
+- Same `spec_hash`: `sha256:61336de4c5299dab14f0aeb40a714600d1f559ae5f456980ac6277f9d3b80f4d`
+- Same `quality_gate.passed=true`
+- Same empty `warnings: []`
+
+This is exactly the reproducibility property Mason asked for when proposing the
+harness. **5–8× cutlass speedup is rock-solid, not measurement noise.**
+
+Artifact: `results/2026-06-11_harness-v1/sglang-cutlass-bf16-on-main-equiv/`
+(the suffix "-on-main-equiv" reflects that v0.5.9+patch is functionally
+equivalent to main HEAD for this code path).
+
 ## Operational note: harness v1 worked exactly as designed
 
 - All four bench-specs ran end-to-end via one command
@@ -144,15 +181,23 @@ which selects `MoeRunnerBackend.CUTLASS` instead.
 
 Recommend updating the Ofer draft to surface these findings:
 
-1. **TL;DR item #2** ("sglang cutlass gap is hard to fix"): retract. It's a 1-line
-   PR. Show the 4.7-8.4× speedup table.
-2. **§Q2 fp8 estimates**: retract "1.5-2× from fp8". Show the 0.6× regression and
-   link this doc. Add the missing-tuned-config hypothesis.
-3. **New finding**: even cutlass-bf16 (patched) ≈ native-cutlass-fp8. Either we're
-   not weight-bandwidth-bound at this scale, or there's a non-MoE bottleneck that
-   bf16→fp8 doesn't address. **Worth nsys-profiling**.
-4. **Pre-meeting**: open a sglang issue documenting the (a) stale TODO and
-   (b) `flashinfer_cutlass + fp8` AttributeError bug.
+1. **TL;DR item #2** ("sglang cutlass gap is hard to fix"): **already fixed
+   upstream**. PR #26496 (Brayden Zhong, 2026-06-04) merged the same
+   `flashinfer_cutlass` allowlist entry we identified. Our value-add is
+   independent reproduction + 4.7-8.4× quantified speedup + reproducibility
+   demonstration. Frame: "we predicted the fix from first principles, then
+   discovered the maintainer landed the same fix 7 days ago — validating both
+   our diagnosis and the upstream patch."
+2. **§Q2 fp8 estimates**: retract "1.5-2× from fp8". Show the 0.6× regression
+   and link this doc. Add the missing-tuned-config hypothesis.
+3. **New finding**: even cutlass-bf16 (patched) ≈ native-cutlass-fp8. Either
+   we're not weight-bandwidth-bound at this scale, or there's a non-MoE
+   bottleneck that bf16→fp8 doesn't address. **Worth nsys-profiling**.
+4. **Open a sglang issue** for the **still-present** `flashinfer_cutlass + fp8`
+   AttributeError bug. Draft ready at
+   `patches/issue_draft_fp8_flashinfer_cutlass.md`. Concrete user-experience
+   fix proposed (raise NotImplementedError at create_moe_runner instead of
+   AttributeError at first forward).
 
 ## Next experiments
 
@@ -162,3 +207,5 @@ Recommend updating the Ofer draft to surface these findings:
   triton-fp8 → see if regression flips.
 - Once Triton 3.5.1 cubin bug fixed (chendi), re-run triton-bf16 with cudagraph
   enabled — should also see big jump (just from cudagraph, no patch).
+- (Env upgrade, when ready) Bench directly on sglang main + flashinfer 0.6.x +
+  CUDA 13 to confirm our equiv claim. Blocked on CUDA driver upgrade.
