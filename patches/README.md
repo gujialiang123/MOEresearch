@@ -51,9 +51,20 @@ Startup time: +45s (autotune warmup window — as predicted).
 See `results/2026-06-11_harness-v1/sglang-cutlass-bf16-patched/summary.json`
 for the full validated run.
 
-## Upstream submission
+## Upstream issues filed
 
-The patch is trivial enough that we should upstream it to sglang. Status:
-- [ ] open sglang issue documenting the no-longer-real `# TODO: flashinfer
-      compilation errors` claim, citing this evidence
-- [ ] open PR removing the comment-out
+- **#27951** [filed 2026-06-11] `[Bug] --moe-runner-backend flashinfer_cutlass + FP8 weights crashes with AttributeError`
+  https://github.com/sgl-project/sglang/issues/27951
+
+## Update 2026-06-11 20:35: autotune patch already on sglang main
+
+The `sglang_cutlass_autotune_allowlist.diff` patch in this directory is
+**already shipped on sglang main HEAD** via
+[PR #26496](https://github.com/sgl-project/sglang/pull/26496) (Brayden Zhong,
+2026-06-04). Our local sglang at `/home/t-jialianggu/work/sglang` is on
+`study/v0.5.9` (a 6-month-old snapshot) which still needs the patch; sglang
+upstream users do not.
+
+We retain the patch file as historical record of independent diagnosis +
+quantified validation (4.7-8.4x speedup, see
+`docs/2026-06-11/harness_v1_4way_findings.md`).
