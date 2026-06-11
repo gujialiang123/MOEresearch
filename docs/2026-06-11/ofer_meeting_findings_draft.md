@@ -512,11 +512,59 @@ total_latency ≈ max(CPU_dispatch_time, GPU_compute_time)
 - 这意味着即使 sglang 修好了 autotune allowlist，**第一次跑还是要在线 autotune**（约 1–3 分钟）
 - 我们可以离线 dump 一份 H200 的表，避免每次启动都重跑
 
-### 8.6 sglang cudagraph + flashinfer_cutlass 的 capture 问题
+### 8.6 sglang cudagraph + flashinfer_cutlass 的 capture 挂死 bug（已复现 + 已知 workaround）
 
-- 我们试过 `--moe-runner-backend flashinfer_cutlass --enable-cuda-graph`
-- capture 阶段直接 crash（细节在 `docs/2026-06-08/sglang_vs_vllm_flashinfer_cutlass_analysis.md`）
-- 暂未排查根因。这是另一个会让"开了 cudagraph 没用"的隐藏 bug。
+> **Q（Ofer 可能会问）：你们到底有没有真的试过 sglang 上 cutlass + cudagraph？为什么跑不起来？**
+>
+> **A**：试过，cold cache 下复现过两次，是个**确定的 bug**，但有 workaround。详情如下：
+
+**症状**（来自 `docs/2026-06-04/moe_backend_decision_trees.md` Caveat 1）：
+
+我们尝试**去掉** sglang_cutlass 的 `--disable-cuda-graph` flag（也就是开 cudagraph）：
+- server.log 里 `Capture cuda graph end. Time elapsed: 1.23 s` —— **看起来 capture 正常完成**
+- 但 **sglang 的 detokenizer 进程在 capture 阶段挂死**：heartbeat 不再更新
+- 之后所有 `/health` 返回 503，client 请求全部挂超时
+- 必须 `kill -9` 才能恢复
+
+**触发条件**（关键，决定了之后能否绕过）：
+- ✅ **cold cache** 下复现 2/2（在 checkpoint 005 阶段）
+- ❌ **warm cache** 下没复现（checkpoint 007 及之后）—— 只要先用 `--disable-cuda-graph` 把 flashinfer JIT 的 `.so` 编译好缓存到 `~/.cache/flashinfer/0.6.11.post2/90a/cached_ops/fused_moe_90/`，下一次再开 cudagraph 就能跑
+
+**根因推测**（未确证，但证据指向）：
+
+```
+flashinfer 的 fused_moe kernel 在第一次调用时 JIT 编译一个 .so
+   ↓
+sglang 的 cudagraph capture 是个 CUDA stream capture 段
+   ↓
+JIT 编译过程中 flashinfer 内部可能起后台线程做 nvrtc / linker 工作
+   ↓
+这个后台动作在 stream capture 段里发生时被认为是非法 CUDA op
+   ↓
+但 capture 本身不报错（因为是 detokenizer 进程负责 heartbeat）
+   ↓
+detokenizer 进程进入死等
+```
+
+**间接证据**：
+- sglang 自己 `model_runner.py:1841` 把 cutlass 从 autotune allowlist 排掉，注释 `# TODO: flashinfer compilation errors` —— 维护者**知道 cutlass 路径有"编译相关"的 bug**，但没说具体是这个
+- warm cache 下能跑 → 罪魁不是 cutlass kernel 本身，是 JIT
+- vLLM 走同样 flashinfer cutlass kernel 不挂 → 不是 flashinfer 自己的 bug，是 sglang 调用顺序的 bug
+
+**warm cache 下能跑了，性能怎样？**（`docs/2026-06-08/vllm_2x2_autotune_cudagraph_matrix.md`）
+
+| 配置 | req/s（R_medium） |
+|---|---|
+| sglang cutlass，no cudagraph（cold-cache workaround） | 1.30 |
+| **sglang cutlass + cudagraph（warm cache，autotune OFF）** | **1.35** |
+| vLLM cutlass，autotune OFF + cudagraph ON | 1.36 |
+| vLLM cutlass，autotune ON + cudagraph ON | **4.66** |
+
+→ 即使把 sglang 这个 hang bug **完全绕过**（warm cache + 开 cudagraph），性能也只到 1.35，跟 vLLM "只开 cudagraph 没开 autotune" 完美对应。**还差 vLLM 完整配置 3.5×**，因为 sglang 这条路径上 autotune 仍然没跑（allowlist 排除 + flashinfer cache miss）。
+
+**修起来的难度估计**：1-2 周（需要先稳定复现，attach py-spy 看死锁栈，可能要改 sglang 启动顺序——先 dummy run 触发 JIT，再进 cudagraph capture）。**ROI 低**：即使修了也只能拿回 1.35→1.36 的差距，真正的 5× 差距在 autotune 一侧。
+
+**当前我们怎么绕的**：所有 sglang_cutlass benchmark 都加 `--disable-cuda-graph`。这就是为什么 §2.3 表里 sglang_cutlass 跑的是不公平的对比——不是我们故意不开 cudagraph，而是**这个配置目前唯一能稳定跑起来的方式**。
 
 ### 8.7 vLLM 的 startup autotune 实际不便宜（但用户感知不到，因为默认不走 cutlass）
 
