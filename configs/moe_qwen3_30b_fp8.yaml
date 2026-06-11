@@ -1,0 +1,29 @@
+# Base server config for Qwen3-30B-A3B-Instruct-2507-FP8 (FP8 weights).
+#
+# Identical to configs/moe_qwen3_30b.yaml except for the model path.
+# We keep both files because bench-spec hashing dereferences the base file
+# content — combining them via override would change every existing spec hash.
+
+model-path: "/data/hf/models/Qwen3-30B-A3B-Instruct-2507-FP8"
+served-model-name: "qwen3-30b-a3b-moe-fp8"
+
+host: "127.0.0.1"
+port: 30000
+
+_gpu_id: 0
+
+tensor-parallel-size: 1
+
+mem-fraction-static: 0.85
+context-length: 32768
+
+schedule-policy: "lpm"
+schedule-conservativeness: 1.0
+max-running-requests: 32
+chunked-prefill-size: -1
+max-prefill-tokens: 16384
+disable-radix-cache: false
+disable-cuda-graph: false
+
+log-requests: false
+trust-remote-code: true

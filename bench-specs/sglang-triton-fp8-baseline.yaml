@@ -1,0 +1,35 @@
+submission_id: sglang-triton-fp8-baseline
+description: |
+  sglang Triton MoE on Qwen3-30B-A3B-Instruct-2507-FP8 (H200).
+  fp8 weights, sglang AUTO resolves to TRITON (fp8.py:1349-1351 path).
+  cudagraph kept off due to Triton 3.5.1 cubin KeyError (same workaround as
+  sglang-triton-bf16-baseline; not fp8-specific).
+
+  Expected vs sglang-triton-bf16-baseline: 1.5-2x (HBM traffic halved, decode
+  is memory-bound).
+
+tags: [sglang, triton, fp8, qwen3-30b-a3b, baseline]
+
+server:
+  config: configs/moe_qwen3_30b_fp8.yaml
+  overrides:
+    _gpu_id: 4
+    port: 31102
+    moe-runner-backend: triton
+    disable-cuda-graph: true
+  conda_env: sglang-dev
+  health_url: http://127.0.0.1:31102/health
+  base_url:   http://127.0.0.1:31102
+  startup_timeout_s: 600
+
+regimes:
+  file: regimes/qwen3_30b_moe_sglang_perf_sweep.yaml
+
+bench:
+  num_runs: 3
+  reliable_stddev_pct: 8
+  per_request_timeout_s: 600
+  backend: sglang
+
+quality_gate:
+  type: sanity

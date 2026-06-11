@@ -1,0 +1,41 @@
+submission_id: sglang-cutlass-fp8-patched
+description: |
+  sglang flashinfer_cutlass MoE on Qwen3-30B-A3B-Instruct-2507-FP8 (H200).
+  REQUIRES the sglang patch in patches/sglang_cutlass_autotune_allowlist.diff
+  (or manual: uncomment model_runner.py:1841 `"flashinfer_cutlass",`).
+
+  This is the maximally-optimized stack on our hardware:
+    fp8 quantization (HBM halved, TC throughput doubled)
+    + flashinfer cutlass MoE (kernel-level winner on Hopper for big batches)
+    + AutoTuner enabled via warmup (no tactic-0 fallback)
+    + cudagraph enabled via warmup (no JIT-vs-capture hang)
+
+  Expected vs sglang-triton-bf16-baseline: combined ~10-15x speedup
+  (bf16->fp8 is ~1.5-2x, triton->cutlass+autotune+cudagraph is ~5-8x;
+  multiplicative).
+
+tags: [sglang, cutlass, fp8, qwen3-30b-a3b, requires-patch, peak-optimization]
+
+server:
+  config: configs/moe_qwen3_30b_fp8.yaml
+  overrides:
+    _gpu_id: 4
+    port: 31103
+    moe-runner-backend: flashinfer_cutlass
+    disable-cuda-graph: false   # autotune warmup unblocks capture
+  conda_env: sglang-dev
+  health_url: http://127.0.0.1:31103/health
+  base_url:   http://127.0.0.1:31103
+  startup_timeout_s: 900  # autotune adds 60-90s on top of MoE startup
+
+regimes:
+  file: regimes/qwen3_30b_moe_sglang_perf_sweep.yaml
+
+bench:
+  num_runs: 3
+  reliable_stddev_pct: 8
+  per_request_timeout_s: 600
+  backend: sglang
+
+quality_gate:
+  type: sanity

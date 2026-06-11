@@ -1,0 +1,21 @@
+diff --git a/python/sglang/srt/model_executor/model_runner.py b/python/sglang/srt/model_executor/model_runner.py
+index 275775a73..9d9510fdc 100644
+--- a/python/sglang/srt/model_executor/model_runner.py
++++ b/python/sglang/srt/model_executor/model_runner.py
+@@ -1838,8 +1838,14 @@ class ModelRunner(ModelRunnerKVCacheMixin):
+         if backend_str not in [
+             "flashinfer_trtllm",
+             "flashinfer_mxfp4",
+-            # TODO: flashinfer_cutlass will cause some flashinfer compilation errors. To be fixed.
+-            # "flashinfer_cutlass",
++            # PATCH 2026-06-11 @gujialiang123: enabling cutlass in autotune
++            # allowlist. Expected to (a) trigger flashinfer JIT during warmup
++            # before cudagraph capture (fixing the capture hang), AND
++            # (b) populate AutoTuner tactic cache (fixing tactic-0 fallback).
++            # If the historical TODO is still real, sglang server will crash
++            # at startup with a flashinfer compilation error — that's the
++            # diagnostic we want.
++            "flashinfer_cutlass",
+         ]:
+             return False
+ 
