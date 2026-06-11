@@ -1,0 +1,67 @@
+# bench-spec template — copy this file and edit.
+#
+# A bench-spec is the deterministic input to `python harness/run_bench.py`.
+# Same spec content → same `spec_hash` → same `summary.json` (modulo run-to-run
+# noise reported as stddev).
+
+# REQUIRED: unique identifier for this submission. Lowercase, kebab-case.
+submission_id: example-baseline
+
+# OPTIONAL: free-form metadata (does NOT affect spec_hash).
+description: "Example bench-spec template; replace with your config."
+tags: [example, template]
+
+# REQUIRED: server section.
+server:
+  # Path to an existing server YAML in configs/ (relative to repo root).
+  # This is the base; `overrides` are layered on top.
+  config: configs/moe_qwen3_30b.yaml
+
+  # OPTIONAL: keys to merge into the base config. Use this for the things
+  # that vary across your experiments (e.g. backend choice). Anything you
+  # set here SHADOWS the base.
+  overrides:
+    moe-runner-backend: triton
+    _gpu_id: 4
+
+  # REQUIRED: which conda env to launch the server in.
+  conda_env: sglang-dev
+
+  # REQUIRED: URL used for /health probe and bench traffic.
+  # Must agree with host:port resolved in the (base ∪ overrides) config.
+  health_url: http://127.0.0.1:30000/health
+  base_url:   http://127.0.0.1:30000
+
+  # OPTIONAL: how long to wait for /health before giving up.
+  # MoE models on H200 typically need 60–120s; cutlass + autotune adds 60–90s.
+  startup_timeout_s: 600
+
+# REQUIRED: workload section.
+regimes:
+  # Path to an existing regimes YAML (relative to repo root).
+  file: regimes/qwen3_30b_moe_sglang_perf_sweep.yaml
+
+  # OPTIONAL: subset of regimes to actually run (default: all).
+  # only: [R_medium, R_long_prefill]
+
+# REQUIRED: bench behavior.
+bench:
+  # Total runs per regime. Run 1 is always dropped (cold-start).
+  # Stats are computed over runs 2..num_runs. So num_runs=3 → 2 effective runs.
+  num_runs: 3
+
+  # If stddev_pct > this on any regime, that regime is marked reliable=false.
+  reliable_stddev_pct: 8
+
+  # Per-request HTTP timeout.
+  per_request_timeout_s: 600
+
+  # Which engine the bench should target. Affects request format / endpoint
+  # (sglang native vs OpenAI-compat). Must match the launched server.
+  backend: sglang
+
+# OPTIONAL: cheap correctness check on the benchmark outputs.
+quality_gate:
+  # `sanity` (v1) checks: completion_rate ≥ 0.99, outputs non-empty, outputs vary.
+  # `none`   skips. `ppl` is v2 (not implemented yet).
+  type: sanity

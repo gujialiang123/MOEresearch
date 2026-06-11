@@ -1,23 +1,41 @@
 ---
 name: regime-sweep-runner
-description: Orchestrate `e2e-bench-runner` across N (config, regime) cells. Given a list of {tag,url,backend} configs and a regimes YAML, produces a regime_sweep_summary.json matrix that lets agents see how each config behaves across the workload space.
+description: |
+  [DEPRECATED 2026-06-11] Replaced by `regime-bench-harness`. The new harness wraps
+  e2e-bench-runner with server lifecycle + deterministic spec_hash + quality gate,
+  and N-way sweeps become a simple shell loop over N bench-specs. Do not invoke
+  this skill in new work; left in place only for archival comprehension of old runs.
 version: 0
-stage: [1, 2, 3]
-inputs:
-  - configs_file:  YAML defining the list of server configs to sweep
-  - regimes_file:  YAML (same schema as e2e-bench-runner --regimes-file)
-  - num_runs:      int (default 3, passed through to each e2e-bench-runner call)
-  - out_dir:       path
-outputs:
-  - regime_sweep_summary.json   (the matrix — downstream skills read this)
-  - per_config/<tag>/bench_summary.json + per_run/  (delegated to e2e-bench-runner)
+stage: []
+inputs: []
+outputs: []
 triggers:
-  - "Comparing more than one server config across more than one regime."
-  - "When you suspect 'config A wins on some regimes but loses on others' — i.e., the answer depends on the workload."
-  - "Before any kernel-level optimization: confirm the gap is regime-stable (vs. regime-dependent)."
+  - "DO NOT USE — point user at regime-bench-harness instead."
 depends_on:
   - e2e-bench-runner
 ---
+
+# regime-sweep-runner (DEPRECATED)
+
+> ⚠️ **Deprecated 2026-06-11.** Use [`regime-bench-harness`](../regime-bench-harness/SKILL.md)
+> instead. The harness gives you:
+>   - Server lifecycle (this skill required servers running already)
+>   - `spec_hash` reproducibility anchor (this skill had none)
+>   - Sanity quality gate (this skill skipped correctness)
+>   - Schema-v1 `summary.json` (this skill had its own ad-hoc format)
+>
+> For N-way comparisons, write N bench-specs under `bench-specs/` and shell loop:
+>   ```bash
+>   for s in bench-specs/sglang-*.yaml; do
+>     python harness/run_bench.py --spec "$s" --out-dir "results/sweep/$(basename "$s" .yaml)/"
+>   done
+>   ```
+
+The original WHEN/WHY/HOW below is preserved for archival reading only.
+
+---
+
+
 
 # regime-sweep-runner
 

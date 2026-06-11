@@ -1,0 +1,26 @@
+submission_id: minimal-test-spec
+description: "Minimal fixture used by harness/tests; never actually launches a server."
+tags: [test, fixture]
+
+server:
+  config: configs/moe_qwen3_30b.yaml
+  overrides:
+    moe-runner-backend: triton
+    _gpu_id: 4
+    port: 31000
+  conda_env: sglang-dev
+  health_url: http://127.0.0.1:31000/health
+  base_url:   http://127.0.0.1:31000
+  startup_timeout_s: 600
+
+regimes:
+  file: regimes/qwen3_30b_moe_sglang_perf_sweep.yaml
+
+bench:
+  num_runs: 3
+  reliable_stddev_pct: 8
+  per_request_timeout_s: 600
+  backend: sglang
+
+quality_gate:
+  type: sanity

@@ -1,0 +1,42 @@
+submission_id: sglang-cutlass-bf16-patched
+description: |
+  sglang with flashinfer_cutlass MoE on Qwen3-30B-A3B-Instruct-2507 (bf16, H200).
+  REQUIRES sglang source patch: uncomment line at
+    sglang/python/sglang/srt/model_executor/model_runner.py:1841
+      # "flashinfer_cutlass",
+  This enables flashinfer autotune for cutlass during kernel_warmup, which is
+  expected to simultaneously fix:
+    (a) the JIT × cudagraph capture hang (autotune triggers JIT before capture)
+    (b) the tactic-0 fallback (autotune populates the AutoTuner cache)
+  See docs/2026-06-11/ofer_meeting_findings_draft.md §8.6 for context.
+
+  If sglang upstream is NOT patched, this run will reproduce the hang at server
+  startup → harness will time out on /health and exit cleanly with error in
+  summary.json.
+
+tags: [sglang, cutlass, bf16, qwen3-30b-a3b, experimental, requires-patch]
+
+server:
+  config: configs/moe_qwen3_30b.yaml
+  overrides:
+    _gpu_id: 4
+    port: 31101
+    moe-runner-backend: flashinfer_cutlass
+    # Keep cudagraph ON — that's the whole point of the patch validation.
+    disable-cuda-graph: false
+  conda_env: sglang-dev
+  health_url: http://127.0.0.1:31101/health
+  base_url:   http://127.0.0.1:31101
+  startup_timeout_s: 900  # autotune adds 60-90s on top of normal MoE startup
+
+regimes:
+  file: regimes/qwen3_30b_moe_sglang_perf_sweep.yaml
+
+bench:
+  num_runs: 3
+  reliable_stddev_pct: 8
+  per_request_timeout_s: 600
+  backend: sglang
+
+quality_gate:
+  type: sanity

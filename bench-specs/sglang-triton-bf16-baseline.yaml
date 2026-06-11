@@ -1,0 +1,36 @@
+submission_id: sglang-triton-bf16-baseline
+description: |
+  sglang default config on Qwen3-30B-A3B-Instruct-2507 (bf16, H200).
+  MoE runner = triton (sglang AUTO resolves to TRITON via unquant.py:321 for bf16
+  on H200 — see docs/2026-06-11/ofer_meeting_findings_draft.md §3.1).
+  This is our reference baseline for any sglang vs vllm or sglang-patched comparison.
+
+tags: [sglang, triton, bf16, qwen3-30b-a3b, baseline]
+
+server:
+  config: configs/moe_qwen3_30b.yaml
+  overrides:
+    _gpu_id: 4
+    port: 31100
+    moe-runner-backend: triton
+    # NOTE 2026-06-11: this baseline matches the 2026-06-09 4-regime sweep
+    # (which also used disable-cuda-graph=true). Triton 3.5.1 currently has a
+    # `KeyError: 'cubin'` regression under cudagraph capture; enabling cudagraph
+    # is a separate environment fix tracked outside the harness.
+    disable-cuda-graph: true
+  conda_env: sglang-dev
+  health_url: http://127.0.0.1:31100/health
+  base_url:   http://127.0.0.1:31100
+  startup_timeout_s: 600
+
+regimes:
+  file: regimes/qwen3_30b_moe_sglang_perf_sweep.yaml
+
+bench:
+  num_runs: 3
+  reliable_stddev_pct: 8
+  per_request_timeout_s: 600
+  backend: sglang
+
+quality_gate:
+  type: sanity
