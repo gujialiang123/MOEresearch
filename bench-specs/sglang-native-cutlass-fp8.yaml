@@ -1,0 +1,46 @@
+submission_id: sglang-native-cutlass-fp8
+description: |
+  sglang's NATIVE cutlass MoE on Qwen3-30B-A3B-Instruct-2507-FP8 (H200).
+
+  IMPORTANT: this uses MoeRunnerBackend.CUTLASS (sglang's own cutlass impl,
+  fp8.py:1411 calls cutlass_fused_experts_fp8) — NOT MoeRunnerBackend.FLASHINFER_CUTLASS.
+
+  Background (2026-06-11): we discovered fp8 + flashinfer_cutlass crashes
+  sglang because Fp8MoEMethod.create_moe_runner only sets self.runner for
+  {deep_gemm, triton, flashinfer_trtllm} backends (fp8.py:1349-1359). The
+  flashinfer_cutlass branch silently falls through, then apply() at fp8.py:1447
+  hits AttributeError on self.runner. The fp8 cutlass path goes through the
+  sglang native cutlass kernel instead.
+
+  Cudagraph is enabled. sglang native cutlass for fp8 should not hit the
+  flashinfer-JIT-vs-cudagraph race condition.
+
+  Expected vs sglang-triton-fp8-baseline: likely 1.2-2x (sglang's cutlass impl
+  is mature on Hopper for fp8 GEMMs; gain comes from better tile shapes than
+  Triton autotune produces).
+
+tags: [sglang, cutlass-native, fp8, qwen3-30b-a3b]
+
+server:
+  config: configs/moe_qwen3_30b_fp8.yaml
+  overrides:
+    _gpu_id: 4
+    port: 31104
+    moe-runner-backend: cutlass
+    disable-cuda-graph: false
+  conda_env: sglang-dev
+  health_url: http://127.0.0.1:31104/health
+  base_url:   http://127.0.0.1:31104
+  startup_timeout_s: 600
+
+regimes:
+  file: regimes/qwen3_30b_moe_sglang_perf_sweep.yaml
+
+bench:
+  num_runs: 3
+  reliable_stddev_pct: 8
+  per_request_timeout_s: 600
+  backend: sglang
+
+quality_gate:
+  type: sanity

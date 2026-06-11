@@ -1,0 +1,101 @@
+{
+  "captured_at": "2026-06-11T20:00:36Z",
+  "environment": {
+    "cuda": "12.8",
+    "driver": "580.105.08",
+    "engine_version": {
+      "flashinfer": "0.6.3",
+      "sglang": "0.5.12.post1",
+      "torch": "2.9.1",
+      "triton": "3.5.1"
+    },
+    "git": {
+      "commit": "da5f25a7eca0134cd296c8e556fe7f20fcfb71a7",
+      "dirty": true
+    },
+    "gpu": {
+      "id": 4,
+      "name": "NVIDIA H200",
+      "sm": "90",
+      "uuid": "GPU-68170cb3-c9ea-a588-7558-ae82635d9173"
+    },
+    "hostname": "aifx-clou00000M"
+  },
+  "error": {
+    "message": "Server process pid=1902762 exited before /health became ready. Inspect results/2026-06-11_harness-v1/sglang-cutlass-fp8-patched/server.log",
+    "phase": "server_startup"
+  },
+  "ok": false,
+  "quality_gate": {
+    "checks": {},
+    "passed": false,
+    "type": "sanity"
+  },
+  "regimes": {},
+  "schema_version": 1,
+  "server": {
+    "first_health_at_s": 0.0,
+    "log_path": "",
+    "startup_wall_s": 0.0
+  },
+  "spec_hash": "sha256:b4d7ecf402a675fe257c1d021a8305658337462f802867934d4aea5b52fbc023",
+  "spec_resolved": {
+    "bench": {
+      "backend": "sglang",
+      "num_runs": 3,
+      "per_request_timeout_s": 600,
+      "reliable_stddev_pct": 8.0
+    },
+    "quality_gate": {
+      "type": "sanity"
+    },
+    "regimes": {
+      "R_concurrent_decode": {
+        "concurrency": 32,
+        "max_new": 256,
+        "num_prompts": 32,
+        "prompt_words": 200
+      },
+      "R_long_prefill": {
+        "concurrency": 4,
+        "max_new": 32,
+        "num_prompts": 4,
+        "prompt_words": 4000
+      },
+      "R_medium_balanced": {
+        "concurrency": 8,
+        "max_new": 256,
+        "num_prompts": 16,
+        "prompt_words": 800
+      },
+      "R_short_decode": {
+        "concurrency": 1,
+        "max_new": 256,
+        "num_prompts": 8,
+        "prompt_words": 100
+      }
+    },
+    "server_config": {
+      "_gpu_id": 4,
+      "chunked-prefill-size": -1,
+      "context-length": 32768,
+      "disable-cuda-graph": false,
+      "disable-radix-cache": false,
+      "host": "127.0.0.1",
+      "log-requests": false,
+      "max-prefill-tokens": 16384,
+      "max-running-requests": 32,
+      "mem-fraction-static": 0.85,
+      "model-path": "/data/hf/models/Qwen3-30B-A3B-Instruct-2507-FP8",
+      "moe-runner-backend": "flashinfer_cutlass",
+      "port": 31103,
+      "schedule-conservativeness": 1.0,
+      "schedule-policy": "lpm",
+      "served-model-name": "qwen3-30b-a3b-moe-fp8",
+      "tensor-parallel-size": 1,
+      "trust-remote-code": true
+    }
+  },
+  "submission_id": "sglang-cutlass-fp8-patched",
+  "warnings": []
+}
