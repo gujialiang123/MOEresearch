@@ -1,0 +1,25 @@
+{
+  "study_name": "autotune-R_short_decode",
+  "target_regime": "R_short_decode",
+  "best_trial_number": 2,
+  "best_value_req_per_s": 0.8858819518984924,
+  "best_params": {
+    "moe_runner_backend": "triton",
+    "disable_cuda_graph": false,
+    "max_running_requests": 8,
+    "chunked_prefill_size": 8192,
+    "schedule_policy": "lpm"
+  },
+  "best_user_attrs": {
+    "per_regime_req_per_s": {
+      "R_concurrent_decode": 3.95373196250585,
+      "R_long_prefill": 13.574713565846704,
+      "R_medium_balanced": 4.637067473563853,
+      "R_short_decode": 0.8858819518984924
+    },
+    "server_startup_s": 40.07,
+    "spec_hash": "sha256:8326b03832d59ab16cefc62a0fa5ca9deaf79a5b320093962dd38ba228294295"
+  },
+  "total_trials": 15,
+  "captured_at": "2026-06-25T18:30:29.956058+00:00"
+}

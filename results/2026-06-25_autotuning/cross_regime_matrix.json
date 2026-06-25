@@ -1,0 +1,76 @@
+{
+  "regimes": [
+    "R_short_decode",
+    "R_medium_balanced",
+    "R_long_prefill",
+    "R_concurrent_decode"
+  ],
+  "matrix": {
+    "R_short_decode": {
+      "config": {
+        "moe_runner_backend": "triton",
+        "disable_cuda_graph": false,
+        "max_running_requests": 8,
+        "chunked_prefill_size": 8192,
+        "schedule_policy": "lpm"
+      },
+      "per_regime": {
+        "R_concurrent_decode": 3.95373196250585,
+        "R_long_prefill": 13.574713565846704,
+        "R_medium_balanced": 4.637067473563853,
+        "R_short_decode": 0.8858819518984924
+      }
+    },
+    "R_medium_balanced": {
+      "config": {
+        "moe_runner_backend": "triton",
+        "disable_cuda_graph": false,
+        "max_running_requests": 8,
+        "chunked_prefill_size": 8192,
+        "schedule_policy": "lpm"
+      },
+      "per_regime": {
+        "R_concurrent_decode": 4.73764672549847,
+        "R_long_prefill": 13.073475433840375,
+        "R_medium_balanced": 4.651782072966643,
+        "R_short_decode": 0.8426410559174726
+      }
+    },
+    "R_long_prefill": {
+      "config": {
+        "moe_runner_backend": "flashinfer_cutlass",
+        "disable_cuda_graph": false,
+        "max_running_requests": 8,
+        "chunked_prefill_size": -1,
+        "schedule_policy": "fcfs"
+      },
+      "per_regime": {
+        "R_concurrent_decode": 4.564035727672788,
+        "R_long_prefill": 14.23103279139821,
+        "R_medium_balanced": 4.428850515900874,
+        "R_short_decode": 0.8319787722288606
+      }
+    },
+    "R_concurrent_decode": {
+      "config": {
+        "moe_runner_backend": "flashinfer_cutlass",
+        "disable_cuda_graph": false,
+        "max_running_requests": 32,
+        "chunked_prefill_size": -1,
+        "schedule_policy": "fcfs"
+      },
+      "per_regime": {
+        "R_concurrent_decode": 13.978128146530954,
+        "R_long_prefill": 14.313279326192816,
+        "R_medium_balanced": 4.3982136199752615,
+        "R_short_decode": 0.8291993606893732
+      }
+    }
+  },
+  "baseline_triton_bf16_default": {
+    "R_short_decode": 0.1,
+    "R_medium_balanced": 0.74,
+    "R_long_prefill": 2.52,
+    "R_concurrent_decode": 2.94
+  }
+}

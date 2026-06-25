@@ -1,0 +1,30 @@
+submission_id: autotune-R_medium_balanced-trial-0005
+description: 'Optuna trial: {''moe-runner-backend'': ''triton'', ''disable-cuda-graph'':
+  True, ''max-running-requests'': 16, ''chunked-prefill-size'': 8192, ''schedule-policy'':
+  ''fcfs''}'
+tags:
+- autotune
+- trial
+server:
+  config: configs/moe_qwen3_30b.yaml
+  overrides:
+    _gpu_id: 5
+    port: 31201
+    moe-runner-backend: triton
+    disable-cuda-graph: true
+    max-running-requests: 16
+    chunked-prefill-size: 8192
+    schedule-policy: fcfs
+  conda_env: sglang-dev
+  health_url: http://127.0.0.1:31201/health
+  base_url: http://127.0.0.1:31201
+  startup_timeout_s: 600
+regimes:
+  file: regimes/qwen3_30b_moe_sglang_perf_sweep.yaml
+bench:
+  num_runs: 3
+  reliable_stddev_pct: 8.0
+  per_request_timeout_s: 600
+  backend: sglang
+quality_gate:
+  type: sanity

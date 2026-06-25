@@ -1,0 +1,30 @@
+submission_id: autotune-R_short_decode-trial-0008
+description: 'Optuna trial: {''moe-runner-backend'': ''flashinfer_cutlass'', ''disable-cuda-graph'':
+  False, ''max-running-requests'': 32, ''chunked-prefill-size'': 8192, ''schedule-policy'':
+  ''fcfs''}'
+tags:
+- autotune
+- trial
+server:
+  config: configs/moe_qwen3_30b.yaml
+  overrides:
+    _gpu_id: 4
+    port: 31200
+    moe-runner-backend: flashinfer_cutlass
+    disable-cuda-graph: false
+    max-running-requests: 32
+    chunked-prefill-size: 8192
+    schedule-policy: fcfs
+  conda_env: sglang-dev
+  health_url: http://127.0.0.1:31200/health
+  base_url: http://127.0.0.1:31200
+  startup_timeout_s: 600
+regimes:
+  file: regimes/qwen3_30b_moe_sglang_perf_sweep.yaml
+bench:
+  num_runs: 3
+  reliable_stddev_pct: 8.0
+  per_request_timeout_s: 600
+  backend: sglang
+quality_gate:
+  type: sanity

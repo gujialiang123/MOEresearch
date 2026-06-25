@@ -1,0 +1,25 @@
+{
+  "study_name": "autotune-R_medium_balanced",
+  "target_regime": "R_medium_balanced",
+  "best_trial_number": 2,
+  "best_value_req_per_s": 4.651782072966643,
+  "best_params": {
+    "moe_runner_backend": "triton",
+    "disable_cuda_graph": false,
+    "max_running_requests": 8,
+    "chunked_prefill_size": 8192,
+    "schedule_policy": "lpm"
+  },
+  "best_user_attrs": {
+    "per_regime_req_per_s": {
+      "R_concurrent_decode": 4.73764672549847,
+      "R_long_prefill": 13.073475433840375,
+      "R_medium_balanced": 4.651782072966643,
+      "R_short_decode": 0.8426410559174726
+    },
+    "server_startup_s": 40.08,
+    "spec_hash": "sha256:685de7bf7f13e17d90a8b84ed83d34707638421f56227ff705737ae30c67fdf5"
+  },
+  "total_trials": 15,
+  "captured_at": "2026-06-25T18:31:04.102732+00:00"
+}

@@ -1,0 +1,21 @@
+regimes:
+  R_concurrent_decode:
+    concurrency: 32
+    max_new: 256
+    num_prompts: 32
+    prompt_words: 200
+  R_long_prefill:
+    concurrency: 4
+    max_new: 32
+    num_prompts: 4
+    prompt_words: 4000
+  R_medium_balanced:
+    concurrency: 8
+    max_new: 256
+    num_prompts: 16
+    prompt_words: 800
+  R_short_decode:
+    concurrency: 1
+    max_new: 256
+    num_prompts: 8
+    prompt_words: 100

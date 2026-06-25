@@ -1,0 +1,273 @@
+{
+  "captured_at": "2026-06-25T18:19:25Z",
+  "environment": {
+    "cuda": "12.8",
+    "driver": "580.105.08",
+    "engine_version": {
+      "flashinfer": "0.6.3",
+      "sglang": "0.0.0",
+      "torch": "2.9.1",
+      "triton": "3.5.1"
+    },
+    "git": {
+      "commit": "e046b195e124bd0485bf85c753aa6faf5c3e29e3",
+      "dirty": true
+    },
+    "gpu": {
+      "id": 4,
+      "name": "NVIDIA H200",
+      "sm": "90",
+      "uuid": "GPU-68170cb3-c9ea-a588-7558-ae82635d9173"
+    },
+    "hostname": "aifx-clou00000M"
+  },
+  "ok": true,
+  "quality_gate": {
+    "checks": {
+      "completion_rate_min": {
+        "message": "min completion_rate across runs = 1.000; threshold = 0.99",
+        "passed": true,
+        "threshold": 0.99,
+        "value": 1.0
+      },
+      "output_not_constant": {
+        "message": "skipped (bench records don't include text; v1 limitation)",
+        "passed": true
+      },
+      "output_not_empty": {
+        "message": "skipped (bench records don't include text; v1 limitation)",
+        "passed": true
+      }
+    },
+    "passed": true,
+    "type": "sanity"
+  },
+  "regimes": {
+    "R_concurrent_decode": {
+      "completion_rate": 1.0,
+      "concurrency": 32,
+      "e2e_ms": {
+        "count": 64,
+        "p50": 2270.37046616897,
+        "p99": 2288.079068996012
+      },
+      "max_new": 256,
+      "num_prompts": 32,
+      "prompt_words": 200,
+      "reliable": true,
+      "req_per_s": {
+        "mean": 13.962916652929994,
+        "runs": [
+          13.94657638970911,
+          13.97925691615088
+        ],
+        "stddev": 0.016340263220885554,
+        "stddev_pct": 0.11702614594821557
+      },
+      "tokens_per_s": {
+        "mean": 3574.5066631500786,
+        "runs": [
+          3570.323555765532,
+          3578.6897705346255
+        ],
+        "stddev": 4.183107384546702,
+        "stddev_pct": 0.11702614594821557
+      },
+      "wall_s": {
+        "mean": 2.29178792797029,
+        "runs": [
+          2.2944699190557003,
+          2.28910593688488
+        ],
+        "stddev": 0.002681991085410118,
+        "stddev_pct": 0.11702614594821648
+      }
+    },
+    "R_long_prefill": {
+      "completion_rate": 1.0,
+      "concurrency": 4,
+      "e2e_ms": {
+        "count": 8,
+        "p50": 285.3832491673529,
+        "p99": 289.0012226998806
+      },
+      "max_new": 32,
+      "num_prompts": 4,
+      "prompt_words": 4000,
+      "reliable": true,
+      "req_per_s": {
+        "mean": 14.001133694138955,
+        "runs": [
+          13.811779847370566,
+          14.190487540907345
+        ],
+        "stddev": 0.1893538467683893,
+        "stddev_pct": 1.3524179606088265
+      },
+      "tokens_per_s": {
+        "mean": 448.0362782124466,
+        "runs": [
+          441.9769551158581,
+          454.09560130903503
+        ],
+        "stddev": 6.059323096588457,
+        "stddev_pct": 1.3524179606088265
+      },
+      "wall_s": {
+        "mean": 0.2857434144243598,
+        "runs": [
+          0.28960785968229175,
+          0.28187896916642785
+        ],
+        "stddev": 0.0038644452579319477,
+        "stddev_pct": 1.3524179606088242
+      }
+    },
+    "R_medium_balanced": {
+      "completion_rate": 1.0,
+      "concurrency": 8,
+      "e2e_ms": {
+        "count": 32,
+        "p50": 1850.6633220240474,
+        "p99": 1864.7006028331816
+      },
+      "max_new": 256,
+      "num_prompts": 16,
+      "prompt_words": 800,
+      "reliable": true,
+      "req_per_s": {
+        "mean": 4.397312363297395,
+        "runs": [
+          4.395227311884004,
+          4.399397414710787
+        ],
+        "stddev": 0.0020850514133914366,
+        "stddev_pct": 0.047416495375550885
+      },
+      "tokens_per_s": {
+        "mean": 1125.7119650041332,
+        "runs": [
+          1125.178191842305,
+          1126.2457381659615
+        ],
+        "stddev": 0.5337731618282078,
+        "stddev_pct": 0.047416495375550885
+      },
+      "wall_s": {
+        "mean": 3.6385869993828237,
+        "runs": [
+          3.6403122898191214,
+          3.636861708946526
+        ],
+        "stddev": 0.001725290436297655,
+        "stddev_pct": 0.047416495375548214
+      }
+    },
+    "R_short_decode": {
+      "completion_rate": 1.0,
+      "concurrency": 1,
+      "e2e_ms": {
+        "count": 16,
+        "p50": 1208.595811855048,
+        "p99": 1212.2356332838535
+      },
+      "max_new": 256,
+      "num_prompts": 8,
+      "prompt_words": 100,
+      "reliable": true,
+      "req_per_s": {
+        "mean": 0.8273358128091868,
+        "runs": [
+          0.8271406461634617,
+          0.8275309794549119
+        ],
+        "stddev": 0.0001951666457251089,
+        "stddev_pct": 0.023589773669101557
+      },
+      "tokens_per_s": {
+        "mean": 211.79796807915181,
+        "runs": [
+          211.7480054178462,
+          211.84793074045746
+        ],
+        "stddev": 0.049962661305627876,
+        "stddev_pct": 0.023589773669101557
+      },
+      "wall_s": {
+        "mean": 9.6695928319823,
+        "runs": [
+          9.671873867046088,
+          9.667311796918511
+        ],
+        "stddev": 0.002281035063788295,
+        "stddev_pct": 0.023589773669101585
+      }
+    }
+  },
+  "schema_version": 1,
+  "server": {
+    "first_health_at_s": 40.08,
+    "log_path": "R_short_decode_gpu4/trial_0008/server.log",
+    "startup_wall_s": 40.08
+  },
+  "spec_hash": "sha256:369922aa0f9584e2cc5b4c6267037f5b7f06cfac14fa7b27edbd904da4704917",
+  "spec_resolved": {
+    "bench": {
+      "backend": "sglang",
+      "num_runs": 3,
+      "per_request_timeout_s": 600,
+      "reliable_stddev_pct": 8.0
+    },
+    "quality_gate": {
+      "type": "sanity"
+    },
+    "regimes": {
+      "R_concurrent_decode": {
+        "concurrency": 32,
+        "max_new": 256,
+        "num_prompts": 32,
+        "prompt_words": 200
+      },
+      "R_long_prefill": {
+        "concurrency": 4,
+        "max_new": 32,
+        "num_prompts": 4,
+        "prompt_words": 4000
+      },
+      "R_medium_balanced": {
+        "concurrency": 8,
+        "max_new": 256,
+        "num_prompts": 16,
+        "prompt_words": 800
+      },
+      "R_short_decode": {
+        "concurrency": 1,
+        "max_new": 256,
+        "num_prompts": 8,
+        "prompt_words": 100
+      }
+    },
+    "server_config": {
+      "_gpu_id": 4,
+      "chunked-prefill-size": 8192,
+      "context-length": 32768,
+      "disable-cuda-graph": false,
+      "disable-radix-cache": false,
+      "host": "127.0.0.1",
+      "log-requests": false,
+      "max-prefill-tokens": 16384,
+      "max-running-requests": 32,
+      "mem-fraction-static": 0.85,
+      "model-path": "/data/hf/models/Qwen3-30B-A3B-Instruct-2507",
+      "moe-runner-backend": "flashinfer_cutlass",
+      "port": 31200,
+      "schedule-conservativeness": 1.0,
+      "schedule-policy": "fcfs",
+      "served-model-name": "qwen3-30b-a3b-moe",
+      "tensor-parallel-size": 1,
+      "trust-remote-code": true
+    }
+  },
+  "submission_id": "autotune-R_short_decode-trial-0008",
+  "warnings": []
+}

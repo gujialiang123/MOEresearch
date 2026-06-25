@@ -1,0 +1,7 @@
+{
+  "moe-runner-backend": "triton",
+  "disable-cuda-graph": true,
+  "max-running-requests": 8,
+  "chunked-prefill-size": 8192,
+  "schedule-policy": "lpm"
+}
