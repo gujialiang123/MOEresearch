@@ -1,0 +1,36 @@
+submission_id: sglang-true-default-bf16
+description: |
+  Strict "out-of-the-box" sglang default config on Qwen3-30B-A3B (bf16, H200).
+  No --moe-runner-backend flag (uses AUTO → resolves to triton on H200 bf16).
+  No --disable-cuda-graph flag (uses default = cudagraph ON).
+  This is the honest "if you just launch sglang with nothing" baseline,
+  as opposed to the 6/11 baseline which had disable-cuda-graph=true as a
+  workaround for the (now-fixed) Triton 3.5.1 cubin KeyError bug.
+
+  Used as Optuna-autotuning baseline for 2026-06-25 framework-level study.
+
+tags: [sglang, default-baseline, bf16, qwen3-30b-a3b, strict-defaults]
+
+server:
+  config: configs/moe_qwen3_30b.yaml
+  overrides:
+    _gpu_id: 4
+    port: 31300
+    disable-cuda-graph: false   # explicit override of base config's true
+    # Intentionally NOT setting moe-runner-backend → tests AUTO resolution
+  conda_env: sglang-dev
+  health_url: http://127.0.0.1:31300/health
+  base_url:   http://127.0.0.1:31300
+  startup_timeout_s: 600
+
+regimes:
+  file: regimes/qwen3_30b_moe_sglang_perf_sweep.yaml
+
+bench:
+  num_runs: 3
+  reliable_stddev_pct: 8
+  per_request_timeout_s: 600
+  backend: sglang
+
+quality_gate:
+  type: sanity
