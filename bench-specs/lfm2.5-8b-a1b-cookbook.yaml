@@ -1,0 +1,37 @@
+submission_id: lfm2.5-8b-a1b-cookbook
+description: |
+  sglang cookbook recommended config for LFM2.5-8B-A1B on H200.
+  From sglang_cookbook_deployment_baselines.json (LiquidAI/LFM2.5-8B-A1B,
+  H200, bf16, single-node, variant=8b-a1b, verified=true).
+
+  Cookbook flags: --reasoning-parser qwen3 --tool-call-parser lfm2 + tp=1
+  These are output-parsing flags, NOT throughput-tuning flags. They don't
+  affect kernel performance. So we expect this config to behave very
+  similarly to true-default.
+
+tags: [sglang, cookbook-baseline, bf16, lfm2.5-8b-a1b]
+
+server:
+  config: configs/lfm2.5_8b_a1b.yaml
+  overrides:
+    _gpu_id: 4
+    port: 31501
+    # Cookbook-specific flags (output parsers; don't affect throughput)
+    reasoning-parser: qwen3
+    tool-call-parser: lfm2
+  conda_env: sglang-dev
+  health_url: http://127.0.0.1:31501/health
+  base_url:   http://127.0.0.1:31501
+  startup_timeout_s: 600
+
+regimes:
+  file: regimes/qwen3_30b_moe_sglang_perf_sweep.yaml
+
+bench:
+  num_runs: 3
+  reliable_stddev_pct: 8
+  per_request_timeout_s: 600
+  backend: sglang
+
+quality_gate:
+  type: sanity

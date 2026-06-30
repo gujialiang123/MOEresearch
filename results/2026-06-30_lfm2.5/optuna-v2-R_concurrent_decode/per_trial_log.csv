@@ -1,0 +1,26 @@
+trial,wall_s,ok,target_req_per_s,reliable,warnings,moe_runner_backend,attention_backend,disable_cuda_graph,max_running_requests,chunked_prefill_size,schedule_policy,mem_fraction_static,R_short_decode_rps,R_medium_balanced_rps,R_long_prefill_rps,R_concurrent_decode_rps,spec_hash,server_startup_s
+0,54.5,True,22.1709,True,,flashinfer_cutlass,fa3,False,32,-1,fcfs,0.9,1.6464,7.0787,9.2501,22.1709,sha256:920f25648c4099866dadd864720ff494b53b1f011d6c356d7e885b23d4ce4337,25.1
+1,60.8,True,8.4253,True,unreliable stddev_pct on regimes: ['R_long_prefill'] (threshold=8.0%),triton,fa3,False,8,8192,lpm,0.9,1.6998,7.2324,15.3462,8.4253,sha256:72b145606041d70ce0b0018e3c7d6cf43e31cf86c0909df16da9461e9cc40782,25.1
+2,136.7,True,5.3554,True,,flashinfer_cutlass,fa3,True,16,2048,fcfs,0.75,0.3524,2.65,7.7882,5.3554,sha256:3716a3d3d844a288e773109481b7448b958a213f26be1c98e6ed644aed62ce25,28.1
+3,223.5,True,1.7005,True,,triton,fa3,True,8,2048,fcfs,0.75,0.2182,1.6754,5.79,1.7005,sha256:8b47f94e262926d8aee7d42c51f772ef81a9a0253d9569f880b3c4351f269e67,25.1
+4,60.4,True,8.4995,True,unreliable stddev_pct on regimes: ['R_long_prefill'] (threshold=8.0%),triton,fa3,False,8,2048,fcfs,0.75,1.6905,7.4851,19.8324,8.4995,sha256:8ebf1548acd18ebd8e6c12e692f7ae166fe5056178212e11bd4f47cafbb3a89e,25.1
+5,151.0,True,2.9531,True,,flashinfer_cutlass,fa3,True,8,2048,fcfs,0.85,0.3418,2.641,9.8844,2.9531,sha256:3b3dc69b039c61f26cbf80b9e7f978f85ceec3e6da990930ba3d1d9ff492abbe,25.1
+6,174.3,True,6.8755,True,,triton,fa3,True,64,8192,fcfs,0.75,0.2325,1.7567,5.6237,6.8755,sha256:1e8f7e756a298e1706d721b44cef893eaa27f43dab8544c68ccf0bac0a01e938,25.1
+7,128.9,True,9.2809,True,unreliable stddev_pct on regimes: ['R_long_prefill'] (threshold=8.0%),flashinfer_cutlass,fa3,True,64,2048,fcfs,0.9,0.3663,2.2726,6.7044,9.2809,sha256:ab55fe48cb2598dd77e6cbfbc2a83fd4e8764ec8af328775a76877ed4d3d37ce,25.1
+8,172.8,True,7.1191,True,,triton,fa3,True,32,2048,fcfs,0.85,0.2323,1.7926,6.0498,7.1191,sha256:263a3c0a6ba87e496b08048f4f66857d2531acd921727bb750eb95da12c21f77,25.1
+9,206.0,True,1.871,True,,triton,fa3,True,8,2048,fcfs,0.75,0.2335,1.8418,6.281,1.871,sha256:e01af20ad8b05ed48acf25aef9d79629574e518f71644304c108491a74347bc9,22.1
+10,57.6,True,22.0844,True,,flashinfer_cutlass,fa3,False,32,-1,lpm,0.9,1.6469,7.091,9.3008,22.0844,sha256:1fddc69fbd633a9651a1688bc5574aa78c90715f0e990b46a710af66a41d81e3,28.1
+11,54.5,True,22.2396,True,,flashinfer_cutlass,fa3,False,32,-1,lpm,0.9,1.6477,7.0973,9.2804,22.2396,sha256:24d814d75942794901423226e5a03a744761ccc08ebe3587e303bb66e9e75cd2,25.1
+12,57.7,True,21.8675,True,,flashinfer_cutlass,fa3,False,32,-1,lpm,0.9,1.6433,7.1107,9.2548,21.8675,sha256:d04b075d4dfbb22442af0cab84d6370c32de6b3b323c33f6df093d8ecd948422,28.1
+13,57.6,True,21.9185,True,,flashinfer_cutlass,fa3,False,32,-1,lpm,0.9,1.6423,7.0984,9.2678,21.9185,sha256:96a86d1c5ee4763965e25f3fda5e42e7b48060eb1678e53dda656f9d10f83e78,28.1
+14,54.6,True,21.9912,True,,flashinfer_cutlass,fa3,False,32,-1,lpm,0.9,1.6491,7.1126,9.241,21.9912,sha256:6b4333f9c89d68b7a6c1a2dfcd98ae1b9c7c56273c21df694a6c6c207f077ac2,25.1
+15,57.4,True,13.5998,True,,flashinfer_cutlass,fa3,False,16,-1,lpm,0.9,1.6422,7.0963,9.2857,13.5998,sha256:86dd766d34c74062698cf35528344af8c4eeaa680ec972eb1be12e410b739dd1,25.1
+16,54.6,True,22.115,True,,flashinfer_cutlass,fa3,False,32,-1,lpm,0.85,1.6465,7.0993,9.311,22.115,sha256:08a3e9e2677fc171895ae0184cf2ff7196e4369fb10f8f5676a55c2db8aed004,25.1
+17,54.6,True,22.3194,True,,flashinfer_cutlass,fa3,False,32,-1,lpm,0.9,1.6449,7.0923,9.3244,22.3194,sha256:c6206f41fc1535a3b196c6249cd918f640d4cbed290d8b1a2953539a52a98634,25.1
+18,54.6,True,22.2797,True,,flashinfer_cutlass,fa3,False,32,-1,lpm,0.9,1.6452,7.0954,9.2724,22.2797,sha256:3eb4154be45881d32dadcb20ec992ccf9f29e71f5660899d595fc0924ad2cfa2,25.1
+19,54.2,True,21.7455,True,unreliable stddev_pct on regimes: ['R_long_prefill'] (threshold=8.0%),flashinfer_cutlass,fa3,False,64,8192,lpm,0.9,1.6752,7.1061,11.8818,21.7455,sha256:f9b64f5a6415915152a902ed92204a0d18df1e5a4013ad6c36948403b8e384fd,25.1
+20,57.3,True,13.5876,True,,flashinfer_cutlass,fa3,False,16,-1,lpm,0.85,1.6454,7.093,9.3783,13.5876,sha256:59fa7be2fb6ceae43fe2c5a2510ffdbae0d50c38052de17bbd0983dd363e7444,25.1
+21,54.6,True,22.1367,True,,flashinfer_cutlass,fa3,False,32,-1,lpm,0.9,1.6443,7.0983,9.3732,22.1367,sha256:26f9d54e06d0f4492f873112793eba41de8c8d411c85f7cf2487eb7edc18bf6e,25.1
+22,54.5,True,21.9846,True,,flashinfer_cutlass,fa3,False,32,-1,lpm,0.9,1.6461,7.1317,9.342,21.9846,sha256:f598866d85756e72b2f2b25f03a9359eacc92fb94361ae6eac51fca290765415,25.1
+23,54.6,True,21.8927,True,,flashinfer_cutlass,fa3,False,32,-1,lpm,0.9,1.6465,7.1153,9.2743,21.8927,sha256:709eea946d97d7860bda67d6f9fcbc0eba21de30712035398c07d239a8557438,25.1
+24,54.5,True,22.0672,True,,flashinfer_cutlass,fa3,False,32,-1,lpm,0.9,1.645,7.1136,9.3393,22.0672,sha256:481bda6fb8cdf299bd61b8a3b9556347990e2bf456335ad770aef9faf37a0d48,25.1

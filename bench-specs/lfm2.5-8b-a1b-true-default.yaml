@@ -1,0 +1,33 @@
+submission_id: lfm2.5-8b-a1b-true-default
+description: |
+  Strict "out-of-the-box" sglang default config on LFM2.5-8B-A1B (bf16, H200).
+  No flag tweaks beyond model path + port. Establishes the "today default"
+  baseline for this new model (mirrors what we did 6/25 for Qwen3-30B-A3B).
+
+  Note: LFM2.5-8B-A1B is a hybrid MoE (conv layers + full_attention layers),
+  32 experts top-4, ~1B active of 8B total. sglang has native support via
+  Lfm2MoeForCausalLM in srt/models/lfm2_moe.py.
+
+tags: [sglang, default-baseline, bf16, lfm2.5-8b-a1b, smoke]
+
+server:
+  config: configs/lfm2.5_8b_a1b.yaml
+  overrides:
+    _gpu_id: 4
+    port: 31500
+  conda_env: sglang-dev
+  health_url: http://127.0.0.1:31500/health
+  base_url:   http://127.0.0.1:31500
+  startup_timeout_s: 600
+
+regimes:
+  file: regimes/qwen3_30b_moe_sglang_perf_sweep.yaml
+
+bench:
+  num_runs: 3
+  reliable_stddev_pct: 8
+  per_request_timeout_s: 600
+  backend: sglang
+
+quality_gate:
+  type: sanity

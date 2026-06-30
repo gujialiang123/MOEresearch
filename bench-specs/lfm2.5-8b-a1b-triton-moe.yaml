@@ -1,0 +1,39 @@
+submission_id: lfm2.5-8b-a1b-triton-moe-validation
+description: |
+  Validation run to test the hypothesis that triton MoE + cap=32 + chunk=-1 +
+  lpm + cg-on + mem=0.85 beats flashinfer_cutlass MoE in this config.
+
+  Background: Optuna v2 phase 2b converged on flashinfer_cutlass MoE
+  (22.3 req/s), but baseline-B with default moe_runner_backend='auto' (which
+  resolves to triton) hits 23.6+ req/s. Hypothesis: TPE missed the
+  triton+best-batching combination because early triton trials had cap=8
+  or cg-off and got penalized.
+
+  This trial holds everything else equal to baseline-B and only adds
+  --moe-runner-backend triton (which should be functionally identical to
+  the 'auto' default for LFM2.5 on H200 bf16).
+
+tags: [validation, triton-moe-explicit]
+
+server:
+  config: configs/lfm2.5_8b_a1b.yaml
+  overrides:
+    _gpu_id: 4
+    port: 31502
+    moe-runner-backend: triton
+  conda_env: sglang-dev
+  health_url: http://127.0.0.1:31502/health
+  base_url:   http://127.0.0.1:31502
+  startup_timeout_s: 600
+
+regimes:
+  file: regimes/qwen3_30b_moe_sglang_perf_sweep.yaml
+
+bench:
+  num_runs: 3
+  reliable_stddev_pct: 8
+  per_request_timeout_s: 600
+  backend: sglang
+
+quality_gate:
+  type: sanity
