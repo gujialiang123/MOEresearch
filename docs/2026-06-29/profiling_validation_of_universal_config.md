@@ -2,6 +2,8 @@
 
 **2026-06-29** | sglang × Optuna universal config × H200 | follow-up to 6/24 meeting
 
+> 🇨🇳 中文版本：[`profiling_validation_of_universal_config.zh.md`](./profiling_validation_of_universal_config.zh.md)
+
 > **Purpose of this experiment**: 6/24 meeting (Debadeepta) asked us to
 > profile the autotuned config to determine whether agent-based kernel
 > rewriting is justified — i.e., is the autotuned config close to hardware
