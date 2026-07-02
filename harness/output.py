@@ -177,6 +177,9 @@ SUMMARY_SCHEMA: Mapping[str, Any] = {
             "properties": {"phase": _STRING, "message": _STRING},
             "additionalProperties": True,
         },
+        # Optional MFU/MBU assumptions block (added when harness.mfu annotates
+        # a summary; see harness/mfu.py::annotate_summary_with_mfu).
+        "mfu_assumptions": {"type": "object", "additionalProperties": True},
     },
     "additionalProperties": False,
 }

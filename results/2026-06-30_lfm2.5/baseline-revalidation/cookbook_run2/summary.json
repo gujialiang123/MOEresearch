@@ -81,6 +81,16 @@
         ],
         "stddev": 0.012737493496388197,
         "stddev_pct": 0.949241457552929
+      },
+      "mfu": {
+        "mfu_pct_simple": 1.975,
+        "mfu_pct_full_decode": 1.987,
+        "mfu_pct_amortized": 3.998,
+        "mbu_pct": 12.72,
+        "assumed_kv_len": 388,
+        "peak_flops_used": 989000000000000.0,
+        "peak_hbm_bw_used": 4800000000000.0,
+        "model_dtype": "bfloat16"
       }
     },
     "R_long_prefill": {
@@ -121,6 +131,16 @@
         ],
         "stddev": 0.002421338518615812,
         "stddev_pct": 0.8187296983341044
+      },
+      "mfu": {
+        "mfu_pct_simple": 0.14,
+        "mfu_pct_full_decode": 0.151,
+        "mfu_pct_amortized": 23.818,
+        "mbu_pct": 7.214,
+        "assumed_kv_len": 5216,
+        "peak_flops_used": 989000000000000.0,
+        "peak_hbm_bw_used": 4800000000000.0,
+        "model_dtype": "bfloat16"
       }
     },
     "R_medium_balanced": {
@@ -161,6 +181,16 @@
         ],
         "stddev": 0.0028725774900522083,
         "stddev_pct": 0.1308361111763526
+      },
+      "mfu": {
+        "mfu_pct_simple": 0.604,
+        "mfu_pct_full_decode": 0.614,
+        "mfu_pct_amortized": 3.086,
+        "mbu_pct": 15.547,
+        "assumed_kv_len": 1168,
+        "peak_flops_used": 989000000000000.0,
+        "peak_hbm_bw_used": 4800000000000.0,
+        "model_dtype": "bfloat16"
       }
     },
     "R_short_decode": {
@@ -201,6 +231,16 @@
         ],
         "stddev": 0.0005346259858924896,
         "stddev_pct": 0.01128041214298323
+      },
+      "mfu": {
+        "mfu_pct_simple": 0.14,
+        "mfu_pct_full_decode": 0.14,
+        "mfu_pct_amortized": 0.211,
+        "mbu_pct": 28.808,
+        "assumed_kv_len": 258,
+        "peak_flops_used": 989000000000000.0,
+        "peak_hbm_bw_used": 4800000000000.0,
+        "model_dtype": "bfloat16"
       }
     }
   },
@@ -270,5 +310,13 @@
     }
   },
   "submission_id": "lfm2.5-8b-a1b-cookbook",
-  "warnings": []
+  "warnings": [],
+  "mfu_assumptions": {
+    "model_config": "LFM2.5-8B-A1B",
+    "active_params_per_token": 1600000000.0,
+    "dtype": "bfloat16",
+    "hardware": "h200",
+    "peak_flops": 989000000000000.0,
+    "peak_hbm_bw_bytes_per_s": 4800000000000.0
+  }
 }

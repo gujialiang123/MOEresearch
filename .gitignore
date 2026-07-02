@@ -41,6 +41,9 @@ scratch/
 # Models live at /data/hf/, never under this repo, but be defensive.
 hf_cache/
 models/
+# Exception: configs/models/ holds tiny model *metadata* YAMLs for MFU
+# computation (not model weights). Keep them.
+!configs/models/
 
 # nsys profile artifacts (large binaries)
 *.nsys-rep

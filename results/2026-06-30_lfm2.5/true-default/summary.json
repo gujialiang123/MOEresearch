@@ -81,6 +81,16 @@
         ],
         "stddev": 0.16301342897349969,
         "stddev_pct": 10.809540719971404
+      },
+      "mfu": {
+        "mfu_pct_simple": 1.778,
+        "mfu_pct_full_decode": 1.789,
+        "mfu_pct_amortized": 3.599,
+        "mbu_pct": 11.451,
+        "assumed_kv_len": 388,
+        "peak_flops_used": 989000000000000.0,
+        "peak_hbm_bw_used": 4800000000000.0,
+        "model_dtype": "bfloat16"
       }
     },
     "R_long_prefill": {
@@ -121,6 +131,16 @@
         ],
         "stddev": 0.0020931419858243316,
         "stddev_pct": 0.7134503314618945
+      },
+      "mfu": {
+        "mfu_pct_simple": 0.141,
+        "mfu_pct_full_decode": 0.152,
+        "mfu_pct_amortized": 24.009,
+        "mbu_pct": 7.272,
+        "assumed_kv_len": 5216,
+        "peak_flops_used": 989000000000000.0,
+        "peak_hbm_bw_used": 4800000000000.0,
+        "model_dtype": "bfloat16"
       }
     },
     "R_medium_balanced": {
@@ -161,6 +181,16 @@
         ],
         "stddev": 2.146599581465125e-05,
         "stddev_pct": 0.0009765113316096551
+      },
+      "mfu": {
+        "mfu_pct_simple": 0.603,
+        "mfu_pct_full_decode": 0.614,
+        "mfu_pct_amortized": 3.083,
+        "mbu_pct": 15.528,
+        "assumed_kv_len": 1168,
+        "peak_flops_used": 989000000000000.0,
+        "peak_hbm_bw_used": 4800000000000.0,
+        "model_dtype": "bfloat16"
       }
     },
     "R_short_decode": {
@@ -201,6 +231,16 @@
         ],
         "stddev": 0.0006553910207003355,
         "stddev_pct": 0.013861236036345285
+      },
+      "mfu": {
+        "mfu_pct_simple": 0.14,
+        "mfu_pct_full_decode": 0.141,
+        "mfu_pct_amortized": 0.212,
+        "mbu_pct": 28.876,
+        "assumed_kv_len": 258,
+        "peak_flops_used": 989000000000000.0,
+        "peak_hbm_bw_used": 4800000000000.0,
+        "model_dtype": "bfloat16"
       }
     }
   },
@@ -270,5 +310,13 @@
   "submission_id": "lfm2.5-8b-a1b-true-default",
   "warnings": [
     "unreliable stddev_pct on regimes: ['R_concurrent_decode'] (threshold=8.0%)"
-  ]
+  ],
+  "mfu_assumptions": {
+    "model_config": "LFM2.5-8B-A1B",
+    "active_params_per_token": 1600000000.0,
+    "dtype": "bfloat16",
+    "hardware": "h200",
+    "peak_flops": 989000000000000.0,
+    "peak_hbm_bw_bytes_per_s": 4800000000000.0
+  }
 }

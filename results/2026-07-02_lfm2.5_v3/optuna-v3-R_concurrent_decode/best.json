@@ -1,0 +1,42 @@
+{
+  "study_name": "autotune-v3-R_concurrent_decode",
+  "target_regime": "R_concurrent_decode",
+  "best_trial_number": 19,
+  "best_value_req_per_s": 23.89656298611655,
+  "best_params": {
+    "mem_fraction_static": 0.75,
+    "max_running_requests": 32,
+    "chunked_prefill_size": 8192,
+    "schedule_policy": "fcfs",
+    "attention_backend": "fa3",
+    "disable_cuda_graph": false,
+    "moe_runner_backend": "auto"
+  },
+  "best_user_attrs": {
+    "per_regime_mfu_simple": {
+      "R_concurrent_decode": 1.979,
+      "R_long_prefill": 0.153,
+      "R_medium_balanced": 0.605,
+      "R_prompt_16k_c2_out128": 0.171,
+      "R_prompt_32k_c1_out128": 0.097,
+      "R_prompt_50k_c1_out64": 0.057,
+      "R_prompt_8k_c4_out128": 0.299,
+      "R_short_decode": 0.14
+    },
+    "per_regime_req_per_s": {
+      "R_concurrent_decode": 23.89656298611655,
+      "R_long_prefill": 14.769565086737114,
+      "R_medium_balanced": 7.307214588085561,
+      "R_prompt_16k_c2_out128": 4.122826591536158,
+      "R_prompt_32k_c1_out128": 2.3380306102174986,
+      "R_prompt_50k_c1_out64": 2.7618279807750845,
+      "R_prompt_8k_c4_out128": 7.228084883366845,
+      "R_short_decode": 1.6851647585076652
+    },
+    "server_startup_s": 25.06,
+    "spec_hash": "sha256:7ebb69cdbff920da17736f1f6e8e487cce267eb4e7602d8a84968525f92c2a10"
+  },
+  "total_trials": 30,
+  "n_warm_trials": 4,
+  "captured_at": "2026-07-02T05:50:04.375688+00:00"
+}

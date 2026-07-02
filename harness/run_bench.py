@@ -132,6 +132,16 @@ def main() -> int:
         "--keep-server", action="store_true",
         help="Don't kill the launched server on exit (debug; user must clean up).",
     )
+    ap.add_argument(
+        "--mfu-hardware", default=None,
+        help="Optional path to hardware yaml (e.g. configs/hardware/h200.yaml). "
+             "If both --mfu-hardware and --mfu-model are provided, MFU/MBU fields "
+             "are computed and injected into each regime entry in summary.json.",
+    )
+    ap.add_argument(
+        "--mfu-model", default=None,
+        help="Optional path to model yaml (e.g. configs/models/lfm2.5-8b-a1b.yaml).",
+    )
     args = ap.parse_args()
 
     out_dir = Path(args.out_dir)
@@ -214,6 +224,27 @@ def main() -> int:
         # Quality gate
         per_run_dir = out_dir / "per_run"
         summary["quality_gate"] = run_quality_gate(spec.quality_gate.type, per_run_dir)
+
+        # Optional MFU/MBU annotation (only if both CLI configs provided).
+        if args.mfu_hardware and args.mfu_model:
+            try:
+                from harness.mfu import (
+                    HardwareConfig, ModelConfig, annotate_summary_with_mfu,
+                )
+                hw = HardwareConfig.load(args.mfu_hardware)
+                mdl = ModelConfig.load(args.mfu_model)
+                annotate_summary_with_mfu(summary, model=mdl, hardware=hw)
+                print(f"[run_bench] MFU annotated (model={mdl.name}, hw={hw.name})",
+                      flush=True)
+            except Exception as e:
+                print(f"[run_bench] MFU annotation skipped due to error: {e}",
+                      flush=True)
+                summary["warnings"].append(f"mfu_annotation_error: {e}")
+        elif args.mfu_hardware or args.mfu_model:
+            summary["warnings"].append(
+                "mfu_annotation_skipped: pass BOTH --mfu-hardware and --mfu-model, "
+                "or neither"
+            )
 
         # Reliability check (independent of quality gate)
         unreliable_regimes = [

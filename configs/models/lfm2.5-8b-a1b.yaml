@@ -1,0 +1,63 @@
+# LFM2.5-8B-A1B model constants for MFU/MBU computation.
+#
+# Source: /data/hf/LFM2.5-8B-A1B/config.json
+# All params computed from the config; see docs/2026-07-02/... for derivation.
+#
+# Architecture summary:
+#   - 24 layers total: 6 full_attention (idx 2,6,10,14,18,21) + 18 conv (LFM2-style)
+#   - First 2 layers use dense FFN, remaining 22 use MoE FFN
+#   - MoE: 32 experts, top-4 active per token
+#   - hidden=2048, dense_ffn=7168, moe_ffn=1792
+#   - num_heads=32, num_kv_heads=8 (GQA), head_dim=64
+#   - vocab=128000, tie_word_embeddings=true
+#   - max_position_embeddings=128000 (native 128k context)
+
+name: LFM2.5-8B-A1B
+family: lfm2_moe
+architectures: [Lfm2MoeForCausalLM]
+
+# ---------- shape ----------
+hidden_size: 2048
+num_attention_layers: 6          # 6 out of 24 total are full_attention
+num_conv_layers: 18              # 18 LFM2 conv layers
+num_dense_ffn_layers: 2          # first 2 layers use dense FFN
+num_moe_ffn_layers: 22           # remaining 22 use MoE FFN
+num_experts: 32
+num_experts_per_tok: 4
+intermediate_size_dense: 7168
+intermediate_size_moe: 1792
+num_heads: 32
+num_kv_heads: 8
+head_dim: 64
+vocab_size: 128000
+tie_word_embeddings: true
+max_position_embeddings: 128000
+dtype: bfloat16
+dtype_bytes: 2
+
+# ---------- derived params (weights only, no biases/norms) ----------
+# NOTE: these are the numbers we use for MFU. Cross-check:
+#   total = 8.4B (matches "8B" naming)
+#   active = 1.6B (marketing says "A1B" ≈ 1B; delta likely from excluding
+#   embedding/LM head from marketing).
+
+# Per-token active parameters (used for MFU numerator):
+#   - Embedding lookup: no FLOPs (memory only)
+#   - LM head (tied): 2 * vocab * hidden ≈ 524M FLOPs per token
+#   - Attention linear (Q,K,V,O) × 6 layers: ~63M params → 126M FLOPs
+#   - Conv layers × 18: ~227M params → 453M FLOPs
+#   - Dense FFN × 2: ~88M params → 176M FLOPs
+#   - MoE FFN active (top-4/32) × 22: ~969M params → 1.94B FLOPs
+#   Total per-token FLOPs ≈ 2 * 1.6B params + attention_score_context (seq-dependent)
+active_params_per_token: 1.6e9
+total_params: 8.4e9
+
+# FLOPs per output token for decode phase, ignoring attention score/context
+# (which is O(seq_len × d_model × num_attn_layers) — negligible for seq_len < ~5000
+# on LFM2.5 because only 6 layers are attention).
+# For prefill or very long context, use compute_prefill_flops() in harness/mfu.py.
+decode_flops_per_token: 3.2e9    # = 2 × active_params_per_token
+
+# Bytes read from HBM per token during decode (memory-bound regime).
+# Each active weight is read once per forward pass.
+decode_hbm_bytes_per_token: 3.2e9    # = active_params × dtype_bytes

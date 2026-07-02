@@ -1,0 +1,33 @@
+# NVIDIA H200 (Hopper, SM90) — hardware constants for MFU/MBU computation.
+#
+# References:
+#   - NVIDIA H200 datasheet (Nov 2024)
+#     https://www.nvidia.com/content/dam/en-zz/Solutions/data-center/h200/nvidia-h200-datasheet.pdf
+#   - H200 tensor core throughput = H100 tensor core throughput (same chip;
+#     H200 differs only in HBM: 141 GB HBM3e @ 4.8 TB/s vs H100 80 GB HBM3 @ 3.35 TB/s).
+#
+# All FLOPS numbers are dense tensor core; NOT sparse.
+# Peak numbers assume warp-level scheduling is perfect; real workloads
+# typically achieve 40-70% of peak on well-tuned GEMMs.
+
+name: h200
+sm_version: 90
+sm_count: 132
+hbm_capacity_gib: 141
+
+# Tensor core peak (FLOPS = FMA ops * 2, "dense" not "sparse").
+peak_flops:
+  fp64: 6.7e13         # 67 TFLOPS
+  fp32: 6.7e13         # 67 TFLOPS (via tf32 tensor cores at same rate as fp64 dense)
+  tf32: 4.95e14        # 495 TFLOPS
+  bf16: 9.89e14        # 989 TFLOPS
+  fp16: 9.89e14        # 989 TFLOPS
+  fp8: 1.978e15        # 1979 TFLOPS
+  int8: 1.978e15       # 1979 TOPS
+  fp4: 3.958e15        # 3958 TFLOPS (Blackwell only; H200 does NOT support fp4)
+
+# Memory bandwidth (HBM3e, all 6 stacks).
+peak_hbm_bandwidth_bytes_per_s: 4.8e12   # 4.8 TB/s
+
+# NVLink4 bandwidth per direction (relevant for tp>1 experiments).
+peak_nvlink_bandwidth_bytes_per_s: 4.5e11  # 450 GB/s per direction, 900 GB/s bidir

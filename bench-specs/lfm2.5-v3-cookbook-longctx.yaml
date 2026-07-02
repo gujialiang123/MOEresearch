@@ -1,0 +1,31 @@
+submission_id: lfm2.5-v3-cookbook-longctx
+description: |
+  v3 (2026-07-02): cookbook-default baseline on the extended long-context
+  regime set. Adds reasoning-parser + tool-call-parser per cookbook.
+  These flags don't affect throughput but keep parity with 6/30 baseline-B.
+
+tags: [v3, longctx, cookbook, lfm2.5-8b-a1b]
+
+server:
+  config: configs/lfm2.5_8b_a1b_v3_longctx.yaml
+  overrides:
+    _gpu_id: 6
+    port: 31601
+    reasoning-parser: qwen3
+    tool-call-parser: lfm2
+  conda_env: sglang-dev
+  health_url: http://127.0.0.1:31601/health
+  base_url:   http://127.0.0.1:31601
+  startup_timeout_s: 900
+
+regimes:
+  file: regimes/lfm2.5_long_context_sweep.yaml
+
+bench:
+  num_runs: 3
+  reliable_stddev_pct: 8
+  per_request_timeout_s: 900
+  backend: sglang
+
+quality_gate:
+  type: sanity

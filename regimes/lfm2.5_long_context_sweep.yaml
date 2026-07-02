@@ -1,0 +1,92 @@
+# LFM2.5 long-context regime sweep (v3, 2026-07-02)
+#
+# Based on mentor feedback (Dey, 7/2): "4000-word input is too short; add
+# regimes with max_input_length up to 32768 / 65536, and combine with
+# other regime dimensions".
+#
+# LFM2.5-8B-A1B natively supports 128k context (max_position_embeddings).
+# But sglang server needs --context-length ≥ desired input+output.
+# Our v3 config uses context-length=65536 (headroom for 65k prompt + 512 out).
+#
+# Design principles:
+#   1. Keep the 4 original regimes for continuity with v2 experiment.
+#   2. Add 4 new long-input regimes spanning 8k / 16k / 32k / 65k prompt tokens.
+#   3. Sweep at least 2 concurrency levels per long-input length (so we
+#      can see whether KV-cache pressure changes optimal batching).
+#
+# Regime naming convention:
+#   R_prompt_{K}k_c{C}_out{O}
+#     K = prompt length in words × 1000
+#     C = concurrent requests
+#     O = max_new tokens
+# (Regime IDs kept short to fit CSV columns comfortably.)
+#
+# Word→token ratio ≈ 1.3 for English. So:
+#   6000 words ≈ 8000 tokens
+#   12500 words ≈ 16000 tokens
+#   25000 words ≈ 32000 tokens
+#   50000 words ≈ 65000 tokens
+#
+# WARNING: R_prompt_50k_c1 will take 30-60s per bench run (prefill alone
+# is ~5-10 seconds of GPU work). Optuna trials with this regime will be
+# slower — plan ~2-3 min per trial (vs 1 min in v2).
+
+regimes:
+  # -------- 4 original regimes (from v2) --------
+  R_short_decode:
+    num_prompts: 8
+    prompt_words: 100
+    max_new: 256
+    concurrency: 1
+
+  R_medium_balanced:
+    num_prompts: 16
+    prompt_words: 800
+    max_new: 256
+    concurrency: 8
+
+  R_long_prefill:
+    num_prompts: 4
+    prompt_words: 4000
+    max_new: 32
+    concurrency: 4
+
+  R_concurrent_decode:
+    num_prompts: 32
+    prompt_words: 200
+    max_new: 256
+    concurrency: 32
+
+  # -------- 4 new long-input regimes (v3 addition) --------
+  R_prompt_8k_c4_out128:
+    # ~10k token prompts (8k words), 4 concurrent, medium output.
+    # Should exercise attention on ≥10k KV (2× v2's R_long_prefill).
+    num_prompts: 8
+    prompt_words: 8000
+    max_new: 128
+    concurrency: 4
+
+  R_prompt_16k_c2_out128:
+    # ~20k token prompts, 2 concurrent, medium output.
+    # Combined KV cache = 40k tokens (still fits 141GB HBM).
+    num_prompts: 4
+    prompt_words: 16000
+    max_new: 128
+    concurrency: 2
+
+  R_prompt_32k_c1_out128:
+    # ~40k token prompts, single request, medium output.
+    # Pure long-prefill benchmark; attention score/context becomes significant.
+    num_prompts: 2
+    prompt_words: 32000
+    max_new: 128
+    concurrency: 1
+
+  R_prompt_50k_c1_out64:
+    # ~65k token prompts, single request, short output.
+    # Near-max-context. Tests kernel scaling at boundary.
+    # Short output so total wall time stays reasonable.
+    num_prompts: 2
+    prompt_words: 50000
+    max_new: 64
+    concurrency: 1

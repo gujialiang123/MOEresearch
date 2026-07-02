@@ -1,0 +1,31 @@
+# v3 config for LFM2.5-8B-A1B — extended context length + higher max_prefill.
+# For 2026-07-02 v3 experiment with long-context regimes (up to 65k prompt).
+
+model-path: "/data/hf/LFM2.5-8B-A1B"
+served-model-name: "lfm2.5-8b-a1b"
+
+host: "127.0.0.1"
+port: 30000
+
+_gpu_id: 4
+
+tensor-parallel-size: 1
+
+# Extended context to fit R_prompt_50k_c1_out64 (65k prompt tokens + headroom).
+# LFM2.5 native max_position_embeddings=128000.
+mem-fraction-static: 0.85
+context-length: 73728        # 72k — headroom for 65k prompt + output + safety
+
+# Same scheduler defaults as v2 for cross-experiment comparability.
+schedule-policy: "lpm"
+schedule-conservativeness: 1.0
+max-running-requests: 32
+chunked-prefill-size: -1
+# max_prefill_tokens must be ≥ largest prompt for regimes with chunk=-1.
+# 65k prompt words × 1.3 ≈ 85000 tokens; set 96000 for safety.
+max-prefill-tokens: 96000
+disable-radix-cache: false
+disable-cuda-graph: false
+
+log-requests: false
+trust-remote-code: true
