@@ -97,9 +97,9 @@ def add_sheet(wb: Workbook, sheet_name: str, headers: list[str],
         )
         ws.conditional_formatting.add(rng, rule)
 
-    # MFU columns: format as "1.23%"
+    # MFU and MBU columns: format as "1.23%"
     for ci, h in enumerate(headers, 1):
-        if "MFU" in h and "pct" in h:
+        if ("MFU" in h or "MBU" in h) and "pct" in h:
             col_letter = get_column_letter(ci)
             for row_i in range(2, len(rows_sorted) + 2):
                 cell = ws[f"{col_letter}{row_i}"]
@@ -181,7 +181,13 @@ def main() -> int:
         ("  meta        : source (v2/v3), experiment, run_id, notes, spec_hash", None),
         ("  knobs       : 7 sglang server flags that were tuned", None),
         ("  aggregate   : speedup_R_conc, speedup_geomean_all_regimes, n_regimes_measured", None),
-        ("  per-regime  : 4 columns per regime: speedup, req/s, tokens/s, MFU_simple%", None),
+        ("  per-regime  : 6 columns per regime: speedup, req/s, tokens/s,", None),
+        ("                MFU_simple%, MFU_amortized%, MBU%", None),
+        ("                Which utilization number to look at depends on the regime:", None),
+        ("                  * short decode: look at MBU (memory-bound)", None),
+        ("                  * long prefill: look at MFU_amortized (compute-bound)", None),
+        ("                  * MFU_simple = decode-only matmul FLOPs (LOW for long-prefill regimes;", None),
+        ("                    do not use for those — it undercounts by 100-1000×)", None),
         ("                Regimes ordered short → long: R_short_decode, R_medium, R_conc, R_long_prefill,", None),
         ("                R_prompt_8k, R_prompt_16k, R_prompt_32k, R_prompt_50k", None),
         ("", None),

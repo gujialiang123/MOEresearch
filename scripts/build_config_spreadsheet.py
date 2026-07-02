@@ -204,10 +204,17 @@ def build_row(r: dict, baseline_regimes: dict) -> dict:
         if entry:
             rps = entry.get("req_per_s", {}).get("mean")
             tps = entry.get("tokens_per_s", {}).get("mean")
-            mfu = entry.get("mfu", {}).get("mfu_pct_simple")
+            mfu_dict = entry.get("mfu", {})
             row[f"{reg}__req_per_s"] = round(rps, 4) if rps is not None else ""
             row[f"{reg}__tokens_per_s"] = round(tps, 1) if tps is not None else ""
-            row[f"{reg}__MFU_simple_pct"] = round(mfu, 3) if mfu is not None else ""
+            # ALL FOUR utilization metrics — different ones are meaningful
+            # in different regimes:
+            #   MFU_simple: decode matmul only (decode-heavy regimes)
+            #   MFU_amortized: includes prefill FLOPs (long-prefill regimes)
+            #   MBU: HBM bandwidth utilization (memory-bound decode)
+            row[f"{reg}__MFU_simple_pct"] = round(mfu_dict.get("mfu_pct_simple", 0), 3)
+            row[f"{reg}__MFU_amortized_pct"] = round(mfu_dict.get("mfu_pct_amortized", 0), 3)
+            row[f"{reg}__MBU_pct"] = round(mfu_dict.get("mbu_pct", 0), 3)
             # Speedup vs baseline
             b_tps = baseline_regimes.get(reg, {}).get("tokens_per_s", {}).get("mean")
             if tps and b_tps and b_tps > 0:
@@ -217,7 +224,9 @@ def build_row(r: dict, baseline_regimes: dict) -> dict:
             else:
                 row[f"{reg}__speedup"] = ""
         else:
-            for suffix in ("__req_per_s", "__tokens_per_s", "__MFU_simple_pct", "__speedup"):
+            for suffix in ("__req_per_s", "__tokens_per_s",
+                           "__MFU_simple_pct", "__MFU_amortized_pct",
+                           "__MBU_pct", "__speedup"):
                 row[reg + suffix] = ""
 
     # Aggregate metrics
@@ -266,6 +275,8 @@ def main() -> int:
             f"{reg}__req_per_s",
             f"{reg}__tokens_per_s",
             f"{reg}__MFU_simple_pct",
+            f"{reg}__MFU_amortized_pct",
+            f"{reg}__MBU_pct",
         ])
     cols = fixed_cols + per_regime_cols + ["spec_hash"]
 
