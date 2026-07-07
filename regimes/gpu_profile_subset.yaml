@@ -1,0 +1,31 @@
+# Subset regime file used ONLY for GPU-profiled runs (2026-07-07)
+# Picks 4 representative regimes covering the workload spectrum:
+#   - R_short_decode: decode-heavy, batch=1 (memory ceiling)
+#   - R_concurrent_decode: decode-heavy, batch=32 (batch scaling)
+#   - R_prompt_16k_c2_out128: mixed prefill+decode
+#   - R_prompt_50k_c1_out64: prefill-dominant
+
+regimes:
+  R_short_decode:
+    num_prompts: 8
+    prompt_words: 100
+    max_new: 256
+    concurrency: 1
+
+  R_concurrent_decode:
+    num_prompts: 32
+    prompt_words: 200
+    max_new: 256
+    concurrency: 32
+
+  R_prompt_16k_c2_out128:
+    num_prompts: 4
+    prompt_words: 16000
+    max_new: 128
+    concurrency: 2
+
+  R_prompt_50k_c1_out64:
+    num_prompts: 2
+    prompt_words: 50000
+    max_new: 64
+    concurrency: 1

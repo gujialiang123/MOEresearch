@@ -1,0 +1,32 @@
+submission_id: gpu-profile-cookbook_baseline
+description: GPU-profiled run for config cookbook_baseline
+tags:
+- gpu-profile
+- hbm
+- cookbook_baseline
+server:
+  config: configs/lfm2.5_8b_a1b_v3_longctx.yaml
+  overrides:
+    _gpu_id: 6
+    port: 31800
+    show-time-cost: true
+    log-requests: true
+    log-requests-level: 2
+    moe-runner-backend: auto
+    max-running-requests: 32
+    chunked-prefill-size: -1
+    schedule-policy: lpm
+    mem-fraction-static: 0.85
+  conda_env: sglang-dev
+  health_url: http://127.0.0.1:31800/health
+  base_url: http://127.0.0.1:31800
+  startup_timeout_s: 900
+regimes:
+  file: regimes/gpu_profile_subset.yaml
+bench:
+  num_runs: 3
+  reliable_stddev_pct: 8
+  per_request_timeout_s: 900
+  backend: sglang
+quality_gate:
+  type: sanity

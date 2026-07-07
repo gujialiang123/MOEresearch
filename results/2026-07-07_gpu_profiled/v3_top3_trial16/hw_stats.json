@@ -1,0 +1,61 @@
+{
+  "config_name": "v3_top3_trial16",
+  "config_flags": {
+    "moe-runner-backend": "auto",
+    "max-running-requests": 32,
+    "chunked-prefill-size": 8192,
+    "schedule-policy": "fcfs",
+    "mem-fraction-static": 0.75
+  },
+  "gpu_id": 6,
+  "gpu_stats": {
+    "n_samples": 86,
+    "gpu_util_pct": {
+      "n": 86,
+      "mean": 43.93,
+      "max": 100.0,
+      "min": 0.0
+    },
+    "memory_util_pct": {
+      "n": 86,
+      "mean": 18.41,
+      "max": 69.0,
+      "min": 0.0
+    },
+    "memory_used_mib": {
+      "n": 86,
+      "mean": 69148.65,
+      "max": 108806.0,
+      "min": 4.0
+    },
+    "power_draw_w": {
+      "n": 86,
+      "mean": 242.03,
+      "max": 599.2,
+      "min": 79.47
+    },
+    "sm_clock_mhz": {
+      "n": 86,
+      "mean": 1555.12,
+      "max": 1980.0,
+      "min": 345.0
+    },
+    "memory_clock_mhz": {
+      "n": 86,
+      "mean": 3201.0,
+      "max": 3201.0,
+      "min": 3201.0
+    }
+  },
+  "server_log_timing": {
+    "prefill_ms": {
+      "n": 0
+    },
+    "decode_ms": {
+      "n": 0
+    },
+    "ttft_ms": {
+      "n": 0
+    }
+  }
+}

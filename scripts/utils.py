@@ -183,6 +183,7 @@ BOOL_FLAG_KEYS = {
     "enable-torch-compile",
     "enable-piecewise-cuda-graph",
     "skip-tokenizer-init",
+    "show-time-cost",
 }
 
 

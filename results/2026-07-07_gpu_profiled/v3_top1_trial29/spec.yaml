@@ -1,0 +1,32 @@
+submission_id: gpu-profile-v3_top1_trial29
+description: GPU-profiled run for config v3_top1_trial29
+tags:
+- gpu-profile
+- hbm
+- v3_top1_trial29
+server:
+  config: configs/lfm2.5_8b_a1b_v3_longctx.yaml
+  overrides:
+    _gpu_id: 6
+    port: 31801
+    show-time-cost: true
+    log-requests: true
+    log-requests-level: 2
+    moe-runner-backend: auto
+    max-running-requests: 64
+    chunked-prefill-size: 2048
+    schedule-policy: fcfs
+    mem-fraction-static: 0.85
+  conda_env: sglang-dev
+  health_url: http://127.0.0.1:31801/health
+  base_url: http://127.0.0.1:31801
+  startup_timeout_s: 900
+regimes:
+  file: regimes/gpu_profile_subset.yaml
+bench:
+  num_runs: 3
+  reliable_stddev_pct: 8
+  per_request_timeout_s: 900
+  backend: sglang
+quality_gate:
+  type: sanity

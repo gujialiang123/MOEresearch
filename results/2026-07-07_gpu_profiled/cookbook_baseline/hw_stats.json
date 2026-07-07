@@ -1,0 +1,61 @@
+{
+  "config_name": "cookbook_baseline",
+  "config_flags": {
+    "moe-runner-backend": "auto",
+    "max-running-requests": 32,
+    "chunked-prefill-size": -1,
+    "schedule-policy": "lpm",
+    "mem-fraction-static": 0.85
+  },
+  "gpu_id": 6,
+  "gpu_stats": {
+    "n_samples": 393,
+    "gpu_util_pct": {
+      "n": 393,
+      "mean": 10.51,
+      "max": 100.0,
+      "min": 0.0
+    },
+    "memory_util_pct": {
+      "n": 393,
+      "mean": 4.13,
+      "max": 69.0,
+      "min": 0.0
+    },
+    "memory_used_mib": {
+      "n": 393,
+      "mean": 33285.58,
+      "max": 127658.0,
+      "min": 4.0
+    },
+    "power_draw_w": {
+      "n": 393,
+      "mean": 148.2,
+      "max": 610.64,
+      "min": 78.82
+    },
+    "sm_clock_mhz": {
+      "n": 393,
+      "mean": 1622.33,
+      "max": 1980.0,
+      "min": 345.0
+    },
+    "memory_clock_mhz": {
+      "n": 393,
+      "mean": 3201.0,
+      "max": 3201.0,
+      "min": 3201.0
+    }
+  },
+  "server_log_timing": {
+    "prefill_ms": {
+      "n": 0
+    },
+    "decode_ms": {
+      "n": 0
+    },
+    "ttft_ms": {
+      "n": 0
+    }
+  }
+}
