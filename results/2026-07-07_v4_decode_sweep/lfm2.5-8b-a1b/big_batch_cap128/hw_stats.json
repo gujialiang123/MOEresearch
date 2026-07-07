@@ -1,0 +1,81 @@
+{
+  "model": "lfm2.5-8b-a1b",
+  "config": "big_batch_cap128",
+  "gpu_id": 6,
+  "config_flags": {
+    "moe-runner-backend": "auto",
+    "max-running-requests": 128,
+    "chunked-prefill-size": 2048,
+    "schedule-policy": "fcfs",
+    "mem-fraction-static": 0.9
+  },
+  "gpu_stats": {
+    "n_samples": 194,
+    "gpu_util_pct": {
+      "n": 194,
+      "mean": 72.09,
+      "max": 100.0,
+      "min": 0.0
+    },
+    "memory_util_pct": {
+      "n": 194,
+      "mean": 34.83,
+      "max": 70.0,
+      "min": 0.0
+    },
+    "memory_used_mib": {
+      "n": 194,
+      "mean": 108629.81,
+      "max": 129744.0,
+      "min": 4.0
+    },
+    "power_draw_w": {
+      "n": 194,
+      "mean": 344.33,
+      "max": 601.37,
+      "min": 80.41
+    },
+    "sm_clock_mhz": {
+      "n": 194,
+      "mean": 1777.73,
+      "max": 1980.0,
+      "min": 345.0
+    },
+    "memory_clock_mhz": {
+      "n": 194,
+      "mean": 3201.0,
+      "max": 3201.0,
+      "min": 3201.0
+    }
+  },
+  "sglang_timings": {
+    "batch_32": {
+      "n_samples": 91,
+      "median_step_ms": 4.751,
+      "p10_step_ms": 4.631,
+      "median_gen_throughput_tps": 6734.7,
+      "max_gen_throughput_tps": 6989.3
+    },
+    "batch_128": {
+      "n_samples": 16,
+      "median_step_ms": 7.448,
+      "p10_step_ms": 7.392,
+      "median_gen_throughput_tps": 17187.0,
+      "max_gen_throughput_tps": 17631.2
+    },
+    "batch_1": {
+      "n_samples": 1,
+      "median_step_ms": 0.118,
+      "p10_step_ms": 0.118,
+      "median_gen_throughput_tps": 8469.0,
+      "max_gen_throughput_tps": 8469.0
+    },
+    "batch_64": {
+      "n_samples": 36,
+      "median_step_ms": 6.624,
+      "p10_step_ms": 6.533,
+      "median_gen_throughput_tps": 9661.3,
+      "max_gen_throughput_tps": 10033.2
+    }
+  }
+}

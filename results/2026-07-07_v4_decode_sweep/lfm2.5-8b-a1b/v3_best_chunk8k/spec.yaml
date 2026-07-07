@@ -1,0 +1,33 @@
+submission_id: v4-lfm2.5-8b-a1b-v3_best_chunk8k
+description: "v4 decode sweep: lfm2.5-8b-a1b \xD7 v3_best_chunk8k"
+tags:
+- v4
+- decode-sweep
+- lfm2.5-8b-a1b
+- v3_best_chunk8k
+server:
+  config: configs/lfm2.5_8b_a1b_v4.yaml
+  overrides:
+    _gpu_id: 6
+    port: 32101
+    show-time-cost: true
+    log-requests: true
+    log-requests-level: 2
+    moe-runner-backend: auto
+    max-running-requests: 32
+    chunked-prefill-size: 8192
+    schedule-policy: fcfs
+    mem-fraction-static: 0.75
+  conda_env: sglang-dev
+  health_url: http://127.0.0.1:32101/health
+  base_url: http://127.0.0.1:32101
+  startup_timeout_s: 1500
+regimes:
+  file: regimes/decode_stress_sweep.yaml
+bench:
+  num_runs: 3
+  reliable_stddev_pct: 10
+  per_request_timeout_s: 900
+  backend: sglang
+quality_gate:
+  type: sanity
