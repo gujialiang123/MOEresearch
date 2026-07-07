@@ -1,0 +1,81 @@
+{
+  "model": "qwen3-0.6b",
+  "config": "big_batch_cap128",
+  "gpu_id": 6,
+  "config_flags": {
+    "moe-runner-backend": "auto",
+    "max-running-requests": 128,
+    "chunked-prefill-size": 2048,
+    "schedule-policy": "fcfs",
+    "mem-fraction-static": 0.9
+  },
+  "gpu_stats": {
+    "n_samples": 137,
+    "gpu_util_pct": {
+      "n": 137,
+      "mean": 69.41,
+      "max": 100.0,
+      "min": 0.0
+    },
+    "memory_util_pct": {
+      "n": 137,
+      "mean": 18.02,
+      "max": 51.0,
+      "min": 0.0
+    },
+    "memory_used_mib": {
+      "n": 137,
+      "mean": 103889.4,
+      "max": 129382.0,
+      "min": 4.0
+    },
+    "power_draw_w": {
+      "n": 137,
+      "mean": 251.95,
+      "max": 562.13,
+      "min": 79.6
+    },
+    "sm_clock_mhz": {
+      "n": 137,
+      "mean": 1730.15,
+      "max": 1980.0,
+      "min": 345.0
+    },
+    "memory_clock_mhz": {
+      "n": 137,
+      "mean": 3201.0,
+      "max": 3201.0,
+      "min": 3201.0
+    }
+  },
+  "sglang_timings": {
+    "batch_32": {
+      "n_samples": 90,
+      "median_step_ms": 2.396,
+      "p10_step_ms": 2.138,
+      "median_gen_throughput_tps": 13356.6,
+      "max_gen_throughput_tps": 15677.5
+    },
+    "batch_128": {
+      "n_samples": 16,
+      "median_step_ms": 3.774,
+      "p10_step_ms": 3.409,
+      "median_gen_throughput_tps": 33912.7,
+      "max_gen_throughput_tps": 38405.3
+    },
+    "batch_1": {
+      "n_samples": 1,
+      "median_step_ms": 0.076,
+      "p10_step_ms": 0.076,
+      "median_gen_throughput_tps": 13131.2,
+      "max_gen_throughput_tps": 13131.2
+    },
+    "batch_64": {
+      "n_samples": 36,
+      "median_step_ms": 2.933,
+      "p10_step_ms": 2.628,
+      "median_gen_throughput_tps": 21818.3,
+      "max_gen_throughput_tps": 25746.5
+    }
+  }
+}

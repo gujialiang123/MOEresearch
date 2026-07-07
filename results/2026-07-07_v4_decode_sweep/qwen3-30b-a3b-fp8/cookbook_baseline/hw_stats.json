@@ -1,0 +1,67 @@
+{
+  "model": "qwen3-30b-a3b-fp8",
+  "config": "cookbook_baseline",
+  "gpu_id": 6,
+  "config_flags": {
+    "moe-runner-backend": "auto",
+    "max-running-requests": 32,
+    "chunked-prefill-size": -1,
+    "schedule-policy": "lpm",
+    "mem-fraction-static": 0.85
+  },
+  "gpu_stats": {
+    "n_samples": 738,
+    "gpu_util_pct": {
+      "n": 738,
+      "mean": 35.59,
+      "max": 100.0,
+      "min": 0.0
+    },
+    "memory_util_pct": {
+      "n": 738,
+      "mean": 11.04,
+      "max": 54.0,
+      "min": 0.0
+    },
+    "memory_used_mib": {
+      "n": 738,
+      "mean": 65436.8,
+      "max": 122900.0,
+      "min": 4.0
+    },
+    "power_draw_w": {
+      "n": 738,
+      "mean": 196.31,
+      "max": 482.4,
+      "min": 80.49
+    },
+    "sm_clock_mhz": {
+      "n": 738,
+      "mean": 1933.52,
+      "max": 1980.0,
+      "min": 345.0
+    },
+    "memory_clock_mhz": {
+      "n": 738,
+      "mean": 3201.0,
+      "max": 3201.0,
+      "min": 3201.0
+    }
+  },
+  "sglang_timings": {
+    "batch_32": {
+      "n_samples": 248,
+      "median_step_ms": 6.434,
+      "p10_step_ms": 6.303,
+      "median_gen_throughput_tps": 4973.6,
+      "max_gen_throughput_tps": 5373.1
+    },
+    "batch_1": {
+      "n_samples": 1,
+      "median_step_ms": 0.836,
+      "p10_step_ms": 0.836,
+      "median_gen_throughput_tps": 1196.8,
+      "max_gen_throughput_tps": 1196.8
+    }
+  }
+}

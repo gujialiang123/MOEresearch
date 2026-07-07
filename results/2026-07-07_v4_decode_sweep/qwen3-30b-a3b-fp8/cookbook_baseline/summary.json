@@ -1,0 +1,379 @@
+{
+  "captured_at": "2026-07-07T19:04:46Z",
+  "environment": {
+    "cuda": "12.8",
+    "driver": "580.105.08",
+    "engine_version": {
+      "flashinfer": "0.6.3",
+      "sglang": "0.0.0",
+      "torch": "2.9.1",
+      "triton": "3.5.1"
+    },
+    "git": {
+      "commit": "34184a71ff075b8f22b8c34a40cb9e6be0d9044e",
+      "dirty": true
+    },
+    "gpu": {
+      "id": 6,
+      "name": "NVIDIA H200",
+      "sm": "90",
+      "uuid": "GPU-1106bd41-73d7-bb34-0b96-02922e019661"
+    },
+    "hostname": "aifx-clou00000M"
+  },
+  "mfu_assumptions": {
+    "active_params_per_token": 4700000000.0,
+    "dtype": "fp8",
+    "hardware": "h200",
+    "model_config": "Qwen3-30B-A3B-Instruct-2507-FP8",
+    "peak_flops": 1978000000000000.0,
+    "peak_hbm_bw_bytes_per_s": 4800000000000.0
+  },
+  "ok": true,
+  "quality_gate": {
+    "checks": {
+      "completion_rate_min": {
+        "message": "min completion_rate across runs = 1.000; threshold = 0.99",
+        "passed": true,
+        "threshold": 0.99,
+        "value": 1.0
+      },
+      "output_not_constant": {
+        "message": "skipped (bench records don't include text; v1 limitation)",
+        "passed": true
+      },
+      "output_not_empty": {
+        "message": "skipped (bench records don't include text; v1 limitation)",
+        "passed": true
+      }
+    },
+    "passed": true,
+    "type": "sanity"
+  },
+  "regimes": {
+    "R_conc_ref": {
+      "completion_rate": 1.0,
+      "concurrency": 32,
+      "e2e_ms": {
+        "count": 64,
+        "p50": 1773.7799930619076,
+        "p99": 1814.971879008226
+      },
+      "max_new": 256,
+      "mfu": {
+        "assumed_kv_len": 388,
+        "mbu_pct": 13.983,
+        "mfu_pct_amortized": 4.424,
+        "mfu_pct_full_decode": 2.207,
+        "mfu_pct_simple": 2.172,
+        "model_dtype": "fp8",
+        "peak_flops_used": 1978000000000000.0,
+        "peak_hbm_bw_used": 4800000000000.0
+      },
+      "num_prompts": 32,
+      "prompt_words": 200,
+      "reliable": true,
+      "req_per_s": {
+        "mean": 17.85013704377459,
+        "runs": [
+          17.59034998901425,
+          18.109924098534933
+        ],
+        "stddev": 0.25978705476034136,
+        "stddev_pct": 1.4553784888219927
+      },
+      "tokens_per_s": {
+        "mean": 4569.635083206295,
+        "runs": [
+          4503.129597187648,
+          4636.140569224943
+        ],
+        "stddev": 66.50548601864739,
+        "stddev_pct": 1.4553784888219927
+      },
+      "wall_s": {
+        "mean": 1.793083121010568,
+        "runs": [
+          1.8191792670404539,
+          1.7669869749806821
+        ],
+        "stddev": 0.02609614602988586,
+        "stddev_pct": 1.4553784888219945
+      }
+    },
+    "R_decode_c128_out256": {
+      "completion_rate": 1.0,
+      "concurrency": 128,
+      "e2e_ms": {
+        "count": 256,
+        "p50": 5069.211500929669,
+        "p99": 6759.367874008603
+      },
+      "max_new": 256,
+      "mfu": {
+        "assumed_kv_len": 388,
+        "mbu_pct": 3.658,
+        "mfu_pct_amortized": 4.63,
+        "mfu_pct_full_decode": 2.31,
+        "mfu_pct_simple": 2.273,
+        "model_dtype": "fp8",
+        "peak_flops_used": 1978000000000000.0,
+        "peak_hbm_bw_used": 4800000000000.0
+      },
+      "num_prompts": 128,
+      "prompt_words": 200,
+      "reliable": true,
+      "req_per_s": {
+        "mean": 18.68139240358559,
+        "runs": [
+          18.686176031605907,
+          18.676608775565274
+        ],
+        "stddev": 0.0047836280203163994,
+        "stddev_pct": 0.025606378352173897
+      },
+      "tokens_per_s": {
+        "mean": 4782.436455317911,
+        "runs": [
+          4783.661064091112,
+          4781.21184654471
+        ],
+        "stddev": 1.2246087732009983,
+        "stddev_pct": 0.025606378352173897
+      },
+      "wall_s": {
+        "mean": 6.851738116063643,
+        "runs": [
+          6.849983634077944,
+          6.853492598049343
+        ],
+        "stddev": 0.0017544819856993854,
+        "stddev_pct": 0.025606378352174147
+      }
+    },
+    "R_decode_c1_out2k": {
+      "completion_rate": 1.0,
+      "concurrency": 1,
+      "e2e_ms": {
+        "count": 8,
+        "p50": 8820.88977098465,
+        "p99": 8827.938250033185
+      },
+      "max_new": 2048,
+      "mfu": {
+        "assumed_kv_len": 1154,
+        "mbu_pct": 22.735,
+        "mfu_pct_amortized": 0.123,
+        "mfu_pct_full_decode": 0.116,
+        "mfu_pct_simple": 0.11,
+        "model_dtype": "fp8",
+        "peak_flops_used": 1978000000000000.0,
+        "peak_hbm_bw_used": 4800000000000.0
+      },
+      "num_prompts": 4,
+      "prompt_words": 100,
+      "reliable": true,
+      "req_per_s": {
+        "mean": 0.11337030939208793,
+        "runs": [
+          0.11337931083905792,
+          0.11336130794511795
+        ],
+        "stddev": 9.001446969983395e-06,
+        "stddev_pct": 0.007939862754411432
+      },
+      "tokens_per_s": {
+        "mean": 232.1823936349961,
+        "runs": [
+          232.20082859839061,
+          232.16395867160156
+        ],
+        "stddev": 0.018434963394525994,
+        "stddev_pct": 0.007939862754411432
+      },
+      "wall_s": {
+        "mean": 35.28260658954969,
+        "runs": [
+          35.2798051990103,
+          35.285407980089076
+        ],
+        "stddev": 0.0028013905393891037,
+        "stddev_pct": 0.007939862754411246
+      }
+    },
+    "R_decode_c32_out1k": {
+      "completion_rate": 1.0,
+      "concurrency": 32,
+      "e2e_ms": {
+        "count": 64,
+        "p50": 6957.406103028916,
+        "p99": 6975.84252001252
+      },
+      "max_new": 1024,
+      "mfu": {
+        "assumed_kv_len": 772,
+        "mbu_pct": 14.372,
+        "mfu_pct_amortized": 2.874,
+        "mfu_pct_full_decode": 2.304,
+        "mfu_pct_simple": 2.232,
+        "model_dtype": "fp8",
+        "peak_flops_used": 1978000000000000.0,
+        "peak_hbm_bw_used": 4800000000000.0
+      },
+      "num_prompts": 32,
+      "prompt_words": 200,
+      "reliable": true,
+      "req_per_s": {
+        "mean": 4.586688178408117,
+        "runs": [
+          4.5834871216900375,
+          4.589889235126198
+        ],
+        "stddev": 0.003201056718080242,
+        "stddev_pct": 0.06979015345209752
+      },
+      "tokens_per_s": {
+        "mean": 4696.768694689912,
+        "runs": [
+          4693.490812610598,
+          4700.046576769227
+        ],
+        "stddev": 3.2778820793141676,
+        "stddev_pct": 0.06979015345209752
+      },
+      "wall_s": {
+        "mean": 6.976714862976223,
+        "runs": [
+          6.98158392298501,
+          6.971845802967437
+        ],
+        "stddev": 0.004869060008786619,
+        "stddev_pct": 0.06979015345210063
+      }
+    },
+    "R_decode_c64_out512": {
+      "completion_rate": 1.0,
+      "concurrency": 64,
+      "e2e_ms": {
+        "count": 128,
+        "p50": 6716.102031059563,
+        "p99": 6761.178359040059
+      },
+      "max_new": 512,
+      "mfu": {
+        "assumed_kv_len": 516,
+        "mbu_pct": 7.386,
+        "mfu_pct_amortized": 3.515,
+        "mfu_pct_full_decode": 2.344,
+        "mfu_pct_simple": 2.294,
+        "model_dtype": "fp8",
+        "peak_flops_used": 1978000000000000.0,
+        "peak_hbm_bw_used": 4800000000000.0
+      },
+      "num_prompts": 64,
+      "prompt_words": 200,
+      "reliable": true,
+      "req_per_s": {
+        "mean": 9.428372144018892,
+        "runs": [
+          9.429423247840248,
+          9.427321040197537
+        ],
+        "stddev": 0.0010511038213554258,
+        "stddev_pct": 0.01114830646584329
+      },
+      "tokens_per_s": {
+        "mean": 4827.326537737673,
+        "runs": [
+          4827.864702894207,
+          4826.788372581139
+        ],
+        "stddev": 0.538165156533978,
+        "stddev_pct": 0.01114830646584329
+      },
+      "wall_s": {
+        "mean": 6.788022345514037,
+        "runs": [
+          6.787265595979989,
+          6.788779095048085
+        ],
+        "stddev": 0.00075674953404814,
+        "stddev_pct": 0.011148306465847878
+      }
+    }
+  },
+  "schema_version": 1,
+  "server": {
+    "first_health_at_s": 298.18,
+    "log_path": "qwen3-30b-a3b-fp8/cookbook_baseline/server.log",
+    "startup_wall_s": 298.18
+  },
+  "spec_hash": "sha256:5d1fc5fff5850e8b2d360dafad1f09b7fe0825d89c2bcc5856fddb439a7be515",
+  "spec_resolved": {
+    "bench": {
+      "backend": "sglang",
+      "num_runs": 3,
+      "per_request_timeout_s": 900,
+      "reliable_stddev_pct": 10.0
+    },
+    "quality_gate": {
+      "type": "sanity"
+    },
+    "regimes": {
+      "R_conc_ref": {
+        "concurrency": 32,
+        "max_new": 256,
+        "num_prompts": 32,
+        "prompt_words": 200
+      },
+      "R_decode_c128_out256": {
+        "concurrency": 128,
+        "max_new": 256,
+        "num_prompts": 128,
+        "prompt_words": 200
+      },
+      "R_decode_c1_out2k": {
+        "concurrency": 1,
+        "max_new": 2048,
+        "num_prompts": 4,
+        "prompt_words": 100
+      },
+      "R_decode_c32_out1k": {
+        "concurrency": 32,
+        "max_new": 1024,
+        "num_prompts": 32,
+        "prompt_words": 200
+      },
+      "R_decode_c64_out512": {
+        "concurrency": 64,
+        "max_new": 512,
+        "num_prompts": 64,
+        "prompt_words": 200
+      }
+    },
+    "server_config": {
+      "_gpu_id": 6,
+      "chunked-prefill-size": -1,
+      "context-length": 8192,
+      "disable-cuda-graph": false,
+      "disable-radix-cache": false,
+      "host": "127.0.0.1",
+      "log-requests": true,
+      "log-requests-level": 2,
+      "max-prefill-tokens": 16384,
+      "max-running-requests": 32,
+      "mem-fraction-static": 0.85,
+      "model-path": "/data/hf/models/Qwen3-30B-A3B-Instruct-2507-FP8",
+      "moe-runner-backend": "auto",
+      "port": 32003,
+      "schedule-conservativeness": 1.0,
+      "schedule-policy": "lpm",
+      "served-model-name": "qwen3-30b-a3b-fp8",
+      "show-time-cost": true,
+      "tensor-parallel-size": 1,
+      "trust-remote-code": true
+    }
+  },
+  "submission_id": "v4-qwen3-30b-a3b-fp8-cookbook_baseline",
+  "warnings": []
+}

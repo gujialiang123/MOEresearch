@@ -1,0 +1,28 @@
+# Server config for Qwen3-30B-A3B-Instruct-2507 (bf16) on H200
+# For decode-stress sweep (2026-07-07)
+
+model-path: "/data/hf/models/Qwen3-30B-A3B-Instruct-2507"
+served-model-name: "qwen3-30b-a3b"
+
+host: "127.0.0.1"
+port: 30000
+_gpu_id: 6
+
+tensor-parallel-size: 1
+
+# Enough context for decode-stress regimes (max ~200w prompt + 2048 output)
+# Also room for KV cache at c=128
+mem-fraction-static: 0.85
+context-length: 8192       # short prompt regimes; no need for 32k+
+max-prefill-tokens: 16384
+
+# Defaults — different configs will override some of these
+schedule-policy: "lpm"
+schedule-conservativeness: 1.0
+max-running-requests: 32
+chunked-prefill-size: -1
+disable-radix-cache: false
+disable-cuda-graph: false
+
+log-requests: false
+trust-remote-code: true

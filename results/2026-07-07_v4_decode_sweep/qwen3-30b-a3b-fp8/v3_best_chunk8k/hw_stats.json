@@ -1,0 +1,67 @@
+{
+  "model": "qwen3-30b-a3b-fp8",
+  "config": "v3_best_chunk8k",
+  "gpu_id": 6,
+  "config_flags": {
+    "moe-runner-backend": "auto",
+    "max-running-requests": 32,
+    "chunked-prefill-size": 8192,
+    "schedule-policy": "fcfs",
+    "mem-fraction-static": 0.75
+  },
+  "gpu_stats": {
+    "n_samples": 323,
+    "gpu_util_pct": {
+      "n": 323,
+      "mean": 81.43,
+      "max": 100.0,
+      "min": 0.0
+    },
+    "memory_util_pct": {
+      "n": 323,
+      "mean": 25.26,
+      "max": 53.0,
+      "min": 0.0
+    },
+    "memory_used_mib": {
+      "n": 323,
+      "mean": 96407.92,
+      "max": 108672.0,
+      "min": 4.0
+    },
+    "power_draw_w": {
+      "n": 323,
+      "mean": 294.71,
+      "max": 481.74,
+      "min": 80.22
+    },
+    "sm_clock_mhz": {
+      "n": 323,
+      "mean": 1878.67,
+      "max": 1980.0,
+      "min": 345.0
+    },
+    "memory_clock_mhz": {
+      "n": 323,
+      "mean": 3201.0,
+      "max": 3201.0,
+      "min": 3201.0
+    }
+  },
+  "sglang_timings": {
+    "batch_32": {
+      "n_samples": 248,
+      "median_step_ms": 6.43,
+      "p10_step_ms": 6.293,
+      "median_gen_throughput_tps": 4976.5,
+      "max_gen_throughput_tps": 5365.4
+    },
+    "batch_1": {
+      "n_samples": 1,
+      "median_step_ms": 0.844,
+      "p10_step_ms": 0.844,
+      "median_gen_throughput_tps": 1185.5,
+      "max_gen_throughput_tps": 1185.5
+    }
+  }
+}

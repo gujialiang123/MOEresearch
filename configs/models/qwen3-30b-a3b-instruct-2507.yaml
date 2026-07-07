@@ -1,0 +1,44 @@
+# Qwen3-30B-A3B-Instruct-2507 (bf16) model constants for MFU/MBU
+# Source: /data/hf/models/Qwen3-30B-A3B-Instruct-2507/config.json
+#
+# Architecture:
+#   - 48 layers, all standard transformer + MoE
+#   - MoE: 128 experts, top-8 active per token
+#   - hidden=2048, moe_intermediate=768
+#   - num_heads=32, num_kv_heads=4 (GQA), head_dim=128
+#   - vocab=151936, tie_word_embeddings=false
+#   - max_position=262144 (256k context native)
+
+name: Qwen3-30B-A3B-Instruct-2507
+family: qwen3_moe
+architectures: [Qwen3MoeForCausalLM]
+
+hidden_size: 2048
+num_attention_layers: 48
+num_conv_layers: 0
+num_dense_ffn_layers: 0
+num_moe_ffn_layers: 48
+num_experts: 128
+num_experts_per_tok: 8
+intermediate_size_dense: 0
+intermediate_size_moe: 768
+num_heads: 32
+num_kv_heads: 4
+head_dim: 128
+vocab_size: 151936
+tie_word_embeddings: false
+max_position_embeddings: 262144
+dtype: bfloat16
+dtype_bytes: 2
+
+# Active parameters per token (see docs/2026-06-25 for derivation method):
+#   embedding: 151936 × 2048 = 311M (LM head separate since untied)
+#   LM head: 151936 × 2048 = 311M
+#   attention (Q + K + V + O) × 48: ≈ 48 × (4.2M + 0.5M + 0.5M + 4.2M) = 452M
+#   MoE FFN (top-8 of 128 experts, 3 matmuls per expert): 48 × 8 × 3 × 2048 × 768 = 3.62B
+# Total ≈ 4.7B active per token (marketing "3B active" excludes embedding+head)
+active_params_per_token: 4.7e9
+total_params: 30.5e9
+
+decode_flops_per_token: 9.4e9
+decode_hbm_bytes_per_token: 9.4e9

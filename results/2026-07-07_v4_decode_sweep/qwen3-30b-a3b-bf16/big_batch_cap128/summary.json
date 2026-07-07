@@ -1,0 +1,379 @@
+{
+  "captured_at": "2026-07-07T19:01:21Z",
+  "environment": {
+    "cuda": "12.8",
+    "driver": "580.105.08",
+    "engine_version": {
+      "flashinfer": "0.6.3",
+      "sglang": "0.0.0",
+      "torch": "2.9.1",
+      "triton": "3.5.1"
+    },
+    "git": {
+      "commit": "34184a71ff075b8f22b8c34a40cb9e6be0d9044e",
+      "dirty": true
+    },
+    "gpu": {
+      "id": 6,
+      "name": "NVIDIA H200",
+      "sm": "90",
+      "uuid": "GPU-1106bd41-73d7-bb34-0b96-02922e019661"
+    },
+    "hostname": "aifx-clou00000M"
+  },
+  "mfu_assumptions": {
+    "active_params_per_token": 4700000000.0,
+    "dtype": "bfloat16",
+    "hardware": "h200",
+    "model_config": "Qwen3-30B-A3B-Instruct-2507",
+    "peak_flops": 989000000000000.0,
+    "peak_hbm_bw_bytes_per_s": 4800000000000.0
+  },
+  "ok": true,
+  "quality_gate": {
+    "checks": {
+      "completion_rate_min": {
+        "message": "min completion_rate across runs = 1.000; threshold = 0.99",
+        "passed": true,
+        "threshold": 0.99,
+        "value": 1.0
+      },
+      "output_not_constant": {
+        "message": "skipped (bench records don't include text; v1 limitation)",
+        "passed": true
+      },
+      "output_not_empty": {
+        "message": "skipped (bench records don't include text; v1 limitation)",
+        "passed": true
+      }
+    },
+    "passed": true,
+    "type": "sanity"
+  },
+  "regimes": {
+    "R_conc_ref": {
+      "completion_rate": 1.0,
+      "concurrency": 32,
+      "e2e_ms": {
+        "count": 64,
+        "p50": 2180.4888210026547,
+        "p99": 2197.818586952053
+      },
+      "max_new": 256,
+      "mfu": {
+        "assumed_kv_len": 388,
+        "mbu_pct": 22.773,
+        "mfu_pct_amortized": 7.206,
+        "mfu_pct_full_decode": 3.594,
+        "mfu_pct_simple": 3.537,
+        "model_dtype": "bfloat16",
+        "peak_flops_used": 989000000000000.0,
+        "peak_hbm_bw_used": 4800000000000.0
+      },
+      "num_prompts": 32,
+      "prompt_words": 200,
+      "reliable": true,
+      "req_per_s": {
+        "mean": 14.53604256104201,
+        "runs": [
+          14.528674645987804,
+          14.543410476096216
+        ],
+        "stddev": 0.007367915054206087,
+        "stddev_pct": 0.050687214372588635
+      },
+      "tokens_per_s": {
+        "mean": 3721.2268956267544,
+        "runs": [
+          3719.340709372878,
+          3723.1130818806314
+        ],
+        "stddev": 1.8861862538767582,
+        "stddev_pct": 0.050687214372588635
+      },
+      "wall_s": {
+        "mean": 2.2014250499778427,
+        "runs": [
+          2.202540891012177,
+          2.2003092089435086
+        ],
+        "stddev": 0.001115841034334153,
+        "stddev_pct": 0.050687214372589426
+      }
+    },
+    "R_decode_c128_out256": {
+      "completion_rate": 1.0,
+      "concurrency": 128,
+      "e2e_ms": {
+        "count": 256,
+        "p50": 3430.0692040706053,
+        "p99": 3535.6179209193215
+      },
+      "max_new": 256,
+      "mfu": {
+        "assumed_kv_len": 388,
+        "mbu_pct": 14.242,
+        "mfu_pct_amortized": 18.026,
+        "mfu_pct_full_decode": 8.991,
+        "mfu_pct_simple": 8.848,
+        "model_dtype": "bfloat16",
+        "peak_flops_used": 989000000000000.0,
+        "peak_hbm_bw_used": 4800000000000.0
+      },
+      "num_prompts": 128,
+      "prompt_words": 200,
+      "reliable": true,
+      "req_per_s": {
+        "mean": 36.36280047079221,
+        "runs": [
+          36.02188521504317,
+          36.70371572654125
+        ],
+        "stddev": 0.3409152557490387,
+        "stddev_pct": 0.937538504557351
+      },
+      "tokens_per_s": {
+        "mean": 9308.876920522805,
+        "runs": [
+          9221.602615051052,
+          9396.15122599456
+        ],
+        "stddev": 87.2743054717539,
+        "stddev_pct": 0.937538504557351
+      },
+      "wall_s": {
+        "mean": 3.5203903510118835,
+        "runs": [
+          3.5533953660633415,
+          3.4873853359604254
+        ],
+        "stddev": 0.03300501505145803,
+        "stddev_pct": 0.9375385045573493
+      }
+    },
+    "R_decode_c1_out2k": {
+      "completion_rate": 1.0,
+      "concurrency": 1,
+      "e2e_ms": {
+        "count": 8,
+        "p50": 8851.624239003286,
+        "p99": 8852.753877989016
+      },
+      "max_new": 2048,
+      "mfu": {
+        "assumed_kv_len": 1154,
+        "mbu_pct": 45.312,
+        "mfu_pct_amortized": 0.245,
+        "mfu_pct_full_decode": 0.231,
+        "mfu_pct_simple": 0.22,
+        "model_dtype": "bfloat16",
+        "peak_flops_used": 989000000000000.0,
+        "peak_hbm_bw_used": 4800000000000.0
+      },
+      "num_prompts": 4,
+      "prompt_words": 100,
+      "reliable": true,
+      "req_per_s": {
+        "mean": 0.11297933613686417,
+        "runs": [
+          0.11298299896997017,
+          0.11297567330375817
+        ],
+        "stddev": 3.66283310600235e-06,
+        "stddev_pct": 0.0032420380852345968
+      },
+      "tokens_per_s": {
+        "mean": 231.38168040829783,
+        "runs": [
+          231.38918189049892,
+          231.37417892609673
+        ],
+        "stddev": 0.007501482201092813,
+        "stddev_pct": 0.0032420380852345968
+      },
+      "wall_s": {
+        "mean": 35.40470444399398,
+        "runs": [
+          35.40355660999194,
+          35.40585227799602
+        ],
+        "stddev": 0.0011478340020403266,
+        "stddev_pct": 0.0032420380852382575
+      }
+    },
+    "R_decode_c32_out1k": {
+      "completion_rate": 1.0,
+      "concurrency": 32,
+      "e2e_ms": {
+        "count": 64,
+        "p50": 8812.886278959922,
+        "p99": 8835.245636990294
+      },
+      "max_new": 1024,
+      "mfu": {
+        "assumed_kv_len": 772,
+        "mbu_pct": 22.7,
+        "mfu_pct_amortized": 4.539,
+        "mfu_pct_full_decode": 3.639,
+        "mfu_pct_simple": 3.526,
+        "model_dtype": "bfloat16",
+        "peak_flops_used": 989000000000000.0,
+        "peak_hbm_bw_used": 4800000000000.0
+      },
+      "num_prompts": 32,
+      "prompt_words": 200,
+      "reliable": true,
+      "req_per_s": {
+        "mean": 3.6224007289185263,
+        "runs": [
+          3.6244224305111716,
+          3.6203790273258805
+        ],
+        "stddev": 0.002021701592645586,
+        "stddev_pct": 0.055811097223613035
+      },
+      "tokens_per_s": {
+        "mean": 3709.338346412571,
+        "runs": [
+          3711.4085688434398,
+          3707.2681239817016
+        ],
+        "stddev": 2.07022243086908,
+        "stddev_pct": 0.055811097223613035
+      },
+      "wall_s": {
+        "mean": 8.833923235535622,
+        "runs": [
+          8.828992926049978,
+          8.838853545021266
+        ],
+        "stddev": 0.004930309485644102,
+        "stddev_pct": 0.05581109722361274
+      }
+    },
+    "R_decode_c64_out512": {
+      "completion_rate": 1.0,
+      "concurrency": 64,
+      "e2e_ms": {
+        "count": 128,
+        "p50": 5445.0110089965165,
+        "p99": 5481.230837991461
+      },
+      "max_new": 512,
+      "mfu": {
+        "assumed_kv_len": 516,
+        "mbu_pct": 18.272,
+        "mfu_pct_amortized": 8.696,
+        "mfu_pct_full_decode": 5.798,
+        "mfu_pct_simple": 5.675,
+        "model_dtype": "bfloat16",
+        "peak_flops_used": 989000000000000.0,
+        "peak_hbm_bw_used": 4800000000000.0
+      },
+      "num_prompts": 64,
+      "prompt_words": 200,
+      "reliable": true,
+      "req_per_s": {
+        "mean": 11.662666339582817,
+        "runs": [
+          11.666724713598436,
+          11.658607965567196
+        ],
+        "stddev": 0.0040583740156199255,
+        "stddev_pct": 0.034797994707658736
+      },
+      "tokens_per_s": {
+        "mean": 5971.285165866402,
+        "runs": [
+          5973.363053362399,
+          5969.207278370404
+        ],
+        "stddev": 2.077887495997402,
+        "stddev_pct": 0.034797994707658736
+      },
+      "wall_s": {
+        "mean": 5.487596565508284,
+        "runs": [
+          5.48568699194584,
+          5.489506139070727
+        ],
+        "stddev": 0.0019095735624432564,
+        "stddev_pct": 0.034797994707659125
+      }
+    }
+  },
+  "schema_version": 1,
+  "server": {
+    "first_health_at_s": 34.07,
+    "log_path": "qwen3-30b-a3b-bf16/big_batch_cap128/server.log",
+    "startup_wall_s": 34.07
+  },
+  "spec_hash": "sha256:e73c90bafdda59870ed5655841df5578993796145ebcb9c73ab76de09ab46e94",
+  "spec_resolved": {
+    "bench": {
+      "backend": "sglang",
+      "num_runs": 3,
+      "per_request_timeout_s": 900,
+      "reliable_stddev_pct": 10.0
+    },
+    "quality_gate": {
+      "type": "sanity"
+    },
+    "regimes": {
+      "R_conc_ref": {
+        "concurrency": 32,
+        "max_new": 256,
+        "num_prompts": 32,
+        "prompt_words": 200
+      },
+      "R_decode_c128_out256": {
+        "concurrency": 128,
+        "max_new": 256,
+        "num_prompts": 128,
+        "prompt_words": 200
+      },
+      "R_decode_c1_out2k": {
+        "concurrency": 1,
+        "max_new": 2048,
+        "num_prompts": 4,
+        "prompt_words": 100
+      },
+      "R_decode_c32_out1k": {
+        "concurrency": 32,
+        "max_new": 1024,
+        "num_prompts": 32,
+        "prompt_words": 200
+      },
+      "R_decode_c64_out512": {
+        "concurrency": 64,
+        "max_new": 512,
+        "num_prompts": 64,
+        "prompt_words": 200
+      }
+    },
+    "server_config": {
+      "_gpu_id": 6,
+      "chunked-prefill-size": 2048,
+      "context-length": 8192,
+      "disable-cuda-graph": false,
+      "disable-radix-cache": false,
+      "host": "127.0.0.1",
+      "log-requests": true,
+      "log-requests-level": 2,
+      "max-prefill-tokens": 16384,
+      "max-running-requests": 128,
+      "mem-fraction-static": 0.9,
+      "model-path": "/data/hf/models/Qwen3-30B-A3B-Instruct-2507",
+      "moe-runner-backend": "auto",
+      "port": 32002,
+      "schedule-conservativeness": 1.0,
+      "schedule-policy": "fcfs",
+      "served-model-name": "qwen3-30b-a3b",
+      "show-time-cost": true,
+      "tensor-parallel-size": 1,
+      "trust-remote-code": true
+    }
+  },
+  "submission_id": "v4-qwen3-30b-a3b-bf16-big_batch_cap128",
+  "warnings": []
+}

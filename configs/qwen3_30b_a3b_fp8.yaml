@@ -1,0 +1,27 @@
+# Server config for Qwen3-30B-A3B-Instruct-2507-FP8 on H200
+
+model-path: "/data/hf/models/Qwen3-30B-A3B-Instruct-2507-FP8"
+served-model-name: "qwen3-30b-a3b-fp8"
+
+host: "127.0.0.1"
+port: 30000
+_gpu_id: 6
+
+tensor-parallel-size: 1
+
+# sglang will auto-detect fp8 from model config.json quantization_config
+# No need to specify --quantization fp8
+
+mem-fraction-static: 0.85
+context-length: 8192
+max-prefill-tokens: 16384
+
+schedule-policy: "lpm"
+schedule-conservativeness: 1.0
+max-running-requests: 32
+chunked-prefill-size: -1
+disable-radix-cache: false
+disable-cuda-graph: false
+
+log-requests: false
+trust-remote-code: true

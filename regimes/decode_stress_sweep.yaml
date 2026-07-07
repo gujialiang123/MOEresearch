@@ -1,0 +1,51 @@
+# Decode-focused regime sweep (2026-07-07)
+#
+# Purpose: stress the decode stage across concurrency (batch size) and
+# output length to see how decode throughput scales and where it saturates.
+# All regimes use SHORT prompts (~200 words) to minimize prefill influence.
+#
+# Design axes:
+#   1. Concurrency (batch size): 1 → 32 → 64 → 128
+#   2. Output length: 256 → 512 → 1024 → 2048
+# Combined so that total output volume grows too, revealing memory bandwidth
+# and KV cache pressure effects.
+
+regimes:
+  R_decode_c1_out2k:
+    # Single request, very long output. Decode wall time = 2048 × step_time.
+    # Isolates single-request memory bandwidth ceiling.
+    num_prompts: 4
+    prompt_words: 100
+    max_new: 2048
+    concurrency: 1
+
+  R_decode_c32_out1k:
+    # Familiar batch (v3 max), 4× longer output. Tests whether decode step
+    # time stays constant at longer sequences (KV cache reads grow).
+    num_prompts: 32
+    prompt_words: 200
+    max_new: 1024
+    concurrency: 32
+
+  R_decode_c64_out512:
+    # 2× the v3 max batch. Tests whether cap>32 keeps scaling.
+    num_prompts: 64
+    prompt_words: 200
+    max_new: 512
+    concurrency: 64
+
+  R_decode_c128_out256:
+    # Extreme batch. Likely to hit KV OOM on 30B models; useful to find the
+    # point of diminishing returns.
+    num_prompts: 128
+    prompt_words: 200
+    max_new: 256
+    concurrency: 128
+
+  R_conc_ref:
+    # Reference point matching v3 R_concurrent_decode for cross-experiment
+    # continuity check.
+    num_prompts: 32
+    prompt_words: 200
+    max_new: 256
+    concurrency: 32
