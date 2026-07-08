@@ -1,0 +1,78 @@
+==PROF== Connected to process 2477000 (/home/t-jialianggu/.conda/envs/sglang-dev/bin/python3.11)
+<frozen importlib._bootstrap_external>:1241: FutureWarning: The cuda.cudart module is deprecated and will be removed in a future release, please switch to use the cuda.bindings.runtime module instead.
+<frozen importlib._bootstrap_external>:1241: FutureWarning: The cuda.nvrtc module is deprecated and will be removed in a future release, please switch to use the cuda.bindings.nvrtc module instead.
+[2026-07-08 21:54:17 TP0] Init torch distributed begin.
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[2026-07-08 21:54:17 TP0] Init torch distributed ends. elapsed=0.33 s, mem usage=0.00 GB
+[2026-07-08 21:54:19 TP0] Ignore import error when loading sglang.srt.models.glm_ocr: No module named 'transformers.models.glm_ocr'
+[2026-07-08 21:54:19 TP0] Ignore import error when loading sglang.srt.models.glm_ocr_nextn: No module named 'transformers.models.glm_ocr'
+[2026-07-08 21:54:19 TP0] Ignore import error when loading sglang.srt.models.glmasr: cannot import name 'GlmAsrConfig' from 'transformers' (/home/t-jialianggu/.conda/envs/sglang-dev/lib/python3.11/site-packages/transformers/__init__.py)
+[2026-07-08 21:54:19 TP0] Load weight begin. avail mem=139.07 GB
+Loading safetensors checkpoint shards:   0% Completed | 0/1 [00:00<?, ?it/s]
+Loading safetensors checkpoint shards: 100% Completed | 1/1 [00:02<00:00,  2.80s/it]
+Loading safetensors checkpoint shards: 100% Completed | 1/1 [00:02<00:00,  2.80s/it]
+
+[2026-07-08 21:54:22 TP0] Load weight end. elapsed=3.35 s, type=Lfm2MoeForCausalLM, dtype=torch.bfloat16, avail mem=122.72 GB, mem usage=16.34 GB.
+[2026-07-08 21:54:22 TP0] Using KV cache dtype: torch.bfloat16
+[2026-07-08 21:54:22 TP0] Mamba Cache is allocated. max_mamba_cache_size: 351318, conv_state size: 48.25GB, ssm_state size: 0.00GB 
+[2026-07-08 21:54:22 TP0] KV Cache is allocated. #tokens: 4684261, K size: 26.80 GB, V size: 26.80 GB
+[2026-07-08 21:54:22 TP0] Memory pool end. avail mem=20.80 GB
+[2026-07-08 21:54:22 TP0] Capture cuda graph begin. This can take up to several minutes. avail mem=20.70 GB
+[2026-07-08 21:54:22 TP0] Capture cuda graph bs [1, 2, 4, 8, 12, 16, 24, 32]
+  0%|          | 0/8 [00:00<?, ?it/s]Capturing batches (bs=32 avail_mem=20.67 GB):   0%|          | 0/8 [00:00<?, ?it/s][2026-07-08 21:54:23 TP0] Using default MoE kernel config. Performance might be sub-optimal! Config file not found at /home/t-jialianggu/work/sglang/python/sglang/srt/layers/moe/fused_moe_triton/configs/triton_3_5_1/E=32,N=1792,device_name=NVIDIA_H200.json, you can create them with https://github.com/sgl-project/sglang/tree/main/benchmark/kernels/fused_moe_triton
+[2026-07-08 21:54:23 TP0] Using MoE kernel config with down_moe=False. Performance might be sub-optimal! Config file not found at /home/t-jialianggu/work/sglang/python/sglang/srt/layers/moe/fused_moe_triton/configs/triton_3_5_1/E=32,N=1792,device_name=NVIDIA_H200_down.json, you can create them with https://github.com/sgl-project/sglang/tree/main/benchmark/kernels/fused_moe_triton
+Capturing batches (bs=32 avail_mem=20.67 GB):  12%|█▎        | 1/8 [00:01<00:10,  1.52s/it]Capturing batches (bs=24 avail_mem=20.61 GB):  12%|█▎        | 1/8 [00:01<00:10,  1.52s/it]Capturing batches (bs=24 avail_mem=20.61 GB):  25%|██▌       | 2/8 [00:01<00:05,  1.19it/s]Capturing batches (bs=16 avail_mem=20.61 GB):  25%|██▌       | 2/8 [00:01<00:05,  1.19it/s]Capturing batches (bs=16 avail_mem=20.61 GB):  38%|███▊      | 3/8 [00:02<00:03,  1.63it/s]Capturing batches (bs=12 avail_mem=20.61 GB):  38%|███▊      | 3/8 [00:02<00:03,  1.63it/s]Capturing batches (bs=12 avail_mem=20.61 GB):  50%|█████     | 4/8 [00:02<00:01,  2.23it/s]Capturing batches (bs=8 avail_mem=20.61 GB):  50%|█████     | 4/8 [00:02<00:01,  2.23it/s] Capturing batches (bs=8 avail_mem=20.61 GB):  62%|██████▎   | 5/8 [00:02<00:01,  2.77it/s]Capturing batches (bs=4 avail_mem=20.61 GB):  62%|██████▎   | 5/8 [00:02<00:01,  2.77it/s]Capturing batches (bs=4 avail_mem=20.61 GB):  75%|███████▌  | 6/8 [00:02<00:00,  3.29it/s]Capturing batches (bs=2 avail_mem=20.61 GB):  75%|███████▌  | 6/8 [00:02<00:00,  3.29it/s]Capturing batches (bs=2 avail_mem=20.61 GB):  88%|████████▊ | 7/8 [00:03<00:00,  3.72it/s]Capturing batches (bs=1 avail_mem=20.61 GB):  88%|████████▊ | 7/8 [00:03<00:00,  3.72it/s]==PROF== Connected to process 2477432 (/home/t-jialianggu/.conda/envs/sglang-dev/bin/python3.11)
+Capturing batches (bs=1 avail_mem=20.61 GB): 100%|██████████| 8/8 [00:03<00:00,  3.86it/s]Capturing batches (bs=1 avail_mem=20.61 GB): 100%|██████████| 8/8 [00:03<00:00,  2.46it/s]
+[2026-07-08 21:54:26 TP0] Capture cuda graph end. Time elapsed: 3.97 s. mem usage=0.10 GB. avail mem=20.61 GB.
+[2026-07-08 21:54:27 TP0] Reset HybridReqToTokenPool
+[2026-07-08 21:54:30 TP0] Reset HybridReqToTokenPool
+==PROF== Profiling "void flashinfer::norm::RMSNormKernel<(unsigned int)8, __nv_bfloat16>(T2 *, T2 *, T2 *, unsigned int, unsigned int, unsigned int, float, float)": 0%
+==WARNING== Backing up device memory in system memory. Kernel replay might be slow. Consider using "--replay-mode application" to avoid memory save-and-restore.
+....50%....100% - 10 passes
+==PROF== Profiling "_ZN10flashinfer4norm13RMSNormKernelILj8E13__nv_bfloat16EEvPT0_S4_S4_jjjff": 0%....50%....100% - 10 passes
+==PROF== Profiling "void causal_conv1d_update_kernel<Causal_conv1d_update_kernel_traits<(int)64, (int)3, c10::BFloat16, c10::BFloat16>, (bool)0>(ConvParamsBase)": 0%....50%....100% - 10 passes
+==PROF== Profiling "_Z27causal_conv1d_update_kernelI34Causal_conv1d_update_kernel_traitsILi64ELi3EN3c108BFloat16ES2_ELb0EEv14ConvParamsBase": 0%....50%....100% - 10 passes
+==PROF== Profiling "void flashinfer::norm::RMSNormKernel<(unsigned int)8, __nv_bfloat16>(T2 *, T2 *, T2 *, unsigned int, unsigned int, unsigned int, float, float)": 0%....50%....100% - 10 passes
+==PROF== Profiling "_ZN10flashinfer4norm13RMSNormKernelILj8E13__nv_bfloat16EEvPT0_S4_S4_jjjff": 0%....50%....100% - 10 passes
+==PROF== Profiling "void flashinfer::activation::act_and_mul_kernel<__nv_bfloat16, &silu<float>>(T1 *, const T1 *, int)": 0%....50%....100% - 10 passes
+==PROF== Profiling "_ZN10flashinfer10activation18act_and_mul_kernelI13__nv_bfloat16XadL_Z4siluIfET_RKS4_EEEEvPS4_PS5_i": 0%....50%....100% - 10 passes
+==PROF== Profiling "void flashinfer::norm::RMSNormKernel<(unsigned int)8, __nv_bfloat16>(T2 *, T2 *, T2 *, unsigned int, unsigned int, unsigned int, float, float)": 0%....50%....100% - 10 passes
+==PROF== Profiling "_ZN10flashinfer4norm13RMSNormKernelILj8E13__nv_bfloat16EEvPT0_S4_S4_jjjff": 0%....50%....100% - 10 passes
+==PROF== Profiling "void causal_conv1d_update_kernel<Causal_conv1d_update_kernel_traits<(int)64, (int)3, c10::BFloat16, c10::BFloat16>, (bool)0>(ConvParamsBase)": 0%....50%....100% - 10 passes
+==PROF== Profiling "_Z27causal_conv1d_update_kernelI34Causal_conv1d_update_kernel_traitsILi64ELi3EN3c108BFloat16ES2_ELb0EEv14ConvParamsBase": 0%....50%....100% - 10 passes
+==PROF== Profiling "void flashinfer::norm::RMSNormKernel<(unsigned int)8, __nv_bfloat16>(T2 *, T2 *, T2 *, unsigned int, unsigned int, unsigned int, float, float)": 0%....50%....100% - 10 passes
+==PROF== Profiling "_ZN10flashinfer4norm13RMSNormKernelILj8E13__nv_bfloat16EEvPT0_S4_S4_jjjff": 0%....50%....100% - 10 passes
+==PROF== Profiling "void flashinfer::activation::act_and_mul_kernel<__nv_bfloat16, &silu<float>>(T1 *, const T1 *, int)": 0%....50%....100% - 10 passes
+==PROF== Profiling "_ZN10flashinfer10activation18act_and_mul_kernelI13__nv_bfloat16XadL_Z4siluIfET_RKS4_EEEEvPS4_PS5_i": 0%....50%....100% - 10 passes
+==PROF== Profiling "void flashinfer::norm::RMSNormKernel<(unsigned int)8, __nv_bfloat16>(T2 *, T2 *, T2 *, unsigned int, unsigned int, unsigned int, float, float)": 0%....50%....100% - 10 passes
+==PROF== Profiling "_ZN10flashinfer4norm13RMSNormKernelILj8E13__nv_bfloat16EEvPT0_S4_S4_jjjff": 0%....50%....100% - 10 passes
+==PROF== Profiling "void flashinfer::norm::RMSNormKernel<(unsigned int)8, __nv_bfloat16>(T2 *, T2 *, T2 *, unsigned int, unsigned int, unsigned int, float, float)": 0%....50%....100% - 10 passes
+==PROF== Profiling "void flashinfer::norm::RMSNormKernel<(unsigned int)8, __nv_bfloat16>(T2 *, T2 *, T2 *, unsigned int, unsigned int, unsigned int, float, float)": 0%....50%....100% - 10 passes
+==PROF== Disconnected from process 2477432
+max_total_num_tokens=4684261
+Warmup ...
+Prefill. latency: 0.49172 s, throughput:    264.38 token/s
+Decode 0. Batch size: 1, latency: 0.76565 s, throughput:      1.31 token/s
+Decode 1. Batch size: 1, latency: 0.03321 s, throughput:     30.11 token/s
+Decode 2. Batch size: 1, latency: 0.03102 s, throughput:     32.24 token/s
+Decode 3. Batch size: 1, latency: 0.02985 s, throughput:     33.50 token/s
+Decode 4. Batch size: 1, latency: 0.03300 s, throughput:     30.30 token/s
+Decode.  median latency: 0.03158 s, median throughput:     31.66 token/s
+Total. latency:  2.210 s, throughput:     73.29 token/s
+Benchmark ...
+Prefill. latency: 0.07211 s, throughput:   1802.83 token/s
+Decode 0. Batch size: 1, latency: 0.03274 s, throughput:     30.55 token/s
+Decode 1. Batch size: 1, latency: 0.03102 s, throughput:     32.24 token/s
+Decode 2. Batch size: 1, latency: 0.03139 s, throughput:     31.86 token/s
+Decode 3. Batch size: 1, latency: 0.03211 s, throughput:     31.15 token/s
+Decode 4. Batch size: 1, latency: 0.03191 s, throughput:     31.34 token/s
+CUDA Profiler started (nsys will begin capturing)
+CUDA Profiler stopped (nsys should dump traces)
+CUDA profiler trace for decode completed
+Decode.  median latency: 0.03035 s, median throughput:     32.95 token/s
+Total. latency: 1157.354 s, throughput:      0.22 token/s
+[rank0]:[W708 22:13:48.519363356 ProcessGroupNCCL.cpp:1524] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+==PROF== Disconnected from process 2477000
+==PROF== Report: /home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-07-08_v6_ncu/lfm2.5-8b-a1b/cookbook_baseline/R_decode_c1_out2k/ncu.ncu-rep

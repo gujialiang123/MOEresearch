@@ -1,0 +1,1 @@
+{"run_name": "ncu_v6", "batch_size": 128, "input_len": 260, "output_len": 256, "prefill_latency": 0.5488799191080034, "prefill_throughput": 60632.56978700195, "median_decode_latency": 0.04267399897798896, "median_decode_throughput": 2999.484535443275, "total_latency": 1085.3179700577166, "overall_throughput": 60.85589829171225}

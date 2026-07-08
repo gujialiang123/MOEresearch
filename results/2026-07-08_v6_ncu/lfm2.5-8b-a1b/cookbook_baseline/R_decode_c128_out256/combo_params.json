@@ -1,0 +1,21 @@
+{
+  "model": "lfm2.5-8b-a1b",
+  "config": "cookbook_baseline",
+  "regime": "R_decode_c128_out256",
+  "batch": 128,
+  "input_len": 260,
+  "output_len": 256,
+  "stage": "decode",
+  "config_args": [
+    "--mem-fraction-static",
+    "0.85",
+    "--max-running-requests",
+    "32",
+    "--chunked-prefill-size",
+    "-1",
+    "--schedule-policy",
+    "lpm",
+    "--moe-runner-backend",
+    "auto"
+  ]
+}

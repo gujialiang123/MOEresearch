@@ -1,0 +1,16 @@
+
+>>> [1/3] lfm2.5-8b-a1b × cookbook_baseline × R_decode_c1_out2k (elapsed=0s) <<<
+  Launching NCU on lfm2.5-8b-a1b × cookbook_baseline × R_decode_c1_out2k...
+    NCU exit=0, wall=1181s
+    CSV exported: 212059 bytes
+
+>>> [2/3] lfm2.5-8b-a1b × cookbook_baseline × R_conc_ref (elapsed=1181s) <<<
+  Launching NCU on lfm2.5-8b-a1b × cookbook_baseline × R_conc_ref...
+    NCU exit=0, wall=1134s
+    CSV exported: 210945 bytes
+
+>>> [3/3] lfm2.5-8b-a1b × cookbook_baseline × R_decode_c128_out256 (elapsed=2315s) <<<
+  Launching NCU on lfm2.5-8b-a1b × cookbook_baseline × R_decode_c128_out256...
+    NCU exit=1, wall=20s
+
+=== v6 NCU sweep done in 38.9 min ===
