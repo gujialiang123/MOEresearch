@@ -1,0 +1,89 @@
+{
+  "top_kernels": [
+    {
+      "name": "fused_moe_kernel",
+      "count": 4356,
+      "total_us": 321452.5,
+      "mean_us": 73.795
+    },
+    {
+      "name": "nvjet_tst_64x16_64x16_4x2_v_bz_TNT",
+      "count": 2820,
+      "total_us": 17003.5,
+      "mean_us": 6.03
+    },
+    {
+      "name": "nvjet_tst_64x32_64x16_4x1_v_bz_TNT",
+      "count": 1692,
+      "total_us": 16206.6,
+      "mean_us": 9.578
+    },
+    {
+      "name": "void flashinfer::norm::RMSNormKernel<8u, __nv_bfloat16>(__nv_bfloat16*, __nv_bfloat16*, __nv_bfloat16*, unsigned int, unsigned int, unsigned int, float, float)",
+      "count": 6039,
+      "total_us": 14832.6,
+      "mean_us": 2.456
+    },
+    {
+      "name": "nvjet_tst_512x32_64x3_2x1_v_bz_TNT",
+      "count": 95,
+      "total_us": 12603.2,
+      "mean_us": 132.665
+    }
+  ],
+  "trace_file": "1783536059.307828-TP-0.trace.json.gz",
+  "bench_result": {
+    "schema_version": 0,
+    "ok": true,
+    "captured_at": "2026-07-08T18:41:00.419640+00:00",
+    "tag": "R_decode_c128_out256",
+    "url": "http://127.0.0.1:33502",
+    "backend": "sglang",
+    "num_runs_total": 3,
+    "num_runs_used": 2,
+    "regimes_source": "/home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-07-08_v5_ncu/lfm2.5-8b-a1b/cookbook_baseline/R_decode_c128_out256/single_regime.yaml",
+    "regimes": {
+      "R_decode_c128_out256": {
+        "concurrency": 128,
+        "max_new": 256,
+        "num_prompts": 128,
+        "prompt_words": 200,
+        "req_per_s": {
+          "mean": 23.613807924673164,
+          "stddev": 0.1709614478745891,
+          "stddev_pct": 0.7239893219253217,
+          "runs": [
+            23.442846476798575,
+            23.784769372547753
+          ]
+        },
+        "tokens_per_s": {
+          "mean": 6045.13482871633,
+          "stddev": 43.76613065589481,
+          "stddev_pct": 0.7239893219253217,
+          "runs": [
+            6001.368698060435,
+            6088.900959372225
+          ]
+        },
+        "wall_s": {
+          "mean": 5.420841484563425,
+          "stddev": 0.03924631350673735,
+          "stddev_pct": 0.723989321925323,
+          "runs": [
+            5.4600877980701625,
+            5.381595171056688
+          ]
+        },
+        "e2e_ms": {
+          "p50": 3929.325436009094,
+          "p99": 5421.018349006772,
+          "count": 256
+        },
+        "completion_rate": 1.0,
+        "reliable": true
+      }
+    },
+    "warnings": []
+  }
+}

@@ -1,0 +1,13 @@
+model,config,regime,bench_tokens_per_s,bench_req_per_s,k1_name,k1_total_ms,k1_count,k1_mean_us,k2_name,k2_total_ms,k2_count,k2_mean_us,k3_name,k3_total_ms,k3_count,k3_mean_us
+lfm2.5-8b-a1b,cookbook_baseline,R_decode_c1_out2k,443.6,0.217,fused_moe_kernel,78.99,4356,18.13,nvjet_gemm_64x8_64x16,32.75,4704,6.96,nvjet_gemm_256x8_64x6,12.14,99,122.59
+lfm2.5-8b-a1b,cookbook_baseline,R_conc_ref,5717.4,22.334,fused_moe_kernel,320.75,4356,73.64,nvjet_gemm_64x16_64x16,16.86,2820,5.98,nvjet_gemm_64x32_64x16,16.12,1692,9.53
+lfm2.5-8b-a1b,cookbook_baseline,R_decode_c128_out256,6045.1,23.614,fused_moe_kernel,321.45,4356,73.8,nvjet_gemm_64x16_64x16,17.0,2820,6.03,nvjet_gemm_64x32_64x16,16.21,1692,9.58
+lfm2.5-8b-a1b,big_batch_cap128,R_decode_c1_out2k,443.5,0.217,fused_moe_kernel,78.8,4356,18.09,nvjet_gemm_64x8_64x16,32.5,4704,6.91,nvjet_gemm_256x8_64x6,12.23,99,123.58
+lfm2.5-8b-a1b,big_batch_cap128,R_conc_ref,5755.5,22.482,fused_moe_kernel,320.97,4356,73.68,nvjet_gemm_64x16_64x16,16.44,2760,5.96,nvjet_gemm_64x32_64x16,15.74,1656,9.51
+lfm2.5-8b-a1b,big_batch_cap128,R_decode_c128_out256,12348.3,48.235,fused_moe_kernel,623.21,4356,143.07,flash_attention,29.81,498,59.85,nvjet_gemm_256x128_64x4,28.78,598,48.12
+qwen3-30b-a3b-bf16,cookbook_baseline,R_decode_c1_out2k,231.0,0.113,fused_moe_kernel,116.21,9504,12.23,flash_attention,37.42,4656,8.04,nvjet_gemm_64x8_64x16,37.15,4752,7.82
+qwen3-30b-a3b-bf16,cookbook_baseline,R_conc_ref,3742.4,14.619,fused_moe_kernel,415.26,9504,43.69,flash_attention,56.2,4608,12.2,nvjet_gemm_64x32_64x16,37.09,4608,8.05
+qwen3-30b-a3b-bf16,cookbook_baseline,R_decode_c128_out256,3784.9,14.785,fused_moe_kernel,413.4,9504,43.5,flash_attention,56.2,4608,12.2,nvjet_gemm_64x32_64x16,37.13,4608,8.06
+qwen3-30b-a3b-bf16,big_batch_cap128,R_decode_c1_out2k,230.9,0.113,fused_moe_kernel,116.5,9504,12.26,flash_attention,37.42,4656,8.04,nvjet_gemm_64x8_64x16,37.27,4752,7.84
+qwen3-30b-a3b-bf16,big_batch_cap128,R_conc_ref,3729.8,14.569,fused_moe_kernel,415.24,9504,43.69,flash_attention,56.03,4608,12.16,nvjet_gemm_64x32_64x16,37.12,4608,8.05
+qwen3-30b-a3b-bf16,big_batch_cap128,R_decode_c128_out256,8983.9,35.093,fused_moe_kernel,760.61,9504,80.03,flash_attention,146.97,4176,35.19,nvjet_gemm_64x32_64x16,41.29,4128,10.0

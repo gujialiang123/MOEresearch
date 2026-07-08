@@ -1,0 +1,89 @@
+{
+  "top_kernels": [
+    {
+      "name": "fused_moe_kernel",
+      "count": 4356,
+      "total_us": 623206.7,
+      "mean_us": 143.069
+    },
+    {
+      "name": "void cutlass::device_kernel<flash::enable_sm90_or_later<flash::FlashAttnFwdSm90<flash::CollectiveMainloopFwdSm90<2, cute::tuple<cute::C<1>, cute::C<1>, cute::C<1> >, cute::tuple<cute::C<192>, cute::C<128>, cute::C<64> >, 64, cutlass::bfloat16_t, float, cutlass::arch::Sm90, false, false, false, true, true, false, false, true, true, true, true, false, cutlass::bfloat16_t>, flash::CollectiveEpilogueFwd<cute::tuple<cute::C<192>, cute::C<64>, cute::C<128> >, cute::tuple<cute::C<1>, cute::C<1>, cute::C<1> >, cutlass::bfloat16_t, cutlass::arch::Sm90, 384, true, true, true, false>, flash::VarlenDynamicPersistentTileScheduler<192, 128, 384, 128, true, true, true, false, true, true> > > >(flash::enable_sm90_or_later<flash::FlashAttnFwdSm90<flash::CollectiveMainloopFwdSm90<2, cute::tuple<cute::C<1>, cute::C<1>, cute::C<1> >, cute::tuple<cute::C<192>, cute::C<128>, cute::C<64> >, 64, cutlass::bfloat16_t, float, cutlass::arch::Sm90, false, false, false, true, true, false, false, true, true, true, true, false, cutlass::bfloat16_t>, flash::CollectiveEpilogueFwd<cute::tuple<cute::C<192>, cute::C<64>, cute::C<128> >, cute::tuple<cute::C<1>, cute::C<1>, cute::C<1> >, cutlass::bfloat16_t, cutlass::arch::Sm90, 384, true, true, true, false>, flash::VarlenDynamicPersistentTileScheduler<192, 128, 384, 128, true, true, true, false, true, true> > >::Params)",
+      "count": 498,
+      "total_us": 29808.0,
+      "mean_us": 59.855
+    },
+    {
+      "name": "nvjet_tst_256x128_64x4_1x2_h_bz_coopA_TNT",
+      "count": 598,
+      "total_us": 28778.6,
+      "mean_us": 48.125
+    },
+    {
+      "name": "void flashinfer::norm::RMSNormKernel<8u, __nv_bfloat16>(__nv_bfloat16*, __nv_bfloat16*, __nv_bfloat16*, unsigned int, unsigned int, unsigned int, float, float)",
+      "count": 6039,
+      "total_us": 25491.3,
+      "mean_us": 4.221
+    },
+    {
+      "name": "void at::native::elementwise_kernel<128, 4, at::native::gpu_kernel_impl_nocast<at::native::BinaryFunctor<c10::BFloat16, c10::BFloat16, c10::BFloat16, at::native::binary_internal::MulFunctor<float> > >(at::TensorIteratorBase&, at::native::BinaryFunctor<c10::BFloat16, c10::BFloat16, c10::BFloat16, at::native::binary_internal::MulFunctor<float> > const&)::{lambda(int)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::BinaryFunctor<c10::BFloat16, c10::BFloat16, c10::BFloat16, at::native::binary_internal::MulFunctor<float> > >(at::TensorIteratorBase&, at::native::BinaryFunctor<c10::BFloat16, c10::BFloat16, c10::BFloat16, at::native::binary_internal::MulFunctor<float> > const&)::{lambda(int)#1})",
+      "count": 3492,
+      "total_us": 17975.7,
+      "mean_us": 5.148
+    }
+  ],
+  "trace_file": "1783536291.1143422-TP-0.trace.json.gz",
+  "bench_result": {
+    "schema_version": 0,
+    "ok": true,
+    "captured_at": "2026-07-08T18:44:52.233793+00:00",
+    "tag": "R_decode_c128_out256",
+    "url": "http://127.0.0.1:33505",
+    "backend": "sglang",
+    "num_runs_total": 3,
+    "num_runs_used": 2,
+    "regimes_source": "/home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-07-08_v5_ncu/lfm2.5-8b-a1b/big_batch_cap128/R_decode_c128_out256/single_regime.yaml",
+    "regimes": {
+      "R_decode_c128_out256": {
+        "concurrency": 128,
+        "max_new": 256,
+        "num_prompts": 128,
+        "prompt_words": 200,
+        "req_per_s": {
+          "mean": 48.235356014781914,
+          "stddev": 2.6277018579140226,
+          "stddev_pct": 5.447667592851917,
+          "runs": [
+            45.607654156867895,
+            50.86305787269594
+          ]
+        },
+        "tokens_per_s": {
+          "mean": 12348.25113978417,
+          "stddev": 672.6916756259898,
+          "stddev_pct": 5.447667592851917,
+          "runs": [
+            11675.559464158181,
+            13020.94281541016
+          ]
+        },
+        "wall_s": {
+          "mean": 2.661553846555762,
+          "stddev": 0.1449926063651219,
+          "stddev_pct": 5.447667592851917,
+          "runs": [
+            2.806546452920884,
+            2.51656124019064
+          ]
+        },
+        "e2e_ms": {
+          "p50": 2640.3849238995463,
+          "p99": 2789.6827710792422,
+          "count": 256
+        },
+        "completion_rate": 1.0,
+        "reliable": true
+      }
+    },
+    "warnings": []
+  }
+}

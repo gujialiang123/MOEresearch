@@ -1,0 +1,89 @@
+{
+  "top_kernels": [
+    {
+      "name": "fused_moe_kernel",
+      "count": 9504,
+      "total_us": 116499.2,
+      "mean_us": 12.258
+    },
+    {
+      "name": "void cutlass::device_kernel<flash::enable_sm90_or_later<flash::FlashAttnFwdSm90<flash::CollectiveMainloopFwdSm90<2, cute::tuple<cute::C<1>, cute::C<1>, cute::C<1> >, cute::tuple<cute::C<128>, cute::C<128>, cute::C<128> >, 128, cutlass::bfloat16_t, float, cutlass::arch::Sm90, true, false, false, true, true, false, false, true, true, true, true, false, cutlass::bfloat16_t>, flash::CollectiveEpilogueFwd<cute::tuple<cute::C<128>, cute::C<128>, cute::C<128> >, cute::tuple<cute::C<1>, cute::C<1>, cute::C<1> >, cutlass::bfloat16_t, cutlass::arch::Sm90, 256, true, true, true, false>, flash::VarlenDynamicPersistentTileScheduler<128, 128, 256, 128, true, true, true, true, true, true> > > >(flash::enable_sm90_or_later<flash::FlashAttnFwdSm90<flash::CollectiveMainloopFwdSm90<2, cute::tuple<cute::C<1>, cute::C<1>, cute::C<1> >, cute::tuple<cute::C<128>, cute::C<128>, cute::C<128> >, 128, cutlass::bfloat16_t, float, cutlass::arch::Sm90, true, false, false, true, true, false, false, true, true, true, true, false, cutlass::bfloat16_t>, flash::CollectiveEpilogueFwd<cute::tuple<cute::C<128>, cute::C<128>, cute::C<128> >, cute::tuple<cute::C<1>, cute::C<1>, cute::C<1> >, cutlass::bfloat16_t, cutlass::arch::Sm90, 256, true, true, true, false>, flash::VarlenDynamicPersistentTileScheduler<128, 128, 256, 128, true, true, true, true, true, true> > >::Params)",
+      "count": 4656,
+      "total_us": 37417.0,
+      "mean_us": 8.036
+    },
+    {
+      "name": "nvjet_tst_64x8_64x16_4x1_v_bz_TNT",
+      "count": 4752,
+      "total_us": 37270.4,
+      "mean_us": 7.843
+    },
+    {
+      "name": "nvjet_tst_64x8_64x16_4x1_v_bz_splitK_TNT",
+      "count": 4752,
+      "total_us": 33836.3,
+      "mean_us": 7.12
+    },
+    {
+      "name": "nvjet_tst_64x8_64x16_2x1_v_bz_TNT",
+      "count": 4752,
+      "total_us": 23904.0,
+      "mean_us": 5.03
+    }
+  ],
+  "trace_file": "1783536687.1100383-TP-0.trace.json.gz",
+  "bench_result": {
+    "schema_version": 0,
+    "ok": true,
+    "captured_at": "2026-07-08T18:51:28.226429+00:00",
+    "tag": "R_decode_c1_out2k",
+    "url": "http://127.0.0.1:33509",
+    "backend": "sglang",
+    "num_runs_total": 3,
+    "num_runs_used": 2,
+    "regimes_source": "/home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-07-08_v5_ncu/qwen3-30b-a3b-bf16/big_batch_cap128/R_decode_c1_out2k/single_regime.yaml",
+    "regimes": {
+      "R_decode_c1_out2k": {
+        "concurrency": 1,
+        "max_new": 2048,
+        "num_prompts": 4,
+        "prompt_words": 100,
+        "req_per_s": {
+          "mean": 0.11273958324102448,
+          "stddev": 1.782451384173961e-05,
+          "stddev_pct": 0.015810342143657577,
+          "runs": [
+            0.11272175872718274,
+            0.11275740775486622
+          ]
+        },
+        "tokens_per_s": {
+          "mean": 230.89066647761814,
+          "stddev": 0.03650460434788272,
+          "stddev_pct": 0.015810342143657577,
+          "runs": [
+            230.85416187327024,
+            230.927171081966
+          ]
+        },
+        "wall_s": {
+          "mean": 35.479997220099904,
+          "stddev": 0.0056095089530572295,
+          "stddev_pct": 0.01581034214365543,
+          "runs": [
+            35.48560672905296,
+            35.474387711146846
+          ]
+        },
+        "e2e_ms": {
+          "p50": 8869.237618986517,
+          "p99": 8876.552822068334,
+          "count": 8
+        },
+        "completion_rate": 1.0,
+        "reliable": true
+      }
+    },
+    "warnings": []
+  }
+}

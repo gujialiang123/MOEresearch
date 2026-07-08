@@ -1,0 +1,89 @@
+{
+  "top_kernels": [
+    {
+      "name": "fused_moe_kernel",
+      "count": 4356,
+      "total_us": 320752.0,
+      "mean_us": 73.635
+    },
+    {
+      "name": "nvjet_tst_64x16_64x16_4x2_v_bz_TNT",
+      "count": 2820,
+      "total_us": 16861.5,
+      "mean_us": 5.979
+    },
+    {
+      "name": "nvjet_tst_64x32_64x16_4x1_v_bz_TNT",
+      "count": 1692,
+      "total_us": 16117.6,
+      "mean_us": 9.526
+    },
+    {
+      "name": "void flashinfer::norm::RMSNormKernel<8u, __nv_bfloat16>(__nv_bfloat16*, __nv_bfloat16*, __nv_bfloat16*, unsigned int, unsigned int, unsigned int, float, float)",
+      "count": 6039,
+      "total_us": 14793.3,
+      "mean_us": 2.45
+    },
+    {
+      "name": "nvjet_tst_512x32_64x3_2x1_v_bz_TNT",
+      "count": 94,
+      "total_us": 12456.5,
+      "mean_us": 132.516
+    }
+  ],
+  "trace_file": "1783536006.0202587-TP-0.trace.json.gz",
+  "bench_result": {
+    "schema_version": 0,
+    "ok": true,
+    "captured_at": "2026-07-08T18:40:07.139372+00:00",
+    "tag": "R_conc_ref",
+    "url": "http://127.0.0.1:33501",
+    "backend": "sglang",
+    "num_runs_total": 3,
+    "num_runs_used": 2,
+    "regimes_source": "/home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-07-08_v5_ncu/lfm2.5-8b-a1b/cookbook_baseline/R_conc_ref/single_regime.yaml",
+    "regimes": {
+      "R_conc_ref": {
+        "concurrency": 32,
+        "max_new": 256,
+        "num_prompts": 32,
+        "prompt_words": 200,
+        "req_per_s": {
+          "mean": 22.333607577977524,
+          "stddev": 1.5150982025181055,
+          "stddev_pct": 6.783938498194518,
+          "runs": [
+            23.84870578049563,
+            20.81850937545942
+          ]
+        },
+        "tokens_per_s": {
+          "mean": 5717.403539962246,
+          "stddev": 387.865139844635,
+          "stddev_pct": 6.783938498194518,
+          "runs": [
+            6105.268679806882,
+            5329.538400117612
+          ]
+        },
+        "wall_s": {
+          "mean": 1.439442804432474,
+          "stddev": 0.09765091456938535,
+          "stddev_pct": 6.783938498194512,
+          "runs": [
+            1.3417918898630887,
+            1.5370937190018594
+          ]
+        },
+        "e2e_ms": {
+          "p50": 1495.96384097822,
+          "p99": 1531.0927049722522,
+          "count": 64
+        },
+        "completion_rate": 1.0,
+        "reliable": true
+      }
+    },
+    "warnings": []
+  }
+}
