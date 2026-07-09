@@ -44,6 +44,30 @@ v6 的 3 个 regime 都是人工设的、且 **decode 占 95–98%**，覆盖不
 | Qwen3-30B | shared_prefix | 128 | 2296 | 256 | **9.0:1** | 13.47 | 3448 | 84.5 | 4222 ms | 8.10 ms |
 | Qwen3-30B | toolagent | 200 | 2700 | 207 | **13.0:1** | 4.65 | 965 | 25.4 | 815 ms | 20.77 ms |
 
+### 3.1 prefill vs decode 墙钟时间占比（服务级，单请求均值口径）
+
+prefill ≈ mean TTFT（**含排队 + 首 token**），decode ≈ mean E2E − mean TTFT。
+
+| 模型 | 数据集 | E2E均值 | prefill(TTFT) | decode | **decode 占比** |
+|---|---|---|---|---|---|
+| LFM2.5 | shared_prefix | 5781 ms | 4145 ms | 1636 ms | 28.3% |
+| LFM2.5 | toolagent | 1164 ms | 414 ms | 750 ms | **64.4%** |
+| Qwen3-30B | shared_prefix | 6271 ms | 4156 ms | 2115 ms | 33.7% |
+| Qwen3-30B | toolagent | 5455 ms | 1112 ms | 4343 ms | **79.6%** |
+
+> **重要 caveat**：TTFT **包含排队等待**。`shared_prefix` 并发 80+，TTFT 里大部分是"排队等前面请求的 prefill"，不是纯 prefill 计算，所以它的 prefill 占比被排队放大了。`toolagent`（并发 6–25，真实到达）更接近真实单请求分解 → decode 占 64–80%。要拿**纯计算**的 prefill/decode 分解，仍需回填 NCU（`--profile-stage` 分阶段单测）。
+
+### 3.2 显存占用（server 日志实测）
+
+| 模型 | 权重(bf16) | KV池上限 | KV池容量 | 运行时峰值 KV 占用 | 峰值总显存 |
+|---|---|---|---|---|---|
+| LFM2.5-8B-A1B | 16.3 GB | 53.6 GB | 4.69M tok | **2%** → ~1.1 GB | ~17 GB / 143 |
+| Qwen3-30B-A3B | 57.0 GB | 61.2 GB | 668K tok | **20%** → ~12.2 GB | ~69 GB / 143 |
+
+> - 两个 server 都 `--max-running-requests 32`，运行时 `#running-req` 峰值 = 32。
+> - LFM2.5 KV 池极大（468 万 token），200 个请求只填了 2%；Qwen3 KV 池小（权重占了 57GB），同样负载填到 20%。
+> - **这是 footprint（占了多少 GB），不是带宽利用率**。带宽利用率（decode 访存瓶颈）在 v6 NCU 里（Qwen3 fused_moe DRAM 79.8%）。
+
 ---
 
 ## 4. 结论
@@ -53,6 +77,7 @@ v6 的 3 个 regime 都是人工设的、且 **decode 占 95–98%**，覆盖不
 2. **两个数据集刻画了两种不同压力**：
    - **shared_prefix**：高并发（80+）、长共享前缀 → 压 **prefill 吞吐 + prefix cache 复用**。TTFT 高达 4s（大 prefill 排队），TPOT 很低。
    - **toolagent**：中低并发（6–25）、真实到达时间戳 → 更贴近**在线单请求延迟**。TTFT 低（357–815ms）。
+
 
 3. **两模型趋势一致，但 Qwen3-30B 的 decode 更贵。** 同样 toolagent 负载，Qwen3 的 TPOT 中位 20.8ms vs LFM2.5 的 3.6ms（≈5.7×）——大模型每步 decode 更重，也更容易在高并发下暴露访存瓶颈（呼应 v6 的 `fused_moe_kernel` memory-bound）。
 
