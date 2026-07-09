@@ -1,0 +1,12 @@
+
+=== MODEL lfm2.5-8b-a1b (GPU 1) ===
+  server ready
+    bench_serving: lfm2.5-8b-a1b × toolagent
+    bench_serving: lfm2.5-8b-a1b × shared_prefix
+
+=== MODEL qwen3-30b-a3b-bf16 (GPU 1) ===
+  server ready
+    bench_serving: qwen3-30b-a3b-bf16 × toolagent
+    bench_serving: qwen3-30b-a3b-bf16 × shared_prefix
+
+=== v7 agentic bench done ===

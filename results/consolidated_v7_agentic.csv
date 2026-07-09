@@ -1,0 +1,5 @@
+model,dataset,completed,avg_input_tok,avg_output_tok,in_out_ratio,req_throughput,output_tok_s,concurrency,duration_s,median_ttft_ms,median_tpot_ms,p99_ttft_ms
+lfm2.5-8b-a1b,shared_prefix,128,2365,256,9.2,13.97,3577,80.8,9.2,3982,6.3,7671
+lfm2.5-8b-a1b,toolagent,200,2667,207,12.9,5.27,1092,6.1,38.0,357,3.63,1017
+qwen3-30b-a3b-bf16,shared_prefix,128,2296,256,9.0,13.47,3448,84.5,9.5,4222,8.1,7499
+qwen3-30b-a3b-bf16,toolagent,200,2700,207,13.0,4.65,965,25.4,43.0,815,20.77,4062
