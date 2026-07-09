@@ -1,0 +1,155 @@
+benchmark_args=Namespace(backend='sglang', base_url=None, host='127.0.0.1', port=31218, dataset_name='generated-shared-prefix', dataset_path='', model='/data/hf/models/Qwen3-30B-A3B-Instruct-2507', served_model_name=None, tokenizer=None, num_prompts=1000, sharegpt_output_len=None, sharegpt_context_len=None, random_input_len=1024, random_output_len=1024, random_range_ratio=0.0, image_count=1, image_resolution='1080p', random_image_count=False, image_format='jpeg', image_content='random', request_rate=inf, use_trace_timestamps=False, max_concurrency=64, output_file='/home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-07-09_v7_config_sweep/qwen3-30b-a3b-bf16/baseline_triton/shared_prefix/bench_serving_result.jsonl', output_details=False, print_requests=False, disable_tqdm=False, disable_stream=False, return_logprob=False, return_routed_experts=False, seed=1, disable_ignore_eos=False, extra_request_body=None, apply_chat_template=False, profile=False, plot_throughput=False, profile_activities=['CPU', 'GPU'], profile_num_steps=None, profile_by_stage=False, profile_stages=None, profile_output_dir=None, profile_prefix=None, lora_name=None, lora_request_distribution='uniform', lora_zipf_alpha=1.5, prompt_suffix='', pd_separated=False, profile_prefill_url=None, profile_decode_url=None, flush_cache=False, warmup_requests=1, tokenize_prompt=False, gsp_num_groups=32, gsp_prompts_per_group=32, gsp_system_prompt_len=2048, gsp_question_len=128, gsp_output_len=256, gsp_range_ratio=1.0, gsp_fast_prepare=False, gsp_send_routing_key=False, gsp_num_turns=1, gsp_ordered=False, mooncake_slowdown_factor=1.0, mooncake_num_rounds=1, mooncake_workload='conversation', tag=None, header=None)
+Namespace(backend='sglang', base_url=None, host='127.0.0.1', port=31218, dataset_name='generated-shared-prefix', dataset_path='', model='/data/hf/models/Qwen3-30B-A3B-Instruct-2507', served_model_name=None, tokenizer=None, num_prompts=1000, sharegpt_output_len=None, sharegpt_context_len=None, random_input_len=1024, random_output_len=1024, random_range_ratio=0.0, image_count=1, image_resolution='1080p', random_image_count=False, image_format='jpeg', image_content='random', request_rate=inf, use_trace_timestamps=False, max_concurrency=64, output_file='/home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-07-09_v7_config_sweep/qwen3-30b-a3b-bf16/baseline_triton/shared_prefix/bench_serving_result.jsonl', output_details=False, print_requests=False, disable_tqdm=False, disable_stream=False, return_logprob=False, return_routed_experts=False, seed=1, disable_ignore_eos=False, extra_request_body=None, apply_chat_template=False, profile=False, plot_throughput=False, profile_activities=['CPU', 'GPU'], profile_num_steps=None, profile_by_stage=False, profile_stages=None, profile_output_dir=None, profile_prefix=None, lora_name=None, lora_request_distribution='uniform', lora_zipf_alpha=1.5, prompt_suffix='', pd_separated=False, profile_prefill_url=None, profile_decode_url=None, flush_cache=False, warmup_requests=1, tokenize_prompt=False, gsp_num_groups=32, gsp_prompts_per_group=32, gsp_system_prompt_len=2048, gsp_question_len=128, gsp_output_len=256, gsp_range_ratio=1.0, gsp_fast_prepare=False, gsp_send_routing_key=False, gsp_num_turns=1, gsp_ordered=False, mooncake_slowdown_factor=1.0, mooncake_num_rounds=1, mooncake_workload='conversation', tag=None, header=None)
+
+
+Generating new input data... (num_groups=32, 32, system_prompt_len=2048, question_len=128, output_len=256, range_ratio=1.0, num_turns=1)
+Generating system prompt:   0%|          | 0/32 [00:00<?, ?it/s]
+Generating questions:   0%|          | 0/32 [00:00<?, ?it/s][A
+Generating questions:  78%|███████▊  | 25/32 [00:00<00:00, 244.98it/s][A
+                                                                      [AGenerating system prompt:   3%|▎         | 1/32 [00:00<00:03,  7.92it/s]
+Generating questions:   0%|          | 0/32 [00:00<?, ?it/s][A
+Generating questions:  91%|█████████ | 29/32 [00:00<00:00, 282.01it/s][A
+                                                                      [AGenerating system prompt:   6%|▋         | 2/32 [00:00<00:03,  8.40it/s]
+Generating questions:   0%|          | 0/32 [00:00<?, ?it/s][A
+Generating questions:  88%|████████▊ | 28/32 [00:00<00:00, 271.69it/s][A
+                                                                      [AGenerating system prompt:   9%|▉         | 3/32 [00:00<00:03,  8.44it/s]
+Generating questions:   0%|          | 0/32 [00:00<?, ?it/s][A
+Generating questions:  56%|█████▋    | 18/32 [00:00<00:00, 175.43it/s][A
+                                                                      [AGenerating system prompt:  12%|█▎        | 4/32 [00:00<00:04,  6.98it/s]
+Generating questions:   0%|          | 0/32 [00:00<?, ?it/s][A
+Generating questions:  59%|█████▉    | 19/32 [00:00<00:00, 177.81it/s][A
+                                                                      [AGenerating system prompt:  16%|█▌        | 5/32 [00:00<00:04,  6.40it/s]
+Generating questions:   0%|          | 0/32 [00:00<?, ?it/s][A
+Generating questions:  59%|█████▉    | 19/32 [00:00<00:00, 181.50it/s][A
+                                                                      [AGenerating system prompt:  19%|█▉        | 6/32 [00:00<00:04,  6.14it/s]
+Generating questions:   0%|          | 0/32 [00:00<?, ?it/s][A
+Generating questions:  53%|█████▎    | 17/32 [00:00<00:00, 168.22it/s][A
+                                                                      [AGenerating system prompt:  22%|██▏       | 7/32 [00:01<00:04,  5.81it/s]
+Generating questions:   0%|          | 0/32 [00:00<?, ?it/s][A
+Generating questions:  53%|█████▎    | 17/32 [00:00<00:00, 168.97it/s][A
+                                                                      [AGenerating system prompt:  25%|██▌       | 8/32 [00:01<00:04,  5.60it/s]
+Generating questions:   0%|          | 0/32 [00:00<?, ?it/s][A
+Generating questions:  56%|█████▋    | 18/32 [00:00<00:00, 172.51it/s][A
+                                                                      [AGenerating system prompt:  28%|██▊       | 9/32 [00:01<00:04,  5.54it/s]
+Generating questions:   0%|          | 0/32 [00:00<?, ?it/s][A
+Generating questions:  56%|█████▋    | 18/32 [00:00<00:00, 179.13it/s][A
+                                                                      [AGenerating system prompt:  31%|███▏      | 10/32 [00:01<00:03,  5.56it/s]
+Generating questions:   0%|          | 0/32 [00:00<?, ?it/s][A
+Generating questions:  53%|█████▎    | 17/32 [00:00<00:00, 168.42it/s][A
+                                                                      [AGenerating system prompt:  34%|███▍      | 11/32 [00:01<00:03,  5.46it/s]
+Generating questions:   0%|          | 0/32 [00:00<?, ?it/s][A
+Generating questions:  56%|█████▋    | 18/32 [00:00<00:00, 176.45it/s][A
+                                                                      [AGenerating system prompt:  38%|███▊      | 12/32 [00:02<00:03,  5.48it/s]
+Generating questions:   0%|          | 0/32 [00:00<?, ?it/s][A
+Generating questions:  56%|█████▋    | 18/32 [00:00<00:00, 171.52it/s][A
+                                                                      [AGenerating system prompt:  41%|████      | 13/32 [00:02<00:03,  5.46it/s]
+Generating questions:   0%|          | 0/32 [00:00<?, ?it/s][A
+Generating questions:  56%|█████▋    | 18/32 [00:00<00:00, 176.69it/s][A
+                                                                      [AGenerating system prompt:  44%|████▍     | 14/32 [00:02<00:03,  5.46it/s]
+Generating questions:   0%|          | 0/32 [00:00<?, ?it/s][A
+Generating questions:  53%|█████▎    | 17/32 [00:00<00:00, 168.73it/s][A
+                                                                      [AGenerating system prompt:  47%|████▋     | 15/32 [00:02<00:03,  5.41it/s]
+Generating questions:   0%|          | 0/32 [00:00<?, ?it/s][A
+Generating questions:  56%|█████▋    | 18/32 [00:00<00:00, 170.45it/s][A
+                                                                      [AGenerating system prompt:  50%|█████     | 16/32 [00:02<00:02,  5.41it/s]
+Generating questions:   0%|          | 0/32 [00:00<?, ?it/s][A
+Generating questions:  56%|█████▋    | 18/32 [00:00<00:00, 178.49it/s][A
+                                                                      [AGenerating system prompt:  53%|█████▎    | 17/32 [00:02<00:02,  5.45it/s]
+Generating questions:   0%|          | 0/32 [00:00<?, ?it/s][A
+Generating questions:  53%|█████▎    | 17/32 [00:00<00:00, 167.18it/s][A
+                                                                      [AGenerating system prompt:  56%|█████▋    | 18/32 [00:03<00:02,  5.40it/s]
+Generating questions:   0%|          | 0/32 [00:00<?, ?it/s][A
+Generating questions:  56%|█████▋    | 18/32 [00:00<00:00, 173.63it/s][A
+                                                                      [AGenerating system prompt:  59%|█████▉    | 19/32 [00:03<00:02,  5.41it/s]
+Generating questions:   0%|          | 0/32 [00:00<?, ?it/s][A
+Generating questions:  59%|█████▉    | 19/32 [00:00<00:00, 183.02it/s][A
+                                                                      [AGenerating system prompt:  62%|██████▎   | 20/32 [00:03<00:02,  5.50it/s]
+Generating questions:   0%|          | 0/32 [00:00<?, ?it/s][A
+Generating questions:  59%|█████▉    | 19/32 [00:00<00:00, 180.76it/s][A
+                                                                      [AGenerating system prompt:  66%|██████▌   | 21/32 [00:03<00:02,  5.49it/s]
+Generating questions:   0%|          | 0/32 [00:00<?, ?it/s][A
+Generating questions:  53%|█████▎    | 17/32 [00:00<00:00, 168.50it/s][A
+                                                                      [AGenerating system prompt:  69%|██████▉   | 22/32 [00:03<00:01,  5.45it/s]
+Generating questions:   0%|          | 0/32 [00:00<?, ?it/s][A
+Generating questions:  56%|█████▋    | 18/32 [00:00<00:00, 176.35it/s][A
+                                                                      [AGenerating system prompt:  72%|███████▏  | 23/32 [00:04<00:01,  5.39it/s]
+Generating questions:   0%|          | 0/32 [00:00<?, ?it/s][A
+Generating questions:  56%|█████▋    | 18/32 [00:00<00:00, 172.10it/s][A
+                                                                      [AGenerating system prompt:  75%|███████▌  | 24/32 [00:04<00:01,  5.38it/s]
+Generating questions:   0%|          | 0/32 [00:00<?, ?it/s][A
+Generating questions:  56%|█████▋    | 18/32 [00:00<00:00, 176.61it/s][A
+                                                                      [AGenerating system prompt:  78%|███████▊  | 25/32 [00:04<00:01,  5.40it/s]
+Generating questions:   0%|          | 0/32 [00:00<?, ?it/s][A
+Generating questions:  53%|█████▎    | 17/32 [00:00<00:00, 168.02it/s][A
+                                                                      [AGenerating system prompt:  81%|████████▏ | 26/32 [00:04<00:01,  5.36it/s]
+Generating questions:   0%|          | 0/32 [00:00<?, ?it/s][A
+Generating questions:  56%|█████▋    | 18/32 [00:00<00:00, 173.96it/s][A
+                                                                      [AGenerating system prompt:  84%|████████▍ | 27/32 [00:04<00:00,  5.39it/s]
+Generating questions:   0%|          | 0/32 [00:00<?, ?it/s][A
+Generating questions:  56%|█████▋    | 18/32 [00:00<00:00, 179.92it/s][A
+                                                                      [AGenerating system prompt:  88%|████████▊ | 28/32 [00:04<00:00,  5.46it/s]
+Generating questions:   0%|          | 0/32 [00:00<?, ?it/s][A
+Generating questions:  53%|█████▎    | 17/32 [00:00<00:00, 169.42it/s][A
+                                                                      [AGenerating system prompt:  91%|█████████ | 29/32 [00:05<00:00,  5.43it/s]
+Generating questions:   0%|          | 0/32 [00:00<?, ?it/s][A
+Generating questions:  53%|█████▎    | 17/32 [00:00<00:00, 165.97it/s][A
+                                                                      [AGenerating system prompt:  94%|█████████▍| 30/32 [00:05<00:00,  5.33it/s]
+Generating questions:   0%|          | 0/32 [00:00<?, ?it/s][A
+Generating questions:  56%|█████▋    | 18/32 [00:00<00:00, 173.88it/s][A
+                                                                      [AGenerating system prompt:  97%|█████████▋| 31/32 [00:05<00:00,  5.36it/s]
+Generating questions:   0%|          | 0/32 [00:00<?, ?it/s][A
+Generating questions:  56%|█████▋    | 18/32 [00:00<00:00, 170.87it/s][A
+                                                                      [AGenerating system prompt: 100%|██████████| 32/32 [00:05<00:00,  5.36it/s]Generating system prompt: 100%|██████████| 32/32 [00:05<00:00,  5.60it/s]
+
+Generated shared prefix dataset statistics:
+Number of groups: 32
+Prompts per group: 32
+Number of turns: 1
+Total prompts: 1024
+Total input tokens: 2346565
+Total output tokens: 262144
+Average system prompt length: 2155.8 tokens
+Average question length: 134.7 tokens
+
+Caching generated input data to /home/t-jialianggu/.cache/sglang/benchmark/gen_shared_prefix_1_32_32_2048_128_256_Qwen2TokenizerFast.pkl
+Starting warmup with 1 sequences...
+Warmup completed with 1 sequences. Starting main benchmark run...
+  0%|          | 0/1024 [00:00<?, ?it/s]  0%|          | 1/1024 [00:02<48:25,  2.84s/it]  3%|▎         | 33/1024 [00:05<02:15,  7.30it/s]  6%|▋         | 65/1024 [00:07<01:34, 10.13it/s]  9%|▉         | 97/1024 [00:09<01:20, 11.56it/s] 13%|█▎        | 129/1024 [00:12<01:11, 12.54it/s] 16%|█▌        | 161/1024 [00:14<01:04, 13.45it/s] 19%|█▉        | 193/1024 [00:16<00:58, 14.10it/s] 22%|██▏       | 225/1024 [00:18<00:55, 14.28it/s] 25%|██▌       | 257/1024 [00:20<00:55, 13.74it/s] 28%|██▊       | 289/1024 [00:23<00:53, 13.81it/s] 31%|███▏      | 321/1024 [00:25<00:49, 14.27it/s] 34%|███▍      | 353/1024 [00:27<00:46, 14.44it/s] 38%|███▊      | 385/1024 [00:29<00:43, 14.57it/s] 41%|████      | 417/1024 [00:31<00:41, 14.62it/s] 43%|████▎     | 440/1024 [00:31<00:31, 18.50it/s] 44%|████▍     | 449/1024 [00:33<00:41, 13.90it/s] 47%|████▋     | 481/1024 [00:36<00:38, 14.25it/s] 50%|█████     | 513/1024 [00:38<00:36, 13.82it/s] 53%|█████▎    | 545/1024 [00:40<00:33, 14.33it/s] 56%|█████▋    | 577/1024 [00:42<00:31, 14.41it/s] 59%|█████▉    | 609/1024 [00:44<00:28, 14.58it/s] 63%|██████▎   | 641/1024 [00:46<00:25, 14.82it/s] 66%|██████▌   | 673/1024 [00:49<00:23, 14.77it/s] 69%|██████▉   | 705/1024 [00:51<00:22, 14.09it/s] 72%|███████▏  | 737/1024 [00:53<00:20, 13.95it/s] 75%|███████▌  | 769/1024 [00:56<00:18, 13.81it/s] 78%|███████▊  | 801/1024 [00:58<00:15, 13.94it/s] 81%|████████▏ | 833/1024 [01:00<00:13, 14.23it/s] 84%|████████▍ | 865/1024 [01:03<00:11, 14.10it/s] 88%|████████▊ | 897/1024 [01:05<00:08, 14.40it/s] 91%|█████████ | 929/1024 [01:07<00:06, 14.87it/s] 94%|█████████▍| 961/1024 [01:09<00:04, 14.24it/s] 97%|█████████▋| 993/1024 [01:11<00:02, 14.57it/s]100%|██████████| 1024/1024 [01:11<00:00, 14.28it/s]
+
+============ Serving Benchmark Result ============
+Backend:                                 sglang    
+Traffic request rate:                    inf       
+Max request concurrency:                 64        
+Successful requests:                     1024      
+Benchmark duration (s):                  71.69     
+Total input tokens:                      2346565   
+Total input text tokens:                 2346565   
+Total generated tokens:                  262144    
+Total generated tokens (retokenized):    254429    
+Request throughput (req/s):              14.28     
+Input token throughput (tok/s):          32730.52  
+Output token throughput (tok/s):         3656.46   
+Peak output token throughput (tok/s):    5130.00   
+Peak concurrent requests:                96        
+Total token throughput (tok/s):          36386.98  
+Concurrency:                             62.92     
+----------------End-to-End Latency----------------
+Mean E2E Latency (ms):                   4405.21   
+Median E2E Latency (ms):                 4381.90   
+P90 E2E Latency (ms):                    4772.18   
+P99 E2E Latency (ms):                    5319.93   
+---------------Time to First Token----------------
+Mean TTFT (ms):                          2394.95   
+Median TTFT (ms):                        2386.66   
+P99 TTFT (ms):                           3332.39   
+-----Time per Output Token (excl. 1st token)------
+Mean TPOT (ms):                          7.88      
+Median TPOT (ms):                        7.75      
+P99 TPOT (ms):                           9.29      
+---------------Inter-Token Latency----------------
+Mean ITL (ms):                           7.91      
+Median ITL (ms):                         8.00      
+P95 ITL (ms):                            9.39      
+P99 ITL (ms):                            9.77      
+Max ITL (ms):                            303.54    
+==================================================

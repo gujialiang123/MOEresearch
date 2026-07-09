@@ -1,0 +1,32 @@
+
+=== lfm2.5-8b-a1b / cookbook (GPU 1, elapsed 0.0m) ===
+  server ready
+    bench: lfm2.5-8b-a1b × toolagent
+    bench: lfm2.5-8b-a1b × shared_prefix
+
+=== lfm2.5-8b-a1b / chunked8192 (GPU 1, elapsed 7.3m) ===
+  server ready
+    bench: lfm2.5-8b-a1b × toolagent
+    bench: lfm2.5-8b-a1b × shared_prefix
+
+=== lfm2.5-8b-a1b / fcfs (GPU 1, elapsed 14.1m) ===
+  server ready
+    bench: lfm2.5-8b-a1b × toolagent
+    bench: lfm2.5-8b-a1b × shared_prefix
+
+=== qwen3-30b-a3b-bf16 / baseline_triton (GPU 1, elapsed 21.4m) ===
+  server ready
+    bench: qwen3-30b-a3b-bf16 × toolagent
+    bench: qwen3-30b-a3b-bf16 × shared_prefix
+
+=== qwen3-30b-a3b-bf16 / tuned_prefill (GPU 1, elapsed 34.9m) ===
+  server ready
+    bench: qwen3-30b-a3b-bf16 × toolagent
+    bench: qwen3-30b-a3b-bf16 × shared_prefix
+
+=== qwen3-30b-a3b-bf16 / tuned_chunked (GPU 1, elapsed 53.6m) ===
+  server ready
+    bench: qwen3-30b-a3b-bf16 × toolagent
+    bench: qwen3-30b-a3b-bf16 × shared_prefix
+
+=== v7 config sweep done in 66.9 min ===

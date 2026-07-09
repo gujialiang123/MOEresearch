@@ -1,0 +1,13 @@
+model,config,dataset,completed,dur_s,req_s,out_tok_s,concurrency,median_ttft_ms,p99_ttft_ms,median_tpot_ms,median_e2e_ms
+lfm2.5-8b-a1b,chunked8192,shared_prefix,1024,56.5,18.12,4638,62.9,1287,15735,5.69,2747
+lfm2.5-8b-a1b,chunked8192,toolagent,5000,290.6,17.2,3174,62.9,209,5102,9.29,544
+lfm2.5-8b-a1b,cookbook,shared_prefix,1024,72.7,14.09,3606,62.9,2758,7619,6.46,4508
+lfm2.5-8b-a1b,cookbook,toolagent,5000,310.0,16.13,2976,63.0,1583,4700,9.89,1872
+lfm2.5-8b-a1b,fcfs,shared_prefix,1024,71.5,14.32,3666,62.8,2810,3163,6.35,4438
+lfm2.5-8b-a1b,fcfs,toolagent,5000,307.9,16.24,2997,63.0,1952,2916,9.89,2581
+qwen3-30b-a3b-bf16,baseline_triton,shared_prefix,1024,71.7,14.28,3656,62.9,2387,3332,7.75,4382
+qwen3-30b-a3b-bf16,baseline_triton,toolagent,5000,660.4,7.57,1397,62.8,163,36247,20.66,908
+qwen3-30b-a3b-bf16,tuned_chunked,shared_prefix,1024,73.8,13.87,3551,63.0,2419,5891,7.92,4450
+qwen3-30b-a3b-bf16,tuned_chunked,toolagent,5000,656.5,7.62,1405,62.7,147,33649,20.41,910
+qwen3-30b-a3b-bf16,tuned_prefill,shared_prefix,1024,82.9,12.35,3161,63.0,2713,5955,8.72,4977
+qwen3-30b-a3b-bf16,tuned_prefill,toolagent,5000,972.1,5.14,949,63.2,6164,10179,30.55,8450
