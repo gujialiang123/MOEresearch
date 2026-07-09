@@ -112,6 +112,29 @@ sudo -n ncu --target-processes all --profile-from-start off \
 
 其余 kernel（`act_and_mul` / `causal_conv1d_update` / `RMSNorm`）SM% 与 DRAM% 都很低（个位数），单个 duration 3–7 µs，非瓶颈。
 
+**decode / prefill 墙钟占比**（单请求口径，来自 `bench_one_batch_result.jsonl`）：
+prefill 只跑 1 次，decode 要重复 `out_len-1` 步，所以时间几乎全在 decode。
+
+| Regime | prefill (1 次) | decode/步 × 步数 | **prefill 占比** | **decode 占比** |
+|---|---|---|---|---|
+| R_decode_c1_out2k (bs=1, in130/out128) | 72.1 ms | 30.4 ms × 127 = 3854 ms | 1.8% | **98.2%** |
+| R_conc_ref (bs=32, in260/out256) | 154.8 ms | 32.3 ms × 255 = 8225 ms | 1.8% | **98.2%** |
+| R_decode_c128_out256 (bs=128, in260/out256) | 548.9 ms | 42.7 ms × 255 = 10882 ms | 4.8% | **95.2%** |
+
+> 这三个 regime 是**故意设计成 decode 主导**（输出 token ≫ 输入 token），所以 95–98% 的时间在 decode——这正是我们只 profile decode 段的理由。若要覆盖 prefill 主导或混合负载，需要另设 regime（见 §7）。
+
+**显存占用（HBM footprint，来自 sglang 启动日志，H200 143 GB）**：
+DRAM% 衡量的是"带宽用了多满"，与"占了多少 GB"是两回事，这里单列静态占用。
+
+| 组成 | LFM2.5-8B-A1B |
+|---|---|
+| 模型权重 (bf16) | 16.34 GB |
+| KV cache (K 26.8 + V 26.8，预留 ~468 万 token) | 53.6 GB |
+| CUDA graph + 其它 | ~0.1 GB |
+| 剩余可用 | ~20.6 GB |
+
+> decode 过程中真正**动态增长**的是 KV cache：每生成 1 个 token，所有层各写入 1 份 K/V。占用随 `已生成 token 数 × batch` 线性上涨，直到 `max_total_num_tokens` 上限。这也是为什么 decode 是访存密集——每步都要把不断变大的 KV cache 从 HBM 读一遍。
+
 ### 5.2 Qwen3-30B-A3B —— sglang 实测（6-09 复用，指标更全）
 
 | Regime | 主导 kernel | SM% | **DRAM%** | **TC%** | warp active% | Verdict | Headroom% |
@@ -151,6 +174,36 @@ sudo -n ncu --target-processes all --profile-from-start off \
 1. 对 3–5 个最热 kernel（`fused_moe_kernel` / `nvjet_gemm`）用 `--set full` 深挖，拿 roofline 上的精确 achieved bandwidth。
 2. 补 fp8 模型 4 regime（约 40 min）与 `big_batch_cap128` config，看不同 config 是否改变瓶颈性质。
 3. 把 NCU 实测的 achieved DRAM 带宽换算成"距 HBM 理论峰值还差多少"，直接量化 hardware-layer 的 gap 数字。
+4. **补非 decode 主导 / 真实 agent 负载的 regime**（详见 §8）。
+
+---
+
+## 8. 用真实 / agent 负载扩展 regime（下一步计划）
+
+**动机**：目前 3 个 regime 都是人工设的、且 decode 占 95%+，覆盖不到 prefill 主导（长 context RAG）、混合、以及真实 agent 工作流的 input/output 分布。sglang 自带的 `bench_serving` 里有现成的真实/合成数据集可以用：
+
+| dataset（`--dataset-name` / `--mooncake-workload`） | 模拟的负载 | 特点 |
+|---|---|---|
+| `mooncake` + `--mooncake-workload toolagent` | **真实 tool-agent trace**（Mooncake FAST'25，kvcache-ai 公开） | 多轮 + 工具调用，input/output 长度来自真实 agent 日志 |
+| `mooncake` + `--mooncake-workload conversation` | 真实多轮对话 trace | 长上下文累积、prefix 复用 |
+| `generated-shared-prefix`（`--gsp-*`） | **共享长 system prompt + 短 question** | 典型 agent / RAG：大 prefill 前缀被多请求复用 |
+| `sharegpt` | 真实 ChatGPT 对话 | 长度分布贴近实际聊天 |
+| `random` + `--random-input/output-len` + `--random-range-ratio` | 可控合成 | 用来精确扫 prefill:decode 比例 |
+
+**方法学上的关键取舍**（务必注意）：
+- 上面这些数据集都是通过 `bench_serving`（**多进程 server 路径**）跑的，**不能直接套 NCU**（多进程 + 海量 kernel，NCU 跑不动）。
+- 所以正确姿势是**两步**：
+  1. **先用 `bench_serving` 做画像**：拿 `mooncake/toolagent`、`sharegpt`、`generated-shared-prefix` 跑真实负载，只收 sglang 自己的吞吐 / TTFT / TPOT / KV 占用（不上 NCU）。目的是**提取真实的 (input_len, output_len, 并发) 分布**。
+  2. **再回填给 `bench_one_batch` + NCU**：从画像里挑几个代表点（如"长 prefill 短 output""中等混合""高并发 decode"），用**本轮完全相同的 NCU 口径**（`bench_one_batch --profile-stage {prefill|decode}` + `--profile-from-start off`）逐个 profile。这样既拿到真实分布，又保住 apple-to-apple 的 kernel 级测量。
+
+**建议先做的 3 个新 regime**（补齐 decode 之外的象限）：
+| 新 regime | 来源 | prefill:decode | 想验证 |
+|---|---|---|---|
+| R_long_prefill_rag | `generated-shared-prefix`（长 sys prompt） | prefill 主导 | prefill 是否真 compute-bound（TC 打满） |
+| R_agent_toolcall | `mooncake toolagent` 提取代表点 | 混合 | 真实 agent 的瓶颈落在哪 |
+| R_balanced_mix | `random`，in≈out | ~50:50 | prefill/decode 切换点的 kernel 变化 |
+
+> 一句话：**真实负载用 `bench_serving` 画像 → 挑代表点回填 `bench_one_batch` 做 NCU**。这样这轮的 NCU 方法学能无缝复用到非长-decode 的场景。
 
 ---
 
