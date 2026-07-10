@@ -87,7 +87,30 @@
 2. 把"achieved DRAM GB/s vs HBM 峰值"算成绝对数字，量化 hardware-layer gap 的大小。
 3. 用这批证据支撑 mentor 讨论："config autotuner 的天花板"与"需要 kernel 层介入"的分界。
 
+## 7. 回答 Dey 的问题："每个 regime 在最优 config 下，TBT 还能再改进多少？"
+
+TBT（time between tokens）= decode 阶段每步时间。用 v9 的 kernel 级数据可以给出一个**有依据的上界**：
+
+**方法（roofline，仅限 exact 方法、不改字节数/算法）**：每个 kernel 若能把它最忙的那条 pipe（`max(SM%, Memory Throughput%)`）打满到 100%，时间可压到 `dur × busiest_util%`。按 duration 加权汇总，得到"整个 decode step 的时间加权 busiest-pipe 利用率"，其倒数就是 TBT 的**最大可改进倍数**。
+
+| 模型 | regime | 实测 TBT（eager+NCU） | 时间加权 busiest-pipe | **TBT 最多再快** | 可压掉 |
+|---|---|---|---|---|---|
+| LFM2.5 | decode b32 | 29.7 ms | 42.3% | **~2.4×** | ~58% |
+| LFM2.5 | decode b64 | 45.0 ms | 44.6% | **~2.2×** | ~55% |
+| Qwen3-30B | decode b32 | 78.8 ms | 53.5% | **~1.9×** | ~47% |
+| Qwen3-30B | decode b64 | 85.3 ms | 55.8% | **~1.8×** | ~44% |
+
+**怎么读**：即使选了最优 config，LFM2.5 的 decode step 里"最忙的硬件资源"平均也只用了 ~43%，所以 TBT 理论上还能再快 ~2.4×；Qwen3 因为 fused_moe/attention 把带宽压得更高（busiest ~54%），headroom 小一些（~1.8×）。
+
+**三条必须说明的 caveat**：
+1. 这是**上界**：假设 kernel 优化能把最忙 pipe 打到 100%（占用率、tiling、访存 pattern 全部理想化）。真实 kernel 达不到 100%，所以实际可改进量**小于**这个数。
+2. **只算 exact 方法**（同样的字节/FLOP，只提升硬件利用），符合 Dey"不引入量化等近似"的约束。若允许量化/投机解码，headroom 会更大（另算）。
+3. 实测 TBT 绝对值是 `bench_one_batch`+NCU 的 **eager 模式**（profiling 期间关 cudagraph），比线上带 cudagraph 的 TBT 偏高；**headroom 比例**（倍数）不受此影响，是稳健的部分。
+
+**一句话答复 Dey**：可以回答。用最优 config 时，decode 的 TBT 仍有 headroom——LFM2.5 约 **2.2–2.4×**、Qwen3-30B 约 **1.8–1.9×**（即分别可压掉 ~55–58% / ~44–47%），这是 exact-method、roofline 上界；这些 headroom 全在 kernel 层（occupancy 12–25%、busiest pipe 只有 ~43–56%），config tuning 拿不到。
+
 ## 附：产物
 - `results/2026-07-10_v9_ncu_realworkload/<model>/<regime>/` — 每个含 ncu.ncu-rep + ncu_raw.csv（含 MemoryWorkloadAnalysis）+ bench.log
 - `results/consolidated_v9_ncu.csv` — 276 行（每 kernel 的 SM/DRAM/Mem/Occ/L2/Duration/MaxBW）
+- `results/v9_tbt_headroom.csv` — 每 regime 的 TBT headroom 汇总
 - `scripts/run_v9_ncu_realworkload.py`

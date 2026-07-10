@@ -1,0 +1,5 @@
+model,regime,measured_tbt_ms,time_weighted_busiest_pct,max_tbt_speedup,reducible_pct
+lfm2.5-8b-a1b,agent_decode_b32,29.72,42.3,2.37,58
+lfm2.5-8b-a1b,agent_decode_b64,44.95,44.6,2.24,55
+qwen3-30b-a3b-bf16,agent_decode_b32,78.79,53.5,1.87,47
+qwen3-30b-a3b-bf16,agent_decode_b64,85.32,55.8,1.79,44
