@@ -1,0 +1,62 @@
+
+=== [1/12] lfm2.5-8b-a1b / chunk2048_cap32 (GPU 1, 0.0m) ===
+  server ready
+    bench: toolagent
+    bench: shared_prefix
+
+=== [2/12] lfm2.5-8b-a1b / chunk2048_cap64 (GPU 1, 4.2m) ===
+  server ready
+    bench: toolagent
+    bench: shared_prefix
+
+=== [3/12] lfm2.5-8b-a1b / chunk2048_cap128 (GPU 1, 7.6m) ===
+  server ready
+    bench: toolagent
+    bench: shared_prefix
+
+=== [4/12] lfm2.5-8b-a1b / chunk4096_cap32 (GPU 1, 10.6m) ===
+  server ready
+    bench: toolagent
+    bench: shared_prefix
+
+=== [5/12] lfm2.5-8b-a1b / chunk4096_cap64 (GPU 1, 14.6m) ===
+  server ready
+    bench: toolagent
+    bench: shared_prefix
+
+=== [6/12] lfm2.5-8b-a1b / chunk4096_cap128 (GPU 1, 17.9m) ===
+  server ready
+    bench: toolagent
+    bench: shared_prefix
+
+=== [7/12] lfm2.5-8b-a1b / chunk8192_cap32 (GPU 1, 20.8m) ===
+  server ready
+    bench: toolagent
+    bench: shared_prefix
+
+=== [8/12] lfm2.5-8b-a1b / chunk8192_cap64 (GPU 1, 24.8m) ===
+  server ready
+    bench: toolagent
+    bench: shared_prefix
+
+=== [9/12] lfm2.5-8b-a1b / chunk8192_cap128 (GPU 1, 28.1m) ===
+  server ready
+    bench: toolagent
+    bench: shared_prefix
+
+=== [10/12] lfm2.5-8b-a1b / chunk16384_cap32 (GPU 1, 31.0m) ===
+  server ready
+    bench: toolagent
+    bench: shared_prefix
+
+=== [11/12] lfm2.5-8b-a1b / chunk16384_cap64 (GPU 1, 35.5m) ===
+  server ready
+    bench: toolagent
+    bench: shared_prefix
+
+=== [12/12] lfm2.5-8b-a1b / chunk16384_cap128 (GPU 1, 39.2m) ===
+  server ready
+    bench: toolagent
+    bench: shared_prefix
+
+=== v8 tuning [lfm2.5-8b-a1b] done in 42.4 min ===

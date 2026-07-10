@@ -1,0 +1,62 @@
+
+=== [1/12] qwen3-30b-a3b-bf16 / chunk2048_cap32 (GPU 2, 0.0m) ===
+  server ready
+    bench: toolagent
+    bench: shared_prefix
+
+=== [2/12] qwen3-30b-a3b-bf16 / chunk2048_cap64 (GPU 2, 7.2m) ===
+  server ready
+    bench: toolagent
+    bench: shared_prefix
+
+=== [3/12] qwen3-30b-a3b-bf16 / chunk2048_cap128 (GPU 2, 12.9m) ===
+  server ready
+    bench: toolagent
+    bench: shared_prefix
+
+=== [4/12] qwen3-30b-a3b-bf16 / chunk4096_cap32 (GPU 2, 17.8m) ===
+  server ready
+    bench: toolagent
+    bench: shared_prefix
+
+=== [5/12] qwen3-30b-a3b-bf16 / chunk4096_cap64 (GPU 2, 24.6m) ===
+  server ready
+    bench: toolagent
+    bench: shared_prefix
+
+=== [6/12] qwen3-30b-a3b-bf16 / chunk4096_cap128 (GPU 2, 30.1m) ===
+  server ready
+    bench: toolagent
+    bench: shared_prefix
+
+=== [7/12] qwen3-30b-a3b-bf16 / chunk8192_cap32 (GPU 2, 34.9m) ===
+  server ready
+    bench: toolagent
+    bench: shared_prefix
+
+=== [8/12] qwen3-30b-a3b-bf16 / chunk8192_cap64 (GPU 2, 41.6m) ===
+  server ready
+    bench: toolagent
+    bench: shared_prefix
+
+=== [9/12] qwen3-30b-a3b-bf16 / chunk8192_cap128 (GPU 2, 47.0m) ===
+  server ready
+    bench: toolagent
+    bench: shared_prefix
+
+=== [10/12] qwen3-30b-a3b-bf16 / chunk16384_cap32 (GPU 2, 51.7m) ===
+  server ready
+    bench: toolagent
+    bench: shared_prefix
+
+=== [11/12] qwen3-30b-a3b-bf16 / chunk16384_cap64 (GPU 2, 58.3m) ===
+  server ready
+    bench: toolagent
+    bench: shared_prefix
+
+=== [12/12] qwen3-30b-a3b-bf16 / chunk16384_cap128 (GPU 2, 63.7m) ===
+  server ready
+    bench: toolagent
+    bench: shared_prefix
+
+=== v8 tuning [qwen3-30b-a3b-bf16] done in 68.4 min ===
