@@ -38,8 +38,9 @@ MODELS = {
 MODEL = MODELS[MODEL_KEY]
 
 # Knob grid (MoE backend fixed to triton = v7 winner; schedule=lpm).
-CHUNKED = [2048, 4096, 8192, 16384]
-MAXRUN = [32, 64, 128]
+# Overridable via env for follow-up sweeps (e.g. cap ceiling extension).
+CHUNKED = [int(x) for x in os.environ.get("V8_CHUNKED", "2048,4096,8192,16384").split(",")]
+MAXRUN = [int(x) for x in os.environ.get("V8_MAXRUN", "32,64,128").split(",")]
 
 DATASETS = [
     {

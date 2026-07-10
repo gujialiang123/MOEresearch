@@ -1,0 +1,12 @@
+
+=== [1/2] lfm2.5-8b-a1b / chunk4096_cap192 (GPU 1, 0.0m) ===
+  server ready
+    bench: toolagent
+    bench: shared_prefix
+
+=== [2/2] lfm2.5-8b-a1b / chunk4096_cap256 (GPU 1, 2.8m) ===
+  server ready
+    bench: toolagent
+    bench: shared_prefix
+
+=== v8 tuning [lfm2.5-8b-a1b] done in 5.5 min ===

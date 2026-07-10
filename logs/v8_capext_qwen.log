@@ -1,0 +1,12 @@
+
+=== [1/2] qwen3-30b-a3b-bf16 / chunk16384_cap192 (GPU 2, 0.0m) ===
+  server ready
+    bench: toolagent
+    bench: shared_prefix
+
+=== [2/2] qwen3-30b-a3b-bf16 / chunk16384_cap256 (GPU 2, 4.8m) ===
+  server ready
+    bench: toolagent
+    bench: shared_prefix
+
+=== v8 tuning [qwen3-30b-a3b-bf16] done in 9.7 min ===

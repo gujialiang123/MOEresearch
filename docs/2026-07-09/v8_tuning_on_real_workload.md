@@ -86,9 +86,22 @@ v7 发现"合成 regime 调出的 config 不迁移到真实负载"，且 `chunke
 
 ---
 
-## 5. 下一步
+## 5. cap 天花板验证（cap 128 vs 192 vs 256）
 
-1. **可以再往上扫 cap（192 / 256）**：cap=128 还没到收益拐点（吞吐仍在涨），值得看天花板在哪、以及 KV 显存是否成为约束（Qwen3 KV 池只有 67 万 token）。
+在各自最优 chunked 下把 cap 扩到 192/256（双卡并行，LFM 5.5min / Qwen3 9.7min）：
+
+| 模型 × 负载 | cap128 | cap192 | cap256 | 实际峰值并发 |
+|---|---|---|---|---|
+| LFM toolagent | 4601 | 4686 | 4676 | ~170（受负载/KV 限，非 cap） |
+| LFM shared_prefix | 8729 | 8796 | 8870 | 256 |
+| Qwen3 toolagent | 2181 | 2162 | 2100 | ~156 |
+| Qwen3 shared_prefix | 5569 | 5630 | 5499 | 256 |
+
+**结论：cap=128 就是拐点。** 128→192→256 吞吐变化只有 ±1-2%，Qwen3 toolagent 在 cap256 反而掉到 2100。原因：toolagent 真实并发被 workload/KV 约束在 ~155-170，设更大的 cap 也吃不满。**→ 最优 config 敲定为 cap=128**（再大无收益、还占更多 KV 显存风险）。
+
+## 6. 下一步
+
+1. **cap 天花板已确认（§5）**：cap=128 是拐点，无需再往上扫。
 2. **回填 NCU**：用真实最优 config（cap128 + 各自 chunked）+ toolagent 代表输入，profile prefill 段 kernel 瓶颈（v6 口径）。这次 tuning 已经定了该 profile 哪个 config。
 3. **方法论**：v7+v8 连起来是一个完整的"合成 regime 调参会误导、必须在真实负载上 tune、且要扫对 knob（cap 而非 chunked）"的实证链条，支撑 Chendi 框架。
 
