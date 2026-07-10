@@ -1,0 +1,1 @@
+{"run_name": "split", "batch_size": 32, "input_len": 2700, "output_len": 207, "prefill_latency": 1.2536703580990434, "prefill_throughput": 68917.63807115088, "median_decode_latency": 0.0087094014743343, "median_decode_throughput": 3674.1904818948433, "total_latency": 3.0573527708183974, "overall_throughput": 30426.322041698568}

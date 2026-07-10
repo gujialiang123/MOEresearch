@@ -1,0 +1,14 @@
+model,kernel,sm_pct,no_eligible_pct,occ_pct,issued_per_cyc,dur_us
+lfm2.5-8b-a1b,flash_attn,44.0,50.4,24.9,0.5,87.9
+lfm2.5-8b-a1b,nvjet_gemm,9.5,90.0,14.1,0.1,20.0
+lfm2.5-8b-a1b,causal_conv1d,6.0,85.4,21.8,0.15,5.1
+lfm2.5-8b-a1b,void flashinfer::B,1.2,94.3,5.9,0.06,4.1
+lfm2.5-8b-a1b,RMSNorm,1.4,84.2,12.2,0.16,3.9
+lfm2.5-8b-a1b,act_and_mul,3.8,59.8,39.8,0.4,3.7
+qwen3-30b-a3b-bf16,flash_attn,44.6,67.6,18.7,0.32,54.3
+qwen3-30b-a3b-bf16,fused_moe,15.9,80.5,35.6,0.2,44.3
+qwen3-30b-a3b-bf16,nvjet_gemm,7.1,82.6,14.2,0.17,9.8
+qwen3-30b-a3b-bf16,topk_gating,0.3,81.3,6.1,0.19,5.8
+qwen3-30b-a3b-bf16,void flashinfer::B,2.1,93.5,6.4,0.06,4.9
+qwen3-30b-a3b-bf16,RMSNorm,1.6,84.4,12.4,0.16,4.2
+qwen3-30b-a3b-bf16,act_and_mul,3.2,87.5,8.3,0.13,3.8

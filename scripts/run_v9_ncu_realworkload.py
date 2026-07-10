@@ -32,7 +32,7 @@ NCU = "/opt/nvidia/nsight-compute/2026.2.1/ncu"
 CONDA_ENV = "/home/t-jialianggu/.conda/envs/sglang-dev"
 MODEL_KEY = os.environ.get("V9_MODEL", "lfm")
 GPU_ID = os.environ.get("V9_GPU", "1")
-OUT_ROOT = REPO / "results" / "2026-07-10_v9_ncu_realworkload"
+OUT_ROOT = REPO / "results" / os.environ.get("V9_OUT", "2026-07-10_v9_ncu_realworkload")
 
 # Model + its v8-tuned best config (chunked-prefill-size).
 MODELS = {
@@ -111,7 +111,13 @@ def run_combo(reg_id: str, batch: int, inlen: int, outlen: int, stage: str, out_
     ncu_csv = out_dir / "ncu_raw.csv"
     bench_log = out_dir / "bench.log"
 
-    # Richer sections than v6: add MemoryWorkloadAnalysis for detailed memory.
+    # Sections: default = memory-focused; override via V9_SECTIONS env (comma list).
+    default_sections = ["SpeedOfLight", "MemoryWorkloadAnalysis", "Occupancy", "LaunchStats"]
+    sections = os.environ.get("V9_SECTIONS")
+    sections = sections.split(",") if sections else default_sections
+    section_args = []
+    for s in sections:
+        section_args += ["--section", s]
     ncu_cmd = [
         "sudo", "-n", NCU,
         "--target-processes", "all",
@@ -119,10 +125,7 @@ def run_combo(reg_id: str, batch: int, inlen: int, outlen: int, stage: str, out_
         "--launch-count", "24",
         "--kernel-name-base", "demangled",
         "--kernel-name", "regex:fused_moe|nvjet|flash|cutlass|RMSNorm|act_and_mul|topk|conv1d|moe_sum|gemm",
-        "--section", "SpeedOfLight",
-        "--section", "MemoryWorkloadAnalysis",
-        "--section", "Occupancy",
-        "--section", "LaunchStats",
+        *section_args,
         "--force-overwrite",
         "--export", str(ncu_rep),
         "--", str(wrapper),
