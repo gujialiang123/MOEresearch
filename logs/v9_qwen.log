@@ -1,0 +1,17 @@
+
+=== qwen3-30b-a3b-bf16 / agent_prefill_b1 (0.0m) ===
+  NCU qwen3-30b-a3b-bf16 × agent_prefill_b1 (b=1 in=2700 prefill)...
+    exit=0 wall=1299s
+    CSV 457064 bytes
+
+=== qwen3-30b-a3b-bf16 / agent_decode_b32 (21.7m) ===
+  NCU qwen3-30b-a3b-bf16 × agent_decode_b32 (b=32 in=2700 decode)...
+    exit=0 wall=1466s
+    CSV 469390 bytes
+
+=== qwen3-30b-a3b-bf16 / agent_decode_b64 (46.1m) ===
+  NCU qwen3-30b-a3b-bf16 × agent_decode_b64 (b=64 in=2700 decode)...
+    exit=0 wall=1534s
+    CSV 470797 bytes
+
+=== v9 NCU [qwen3-30b-a3b-bf16] done in 71.7 min ===

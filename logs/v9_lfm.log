@@ -1,0 +1,12 @@
+
+=== lfm2.5-8b-a1b / agent_decode_b32 (0.0m) ===
+  NCU lfm2.5-8b-a1b × agent_decode_b32 (b=32 in=2700 decode)...
+    exit=0 wall=1624s
+    CSV 397495 bytes
+
+=== lfm2.5-8b-a1b / agent_decode_b64 (27.1m) ===
+  NCU lfm2.5-8b-a1b × agent_decode_b64 (b=64 in=2700 decode)...
+    exit=0 wall=1660s
+    CSV 396756 bytes
+
+=== v9 NCU [lfm2.5-8b-a1b] done in 54.8 min ===

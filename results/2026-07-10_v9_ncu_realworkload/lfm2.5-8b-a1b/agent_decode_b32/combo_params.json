@@ -1,0 +1,9 @@
+{
+  "model": "lfm2.5-8b-a1b",
+  "chunked": 4096,
+  "regime": "agent_decode_b32",
+  "batch": 32,
+  "input_len": 2700,
+  "output_len": 32,
+  "stage": "decode"
+}
