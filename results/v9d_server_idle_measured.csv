@@ -1,0 +1,3 @@
+model,serving_s,gpu_busy_s,util_pct,server_idle_pct
+LFM2.5,38.1,5.36,14,86
+Qwen3-30B,43.3,8.03,19,81
