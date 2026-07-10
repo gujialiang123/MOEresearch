@@ -4,7 +4,27 @@
 
 ---
 
-## ✉️ English reply (copy-paste ready)
+## ✉️ Concise reply (RECOMMENDED — copy-paste ready)
+
+Hi Dey — we profiled the agent workload on both models (prefill + decode) with Nsight Compute (kernel counters) and Nsight Systems (server timeline), all under the best config we tuned. We found **two distinct, independent sources of wasted time**:
+
+**1. Kernel-level SM idle** (the SM stalls with no issuable warp — NCU's "No Eligible"):
+- **LFM2.5:** ~67% of decode GPU-time the SM sits idle waiting on memory
+- **Qwen3-30B:** ~78%
+
+Root cause is low occupancy (12–25%) — too few resident warps to hide memory latency. This is **not** reachable by config tuning; it needs **kernel-level optimization** (higher occupancy, better latency hiding / tiling). It bounds the achievable TBT improvement at roughly **~2.2–2.4× (LFM) / ~1.8–1.9× (Qwen3)**, exact methods only.
+
+**2. Serving-level idle** (the GPU sits waiting for requests):
+- **LFM2.5:** ~86% of walltime the GPU is idle
+- **Qwen3-30B:** ~81%
+
+Under real single-stream toolagent arrival, concurrency is only 6–20 vs ~155 server capacity (and toolagent's prefix sharing shrinks prefill too). This is a **serving-policy / framework-level** problem — batching, continuous batching, multi-tenancy — not a kernel one.
+
+**Takeaway:** config tuning is now exhausted and reaches neither gap. The two levers are orthogonal — **kernel optimization** for the SM idle, **policy/framework** for the serving idle. All numbers are measured (NCU hardware counters + nsys kernel-interval union), not estimated.
+
+---
+
+## ✉️ English reply — longer version (copy-paste ready)
 
 Hi Dey — yes, we can answer this. We measured it end-to-end under the **best config we tuned** (kernel-level with Nsight Compute, server timeline with Nsight Systems). Three parts:
 
