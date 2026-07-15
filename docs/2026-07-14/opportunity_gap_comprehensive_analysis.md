@@ -1,7 +1,7 @@
 # Performance Opportunity Gap 综合分析报告
 
-**目的**：把 v6→v10 所有能证明"优化机会 gap"的实测证据，串成完整的证据链 + 逻辑链 + 结论，供与 Chendi 讨论、筛选哪些结论适合上报 Dey/Ofer。
-**日期范围**：2026-07-08 ~ 2026-07-14
+**目的**：把 v6→v12 所有能证明"优化机会 gap"的实测证据，串成完整的证据链 + 逻辑链 + 结论，供与 Chendi 讨论、并作为上报 Dey/Ofer 的 meeting 稿。**本轮升级**：在 v6→v10"gap 看得见"的基础上，补入 v11–v12 的**干预实验**，把 gap 从"看得见（potential）"升级到"摸得着（可回收）"，并诚实记录一个机制修正。
+**日期范围**：2026-07-08 ~ 2026-07-15
 **模型**：LFM2.5-8B-A1B、Qwen3-30B-A3B-Instruct-2507（均 bf16）
 **硬件**：NVIDIA H200（132 SM，HBM3e 4.8 TB/s，bf16 TC ~989 TFLOP/s）
 **负载**：真实 agent workload —— mooncake `toolagent` trace（FAST'25 公开）+ generated-shared-prefix
@@ -10,12 +10,12 @@
 
 ## 0. 一句话结论（TL;DR）
 
-在**真实 agent 负载**、**已调到最优的 config** 下，我们用 NCU（kernel 硬件计数器）+ nsys（server 时间线）分层测出**两个正交的、config tuning 都够不到的 opportunity gap**：
+在**真实 agent 负载**、**已调到最优的 config** 下，我们用 NCU（kernel 硬件计数器）+ nsys（server 时间线）分层测出**两个正交的、config tuning 都够不到的 opportunity gap**，并用**干预实验**证明它们不只是"看得见"、而是"摸得着"：
 
-1. **Serving idle**：真实单流下 GPU ~85% 墙钟在等请求 → 靠 **server policy / 加负载** 回收（吞吐可提 3–4×，但换更高 TBT）。
-2. **Kernel SM idle**：decode 阶段 SM 有 67–78% 周期在空转等内存 → 靠 **kernel 优化** 回收（标准 roofline 显示热点 kernel 距 HBM 屋顶 1.3–2.4×）。
+1. **Serving idle**：真实单流下 GPU ~85% 墙钟在等请求 → 靠 **server policy / 加负载** 回收（吞吐可提 3–4×，但换更高 TBT）。**已实测可回收**：多路并发流 1→8，GPU 利用率 13%→32%（2.5×）、吞吐 7.4×（v11-B2）。
+2. **Kernel SM idle**：decode 阶段 SM 有 67–78% 周期在空转等内存 → 靠 **kernel / 算法层** 回收（标准 roofline 显示热点 kernel 距 HBM 屋顶 1.3–2.4×）。**已实测可回收**：n-gram spec decoding 让主线模型 decode TPOT −23%（v11-A1b）；但 v12 NCU 揭示机制修正——spec **不降 SM 空转率**，而是**减少前向次数**（见证据 H）。
 
-两者独立、不可互相替代；config tuning 已被证明触及不到任一。
+两者独立、不可互相替代；config tuning 已被证明触及不到任一。**逻辑链完整闭环**：会调 → 调到头（v8）→ gap 看得见（v9，NCU/nsys）→ gap 摸得着（v11–v12，干预）→ 定位下一步入口（已确认 kernel 层 78% SM 空转的攻坚点在 MoE decode，且 MoE decode 是 memory-bound）。
 
 ---
 
@@ -35,8 +35,18 @@ v9c  时间分解：单批 GPU 时间 ~40% prefill / ~60% decode
 v9d  server idle 实测（nsys）：真实单流 GPU 利用率仅 14-19%
  │
 v10  ① 加负载能回收多少（load sweep）② 用标准 roofline 重述 gap
+ │
+v11  干预实验：gap 从"看得见"→"摸得着"
+ │    ├─ B2 多流：GPU 利用率 13%→32%、吞吐 7.4×  → serving idle 可回收 ✓
+ │    ├─ A1b n-gram spec：主线模型 decode TPOT −23%  → kernel/算法层可回收 ✓
+ │    └─ 负面对照：A2 fa3 已最优、A1 EAGLE3 draft 不匹配 → 收益需选对手段
+v12  NCU 机制修正：spec decoding 不降 SM 空转率（77.5%→78.0%），
+ │    而是减少前向次数 → SM 空转仍是纯 kernel 层未攻克的硬骨头
  ▼
-结论：两个正交 gap，两个正交 lever
+结论：两个正交 gap，两个正交 lever，且都已实测可回收（附机制界定）
+ │
+下一步指向：kernel 层 78% SM 空转的攻坚点在 MoE decode——
+     已确认 MoE decode 是 memory-bound（搬权重:算≈103:1），是后续工作的入口
 ```
 
 ---
@@ -118,6 +128,50 @@ v10  ① 加负载能回收多少（load sweep）② 用标准 roofline 重述 g
 
 ---
 
+## 2b. 干预证据：gap 不只是"看得见"，而是"摸得着"（v11–v12）
+
+前面 A–F 证明 gap **看得见**（potential，用 profiler 观测到）。下面用 **config 以外的干预手段**，实测某指标真的朝预测方向移动，把 gap 升级为 **摸得着**（可回收）。
+
+### 证据 G：serving idle 可回收（v11-B2，多路并发流，★强证据）
+**逻辑**：v9d 测到真实单流 GPU idle 86%。若 idle 真是"负载不足"造成，则同时跑 N 条独立真实到达流（模拟多租户），利用率应随 N 单调上升。
+**做法**：一个 server（最优 config，max-running 256），N=1/2/4/8 条并发 toolagent 流（真实到达，各 200 请求，不同 seed），nsys 测 GPU busy（内核+memcpy 并集）。
+**结果（LFM2.5）**：
+| 并发流数 | GPU 利用率 | 合计吞吐 |
+|---|---|---|
+| 1 | **13%** | 1087 tok/s |
+| 2 | 18% | 2163 tok/s |
+| 4 | 25% | 4217 tok/s |
+| 8 | **32%** | 8062 tok/s |
+**结论**：利用率单调 13%→32%（**2.5×**）、吞吐 **7.4×**；streams=1 的 13% 复现 v9d 的 14%（方法自洽）。**直接证明 serving idle 是负载不足造成、可被多租户/多流回收**。注：8 流仍仅 32%，单条 toolagent 流很稀疏，填满 H200 需更多路并发（趋势明确，未饱和）。
+**出处**：`docs/2026-07-15/v11_realize_gap_results.md`、`results/v11b2_multistream_util.csv`
+
+### 证据 H：kernel/算法层可回收 + 机制修正（v11-A1b + v12，★重要且诚实）
+**逻辑**：decode 的 SM 空转（67–78%）根因是"每步只算 1 个 token，权重读一遍只服务一个 token"。spec decoding（exact）让一次前向验证多 token → 应降每 token 延迟。
+**做法**：主线模型 + 真实 toolagent，基线 vs n-gram spec decoding（exact，无需 draft 模型），测 server 端 decode TPOT。
+**结果（A1b，主线模型）**：
+| 并发 | 基线 TPOT | n-gram TPOT | 变化 | Accept length |
+|---|---|---|---|---|
+| 32 | 18.64 ms | 14.27 ms | **−23%** | 2.08 |
+→ decode TPOT 降 23%（exact，不损精度）；conc=32 收益 > conc=1，与"batch 大 SM 空转多"诊断自洽。
+
+**机制修正（v12，NCU 实测）—— 必须诚实标注**：
+| 变体 | 时间加权 No-Eligible（SM 空转） | SM 利用 |
+|---|---|---|
+| baseline | 77.5% | 21.1% |
+| n-gram spec | 78.0% | 19.8% |
+
+**spec decoding 并不降低单 kernel 的 SM 空转率**（77.5%→78.0% 基本不变）。它降 TPOT 不是靠"让每个 kernel 更满"，而是靠**减少每 token 需要的前向次数**（一次验证 ~2 个 token → 前向次数减半）。
+- **含义**：SM 空转（78%）是 decode memory-bound 的根本属性，spec decoding **绕过**而非**消除**它。要真正吃掉这块空转，需要**更高 occupancy 的 decode kernel**——这是纯 kernel 层尚未攻克的硬骨头。
+**出处**：`docs/2026-07-15/v11_realize_gap_results.md`（A1b）、`docs/2026-07-15/v12_ncu_spec_mechanism.md`
+
+### 证据 I：两个负面对照（诚实记录，本身有价值）
+- **A2 attention backend**：换 fa3→triton，TBT 差 18%，但 **fa3 已是三种实现里最快**（flashinfer 起不来）→ 用现成 backend 无法证明 kernel 还有可回收空间（已用最优实现）。
+- **A1 EAGLE3 spec**：现成 redhat EAGLE3 draft 与我们的 Qwen3-32B 权重不配套，**accept length 仅 1.28**（理想 2–4），反而更慢 → 用不匹配 draft 无法验证 spec 收益。
+**价值**：两个负面结果印证"kernel 层收益不是随手换个现成组件就能拿到"，需要匹配的 draft / 定制 kernel / 算法级手段——支撑"kernel 层是真正深水区"，也印证 autotuner 必须先做兼容性/有效性裁剪。
+**出处**：`docs/2026-07-15/v11_realize_gap_results.md`（A2、A1）
+
+---
+
 ## 3. 完整时间预算（把所有证据拼成一张图）
 
 以 LFM2.5、真实单流、serving 38.1s 为例（全实测）：
@@ -139,7 +193,9 @@ serving 墙钟 38.1s：
 | **是什么** | GPU 没活，在等请求 | GPU 在跑 kernel，但 SM 空转等内存 |
 | **实测量** | 真实单流占墙钟 86%/81%（nsys） | decode GPU 时间 67%/78%（NCU No-Eligible） |
 | **根因** | 请求到达率低（真实并发 6–20 vs 容量 155） | occupancy 低（12–25%），内存延迟未隐藏 |
-| **回收手段** | server policy / 加负载 / 攒批 / 多租户 | kernel 优化（提 occupancy、隐藏延迟、更大 tile） |
+| **回收手段** | server policy / 加负载 / 攒批 / 多租户 | ① 算法层：spec decoding（减前向次数）；② 纯 kernel：提 occupancy / 隐藏延迟 / 更大 tile |
+| **已实测可回收？** | ✅ v11-B2：多流 1→8，利用率 13%→32%（2.5×）、吞吐 7.4× | ⚠️ 部分：算法层 ✅ v11-A1b spec TPOT −23%；纯 kernel（吃掉 78% SM 空转）❌ 尚未攻克 |
+| **机制界定（v12）** | 多流真的减少 idle（利用率上升） | spec decoding **不降 SM 空转率**（77.5%→78.0%），靠**减少前向次数**降 TPOT；SM 空转需更高 occupancy kernel 才能消除 |
 | **回收上界** | 吞吐 3–4×（但 TBT 恶化，SLA 权衡） | TBT ~1.8–2.4×（roofline，exact 方法） |
 | **另一个 lever 有用吗** | kernel 优化对它无效 | 加负载对它无效 |
 | **算不算硬件 gap** | ❌ 部署/负载选择 | ✅ kernel/硬件层的真实 gap |
@@ -154,10 +210,18 @@ serving 墙钟 38.1s：
 3. **config tuning 已到头**（v8）：cap=128 拐点、合成 regime 不迁移 —— 有力支撑"需要往 kernel/policy 层走"。
 4. **kernel gap 的 roofline 量化**：decode 热点 kernel 距 HBM 屋顶 1.3–2.4× —— 标准框架，Chendi 认可的语言。
 5. **load sweep 的吞吐-延迟权衡曲线**：回答"加负载能提升多少"，且点明 SLA 权衡。
+6. **gap 摸得着的干预证据**（本轮新增，最强升级）：
+   - serving idle 可回收——v11-B2 多流实测利用率 13%→32%（2.5×）、吞吐 7.4×；
+   - 算法层可回收——v11-A1b n-gram spec decoding 让主线模型 decode TPOT −23%（exact，不损精度）。
+7. **诚实的机制修正**（v12，反而增强可信度）：spec decoding **不消除** SM 空转，而是**减少前向次数**；纯 kernel 层的 78% SM 空转仍是未攻克的硬骨头。主动讲清楚"什么手段解决什么问题、什么还没解决"，比夸大更能取信。
 
 ### 建议**谨慎/加 caveat**（对假设敏感）
-6. **端到端 first-principles floor（batch>1）**：对 MoE 专家激活假设高度敏感（Qwen3 batch=32 甚至算出 <1×，不合理）。**只用 batch=1 展示"小 batch 浪费带宽"**，batch>1 一律以实测 per-kernel roofline 为准。
-7. **"TBT 可提升 ~2×" 这个绝对数字**：是 roofline **上界**（假设打满带宽屋顶），真实 kernel 达不到 100%。上报时须标注"上界、exact 方法、不含量化/投机解码"。
+8. **端到端 first-principles floor（batch>1）**：对 MoE 专家激活假设高度敏感（Qwen3 batch=32 甚至算出 <1×，不合理）。**只用 batch=1 展示"小 batch 浪费带宽"**，batch>1 一律以实测 per-kernel roofline 为准。
+9. **"TBT 可提升 ~2×" 这个绝对数字**：是 roofline **上界**（假设打满带宽屋顶），真实 kernel 达不到 100%。上报时须标注"上界、exact 方法、不含量化/投机解码"。
+10. **两个负面对照**（A2 fa3 已最优、A1 EAGLE3 draft 不匹配）：可作为"为何 kernel 层是深水区"的支撑，但须标注是负面结果、不是失败。
+
+### 建议**作为"下一步入口"点到为止**（不展开）
+11. **kernel gap 的攻坚入口 = MoE decode**：v9/v12 已定位 decode 的 78% SM 空转是纯 kernel 层硬骨头；进一步测出 **MoE decode 是 memory-bound**（搬权重:算 ≈ 103:1），说明瓶颈在"搬专家权重"而非算力。**本稿到此为止**——具体怎么优化（减激活专家 / 批内聚集 / 量化等）是后续独立工作，不在本次 meeting 结论内。
 
 ### 建议**暂不上报 / 内部保留**
 8. 早期自造的 "TBT headroom" 命名 —— 已被标准 roofline 取代，避免再提这个非标准词。
@@ -175,8 +239,12 @@ serving 墙钟 38.1s：
 | prefill/decode 时间分段 | 实测 | sglang bench_one_batch（cudagraph） |
 | server idle | 实测 | nsys 时间线（内核并集） |
 | load sweep 曲线 | 实测 | sglang bench_serving |
+| 多流利用率回收（v11-B2） | 实测 | nsys 时间线（多路流并集） |
+| spec decoding TPOT −23%（v11-A1b） | 实测 | sglang bench_serving（n-gram，exact） |
+| spec 不降 SM 空转（v12） | 实测 | NCU SchedulerStats（baseline vs n-gram） |
 | roofline 距屋顶 | 实测 DRAM% 外推 | NCU + roofline 公式 |
 | 端到端 floor（batch>1） | **估算**（MoE 敏感） | 第一性原理，仅供参考 |
+| MoE decode memory-bound（搬:算≈103:1） | 实测 | HF forward 结构分析 + roofline |
 
 **关键局限**：
 - roofline 距屋顶是**理论上界**（假设 kernel 能打满带宽屋顶）；真实优化拿回的 < 此值。
@@ -194,3 +262,6 @@ serving 墙钟 38.1s：
 | v9 | 最优 config 下 NCU gap | `docs/2026-07-10/v9_ncu_hardware_ceiling_evidence.md` | `consolidated_v9_ncu.csv`, `v9_tbt_headroom.csv` |
 | v9b/c/d | 空转 + 时间分解 + server idle | `docs/2026-07-10/v9b_walltime_and_stall_analysis.md` | `v9b_stall_analysis.csv`, `v9d_server_idle_measured.csv` |
 | v10 | load sweep + roofline | `docs/2026-07-14/v10_loadsweep_and_roofline.md` | `consolidated_v10_load_sweep.csv` |
+| v11 | 干预：B2 多流 / A1b n-gram spec / A2 backend / A1 EAGLE3 | `docs/2026-07-15/v11_realize_gap_results.md` | `v11b2_multistream_util.csv`, `results/2026-07-15_v11*` |
+| v12 | NCU 机制修正：spec 不降 SM 空转 | `docs/2026-07-15/v12_ncu_spec_mechanism.md` | `results/2026-07-15_v12_ncu_spec/` |
+| （下一步入口） | 定位 kernel 攻坚点：MoE decode 是 memory-bound（搬:算≈103:1） | `docs/2026-07-15/triton_moe_kernel_analysis.md` | `results/2026-07-15_v13_router/` |
