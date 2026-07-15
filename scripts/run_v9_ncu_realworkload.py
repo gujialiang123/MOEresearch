@@ -92,6 +92,7 @@ exec {CONDA_ENV}/bin/python -m sglang.bench_one_batch \\
   --mem-fraction-static 0.85 \\
   --chunked-prefill-size {MODEL["chunked"]} \\
   --schedule-policy lpm \\
+  --attention-backend {os.environ.get("V9_ATTN","fa3")} \\
   --moe-runner-backend triton
 '''
     wrapper.write_text(content)

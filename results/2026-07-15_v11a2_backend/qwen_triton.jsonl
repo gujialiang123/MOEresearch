@@ -1,0 +1,1 @@
+{"run_name": "a2_triton", "batch_size": 32, "input_len": 2700, "output_len": 32, "prefill_latency": 1.5573250679299235, "prefill_throughput": 55479.74650844561, "median_decode_latency": 0.01027097413316369, "median_decode_throughput": 3115.575950744146, "total_latency": 1.881796024274081, "overall_throughput": 46457.745086226634}

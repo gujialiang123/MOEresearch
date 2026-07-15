@@ -1,0 +1,1 @@
+{"run_name": "a2_fa3", "batch_size": 32, "input_len": 2700, "output_len": 32, "prefill_latency": 1.2690044799819589, "prefill_throughput": 68084.8660212991, "median_decode_latency": 0.008708763169124722, "median_decode_throughput": 3674.459780172914, "total_latency": 1.5463680641259998, "overall_throughput": 56535.0527006723}
