@@ -138,7 +138,7 @@ v12  NCU 机制修正：spec decoding 不降 SM 空转率（77.5%→78.0%），
 | **b64** | **fused_moe（MoE GEMM）** | 84 µs | 15.9 | **75.4 TFLOP/s** | **7.6%** |
 | **b64** | **整步（时间加权）** | — | — | **258.9 TFLOP/s** | **26.2%** |
 
-**其余 decode 点（LFM2.5，tensor-pipe%外推估计，精确重测在 GPU5 后台进行中）**：
+**其余 decode 点（LFM2.5，tensor-pipe%外推估计；LFM 在 NCU 下加载挂起，无法精确重测）**：
 | 模型 | 点 | 整步 achieved | 占峰值 |
 |---|---|---|---|
 | LFM2.5-8B | decode b32 | ~184 TFLOP/s | ~19% |
@@ -148,7 +148,7 @@ v12  NCU 机制修正：spec decoding 不降 SM 空转率（77.5%→78.0%），
 - decode 整步算力仅 **17.2%（b32）/ 26.2%（b64）** 的 bf16 峰值——**从 compute 轴独立印证 memory-bound**（与证据 F 的"距带宽屋顶 1.3–2.4×"互为佐证：算力空、带宽近满 = 典型 memory-bound）。
 - **MoE GEMM（`fused_moe`）算力最低，仅 7.0–7.6% 峰值**（两个 batch 一致）——直接量化"瓶颈在搬专家权重而非算力"，是 §5-11 "MoE decode 是 memory-bound" 结论的 compute-轴硬证据。
 - batch 32→64 整步算力占比升高（17%→26%），主要来自 attention（34%→41%）；**MoE GEMM 几乎不随 batch 改善（7.0%→7.6%）**——因为 decode MoE 每 token 各选专家、batch 内难凑成大 GEMM，这正是"搬权重主导"的表现。
-**方法说明（诚实标注）**：Qwen3 两个 decode 点用**真 FLOP 计数器**（`sm__ops_path_tensor_op_hmma/hgmma_*` + 非 tensor FP 指令，严谨值）；LFM 两点先用 tensor-pipe 活跃%外推（NCU roofline compute 轴的标准代理，略偏乐观），精确重测完成后替换。
+**方法说明（诚实标注）**：Qwen3 两个 decode 点用**真 FLOP 计数器**（`sm__ops_path_tensor_op_hmma/hgmma_*` + 非 tensor FP 指令，严谨值）；LFM 两点用 tensor-pipe 活跃%外推（NCU roofline compute 轴的标准代理，略偏乐观）——尝试对 LFM 做真 FLOP 精确重测时，LFM2.5 混合模型在 NCU 下加载挂起（已知 mamba/conv 混合架构 + NCU 兼容问题），故 LFM 保留代理值。**头条结论（decode memory-bound、MoE GEMM ~7% 峰值）已由 Qwen3 精确值坐实**，LFM 仅作趋势佐证。
 **出处**：`scripts/parse_v18_ncu_long.py`（精确）、`scripts/compute_v18_gflops.py`（估计）、`results/2026-07-15_v18_gflops/gflops_accurate.json`、`gflops_estimate.json`
 
 ---
@@ -269,7 +269,7 @@ serving 墙钟 38.1s：
 | spec 不降 SM 空转（v12） | 实测 | NCU SchedulerStats（baseline vs n-gram） |
 | roofline 距屋顶（memory 轴） | 实测 DRAM% 外推 | NCU + roofline 公式 |
 | achieved GFLOP/s（compute 轴，v18；Qwen b32+b64） | **实测**（真 FLOP 计数器） | NCU sm__ops_path_tensor_* |
-| achieved GFLOP/s（LFM 2 点） | **代理估算**（tensor-pipe%×峰值），精确重测中 | NCU tensor-pipe active% |
+| achieved GFLOP/s（LFM 2 点） | **代理估算**（tensor-pipe%×峰值；LFM 在 NCU 下挂起，无法精确重测） | NCU tensor-pipe active% |
 | 端到端 floor（batch>1） | **估算**（MoE 敏感） | 第一性原理，仅供参考 |
 | MoE decode memory-bound（搬:算≈103:1） | 实测 | HF forward 结构分析 + roofline |
 
