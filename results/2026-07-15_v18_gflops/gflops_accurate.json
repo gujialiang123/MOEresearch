@@ -49,6 +49,62 @@
           "pct_peak": 0.0
         }
       ]
+    },
+    {
+      "label": "results/2026-07-15_v18_gflops/qwen3-30b-a3b-bf16/agent_decode_b64/ncu_raw.csv",
+      "overall_tflops": 258.9,
+      "pct_peak": 26.2,
+      "kernels": [
+        {
+          "kernel": "flash_attn",
+          "dur_us": 235.3,
+          "sm_pct": 44.6,
+          "achieved_tflops": 404.9,
+          "pct_peak": 40.9
+        },
+        {
+          "kernel": "fused_moe",
+          "dur_us": 84.2,
+          "sm_pct": 15.9,
+          "achieved_tflops": 75.4,
+          "pct_peak": 7.6
+        },
+        {
+          "kernel": "gemm(dense)",
+          "dur_us": 53.6,
+          "sm_pct": 9.8,
+          "achieved_tflops": 92.9,
+          "pct_peak": 9.4
+        },
+        {
+          "kernel": "rmsnorm",
+          "dur_us": 17.1,
+          "sm_pct": 3.0,
+          "achieved_tflops": 0.2,
+          "pct_peak": 0.0
+        },
+        {
+          "kernel": "router_topk",
+          "dur_us": 11.8,
+          "sm_pct": 0.6,
+          "achieved_tflops": 0.0,
+          "pct_peak": 0.0
+        },
+        {
+          "kernel": "activation",
+          "dur_us": 5.0,
+          "sm_pct": 4.8,
+          "achieved_tflops": 0.3,
+          "pct_peak": 0.0
+        },
+        {
+          "kernel": "void moe_sum_reduc",
+          "dur_us": 4.8,
+          "sm_pct": 9.2,
+          "achieved_tflops": 0.2,
+          "pct_peak": 0.0
+        }
+      ]
     }
   ]
 }
