@@ -79,3 +79,42 @@
 - `results/2026-07-15_v11b2_multistream/` — nsys 时间线（4 个流数）
 - `results/2026-07-15_v11a2_backend/` — backend TBT 对照
 - `scripts/run_v11b2_multistream.sh`
+
+---
+
+## 实验 A1（kernel 层）：Speculative Decoding（EAGLE3）—— 负面结果，诚实记录
+
+**目的**：spec decoding（exact）让一次前向验证多 token → 把闲置 SM 算力用起来 → 证明 kernel 层 space 摸得着。
+**素材**：Qwen3-32B（target）+ `/data/hf/spec_decode/qwen3_32b_redhat_eagle3`（EAGLE3 draft）。因主线 Qwen3-30B-A3B 无匹配 draft，先在 Qwen3-32B 做概念验证。
+**做法**：同一 toolagent 负载，基线 vs EAGLE3（`--speculative-algorithm EAGLE3 --speculative-num-steps 5 --speculative-eagle-topk 8 --speculative-num-draft-tokens 32`）。
+
+### 结果
+| 配置 | max-conc | TPOT中位 | 吞吐 | **Accept length** |
+|---|---|---|---|---|
+| 基线 | 32 | 52.4 ms | 459 tok/s | — |
+| EAGLE3 | 32 | 185.8 ms | 203 tok/s | **1.28** |
+| EAGLE3 | 1 | 20.3 ms | 46 tok/s | **1.28** |
+
+### 结论（A1）——**负面结果，但有价值**
+- **EAGLE3 反而更慢**（TPOT 52→186ms）。根因写在数据里：**Accept length 只有 1.28**（理想 2–4）——draft 几乎没有 token 被 target 接受。
+- 即使降到 batch=1（spec decoding 的主场），accept length 仍 1.28 → **不是并发问题，是 draft 与 target 不匹配**（这个 redhat EAGLE3 draft 与我们这份 Qwen3-32B 权重不配套）。
+- **→ 用不匹配的现成 draft，无法验证 spec decoding 的收益。** 这个负面结果本身印证了 Chendi 框架的主张：**spec decoding 的 draft 必须与 (target 模型, 负载分布) 匹配**，否则 accept length 崩塌、反而变慢——这正是"autotuner 必须先做兼容性/有效性裁剪"的又一实证。
+
+### A1 要继续需要的前提
+- 拿到与 target 真正匹配的 draft（同一 Qwen3-32B 权重训出的 EAGLE3，或 Qwen3-30B-A3B 对应 draft）。
+- 建议向 t-vinkapoor 索取他 EAGLE3 实验中验证过 accept length 的 draft。有了匹配 draft，才能测"spec decoding 把 decode SM 利用率吃上去"的正向证据。
+
+---
+
+## 总结：两条战线的证据现状
+
+| 战线 | 实验 | 证据 | 状态 |
+|---|---|---|---|
+| **serving idle** | B2 多流 | 利用率 13%→32%，吞吐 7.4× | ✅ **强证据，摸得着** |
+| kernel SM 空转 | A2 backend | fa3 已最优 | ⚠️ 现有实现无空间 |
+| kernel SM 空转 | A1 spec decoding | draft 不匹配，accept 1.28 | ❌ 需匹配 draft 才能验证 |
+
+**当前可下的结论**：
+1. **serving idle 已被实测证明可回收**（B2，多租户利用率翻 2.5×）—— 这条可以自信上报。
+2. **kernel SM 空转的"摸得着"尚未验证成功**：换 backend（fa3 已最优）和现成 spec draft（不匹配）都未能拿到正向证据。要证明这条，需要**匹配的 spec draft** 或 **自己写/改 kernel**。这是诚实的现状，不宜夸大。
+3. 两个负面结果（A2 fa3 已最优、A1 draft 不匹配）**本身有价值**：说明 kernel 层的收益不是"随手换个现成组件"就能拿到，需要更专门的工程（匹配 draft / 定制 kernel）——这恰好支撑"kernel 层是真正的深水区"这一论点。
