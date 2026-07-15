@@ -1,0 +1,76 @@
+{
+  "model": "/data/hf/models/Qwen3-30B-A3B-Instruct-2507",
+  "E": 128,
+  "TOPK": 8,
+  "L": 48,
+  "limit": 200,
+  "batch": 64,
+  "max_new": 400,
+  "results": [
+    {
+      "accuracy": 0.73,
+      "correct": 146,
+      "n": 200,
+      "wall_s": 1113.8,
+      "avg_k": 3.851,
+      "total_gen_tokens": 54747,
+      "tok_per_s": 49.2,
+      "avg_gen_tokens": 273.7,
+      "tau": 0.6,
+      "kmin": 1,
+      "kmax": 8
+    },
+    {
+      "accuracy": 0.8,
+      "correct": 160,
+      "n": 200,
+      "wall_s": 1093.2,
+      "avg_k": 4.717,
+      "total_gen_tokens": 53039,
+      "tok_per_s": 48.5,
+      "avg_gen_tokens": 265.2,
+      "tau": 0.7,
+      "kmin": 1,
+      "kmax": 8
+    },
+    {
+      "accuracy": 0.805,
+      "correct": 161,
+      "n": 200,
+      "wall_s": 1040.0,
+      "avg_k": 5.739,
+      "total_gen_tokens": 51236,
+      "tok_per_s": 49.3,
+      "avg_gen_tokens": 256.2,
+      "tau": 0.8,
+      "kmin": 1,
+      "kmax": 8
+    },
+    {
+      "accuracy": 0.825,
+      "correct": 165,
+      "n": 200,
+      "wall_s": 1039.2,
+      "avg_k": 6.723,
+      "total_gen_tokens": 49990,
+      "tok_per_s": 48.1,
+      "avg_gen_tokens": 249.9,
+      "tau": 0.88,
+      "kmin": 1,
+      "kmax": 8
+    },
+    {
+      "accuracy": 0.815,
+      "correct": 163,
+      "n": 200,
+      "wall_s": 1040.4,
+      "avg_k": 7.853,
+      "total_gen_tokens": 49578,
+      "tok_per_s": 47.7,
+      "avg_gen_tokens": 247.9,
+      "tau": 0.95,
+      "kmin": 1,
+      "kmax": 8
+    }
+  ]
+}
