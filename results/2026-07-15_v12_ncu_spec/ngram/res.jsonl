@@ -1,0 +1,1 @@
+{"run_name": "v12_ngram", "batch_size": 32, "input_len": 2700, "output_len": 32, "prefill_latency": 1.262807056074962, "prefill_throughput": 68419.00319162548, "median_decode_latency": 0.12882240093313158, "median_decode_throughput": 248.4040024732219, "total_latency": 1299.7761524191592, "overall_throughput": 67.26081243857674}
