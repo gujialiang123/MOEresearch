@@ -118,3 +118,44 @@
 1. **serving idle 已被实测证明可回收**（B2，多租户利用率翻 2.5×）—— 这条可以自信上报。
 2. **kernel SM 空转的"摸得着"尚未验证成功**：换 backend（fa3 已最优）和现成 spec draft（不匹配）都未能拿到正向证据。要证明这条，需要**匹配的 spec draft** 或 **自己写/改 kernel**。这是诚实的现状，不宜夸大。
 3. 两个负面结果（A2 fa3 已最优、A1 draft 不匹配）**本身有价值**：说明 kernel 层的收益不是"随手换个现成组件"就能拿到，需要更专门的工程（匹配 draft / 定制 kernel）——这恰好支撑"kernel 层是真正的深水区"这一论点。
+
+---
+
+## 实验 A1b（kernel 层）：N-gram Speculative Decoding —— ★正向证据（主线模型）
+
+**动机**：A1 的 EAGLE3 draft 不匹配。改用 **N-gram spec decoding**——它**不需要单独的 draft 模型**（从已生成 context 里找 n-gram 匹配来投机），因此绕开了"draft 不匹配"问题，且是 **exact 方法**。agent 负载有大量重复的工具调用格式，n-gram 命中率应该不错。**直接在主线模型 Qwen3-30B-A3B 上做**（不用退回 32B）。
+
+**做法**：同一 server 参数（最优 config），A/B 对比无 spec 基线 vs `--speculative-algorithm NGRAM`，真实 toolagent，conc=1 和 conc=32 两点。
+
+### 结果（Qwen3-30B-A3B，真实 toolagent）
+| conc | TPOT 基线 | TPOT ngram | **TPOT 改善** | 吞吐改善 | **Accept length** |
+|---|---|---|---|---|---|
+| 1 | 4.33 ms | 4.06 ms | **+6%** | +2% | 1.85 |
+| 32 | 18.64 ms | 14.27 ms | **+23%** | +3% | 2.08 |
+
+### 结论（A1b）——**kernel 层第一个正向证据**
+1. **N-gram spec decoding 真的把 decode TPOT 压下来了**：conc=32 **降低 23%**（18.64→14.27ms），accept length 2.08（每次前向平均验证 2 个 token）。
+2. **这是 exact 方法**（n-gram 投机 + target 验证，不改分布），符合 Dey 的约束。
+3. **对比 EAGLE3（A1，accept 1.28、反而更慢）**：n-gram 无需匹配 draft，在 agent 负载（重复工具调用格式）上 accept 更高 → 说明**"用什么投机源"很关键**，agent 负载天然适合 n-gram。
+4. **意义**：这**证明了 kernel/算法层的 space 摸得着** —— 用一个 config 以外的 exact 手段，在**主线模型**上真的把 decode 延迟吃回了 23%。虽然离 roofline 上界（~1.9×）还有距离，但**证明了"space 可动"这一核心命题**。
+
+### 为什么 conc=32 比 conc=1 收益大
+decode batch 越大，SM 空转越严重（v9b：No-Eligible 越高）→ spec decoding 把闲置算力用起来的余地越大 → 收益越明显。这与我们"decode SM 空转"的诊断自洽。
+
+---
+
+## 最终总结：两条战线都拿到了"摸得着"的正向证据
+
+| 战线 | 实验 | 正向证据 | 状态 |
+|---|---|---|---|
+| **serving idle** | B2 多流 | 利用率 13%→32%（2.5×），吞吐 7.4× | ✅ **摸得着** |
+| **kernel SM 空转** | A1b n-gram spec | 主线模型 TPOT −23%（exact 方法） | ✅ **摸得着** |
+| （对照）kernel | A2 backend | fa3 已最优 | 现有实现无空间 |
+| （对照）kernel | A1 EAGLE3 | draft 不匹配 accept 1.28 | 需匹配 draft |
+
+**核心结论（可上报 Dey/Ofer）**：
+两个 opportunity gap **都不再是"看得见摸不着"**——我们各用一个 config 以外的手段拿到了正向实证：
+- **serving idle** → 多租户/多路并发，利用率 2.5×（B2）。
+- **kernel SM 空转** → n-gram speculative decoding（exact），主线模型 decode TPOT −23%（A1b）。
+
+且两个负面对照（A2 fa3 已最优、A1 EAGLE3 draft 不匹配）说明：**拿到这些收益需要选对手段**（合适的投机源 / 匹配的 draft），不是随手换组件——这正是 autotuner 要解决的"有效性裁剪"问题。
