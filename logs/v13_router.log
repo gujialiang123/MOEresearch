@@ -1,0 +1,15 @@
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:  12%|█▎        | 2/16 [00:00<00:01, 13.48it/s]Loading checkpoint shards:  25%|██▌       | 4/16 [00:00<00:00, 12.23it/s]Loading checkpoint shards:  38%|███▊      | 6/16 [00:00<00:00, 11.28it/s]Loading checkpoint shards:  50%|█████     | 8/16 [00:00<00:00, 11.19it/s]Loading checkpoint shards:  62%|██████▎   | 10/16 [00:00<00:00, 11.32it/s]Loading checkpoint shards:  75%|███████▌  | 12/16 [00:01<00:00, 11.59it/s]Loading checkpoint shards:  88%|████████▊ | 14/16 [00:01<00:00, 11.34it/s]Loading checkpoint shards: 100%|██████████| 16/16 [00:01<00:00, 12.14it/s]
+E=128 topk=8 L=48
+  prompt 0: 108 tokens done
+  prompt 1: 77 tokens done
+  prompt 2: 65 tokens done
+
+==== AGGREGATE (across 48 layers) ====
+total tokens analyzed: 250
+avg experts never selected / layer: 25.5 / 128
+avg frac of selections to hottest 25% experts: 69.6%
+avg router top-1 confidence: 0.089
+avg normalized weight of rank-1 expert: 0.236
+avg normalized weight of rank-8 (fringe) expert: 0.071
+
+wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-07-15_v13_router/router_analysis.json

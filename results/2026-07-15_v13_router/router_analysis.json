@@ -1,0 +1,920 @@
+{
+  "E": 128,
+  "TOPK": 8,
+  "L": 48,
+  "total_tokens": 250,
+  "layers": [
+    {
+      "layer": 0,
+      "experts_never_selected": 11,
+      "frac_selections_to_top25pct_experts": 0.524,
+      "router_conf_top1_mean": 0.082,
+      "router_conf_topk_sum_mean": 0.329,
+      "weight_rank1": 0.25,
+      "weight_rank_last": 0.061,
+      "weight_by_rank": [
+        0.25,
+        0.179,
+        0.142,
+        0.117,
+        0.099,
+        0.083,
+        0.069,
+        0.061
+      ]
+    },
+    {
+      "layer": 1,
+      "experts_never_selected": 7,
+      "frac_selections_to_top25pct_experts": 0.599,
+      "router_conf_top1_mean": 0.079,
+      "router_conf_topk_sum_mean": 0.305,
+      "weight_rank1": 0.255,
+      "weight_rank_last": 0.063,
+      "weight_by_rank": [
+        0.255,
+        0.179,
+        0.14,
+        0.114,
+        0.097,
+        0.082,
+        0.071,
+        0.063
+      ]
+    },
+    {
+      "layer": 2,
+      "experts_never_selected": 21,
+      "frac_selections_to_top25pct_experts": 0.629,
+      "router_conf_top1_mean": 0.092,
+      "router_conf_topk_sum_mean": 0.34,
+      "weight_rank1": 0.254,
+      "weight_rank_last": 0.062,
+      "weight_by_rank": [
+        0.254,
+        0.181,
+        0.144,
+        0.115,
+        0.095,
+        0.08,
+        0.069,
+        0.062
+      ]
+    },
+    {
+      "layer": 3,
+      "experts_never_selected": 21,
+      "frac_selections_to_top25pct_experts": 0.663,
+      "router_conf_top1_mean": 0.088,
+      "router_conf_topk_sum_mean": 0.327,
+      "weight_rank1": 0.253,
+      "weight_rank_last": 0.066,
+      "weight_by_rank": [
+        0.253,
+        0.174,
+        0.139,
+        0.114,
+        0.096,
+        0.084,
+        0.074,
+        0.066
+      ]
+    },
+    {
+      "layer": 4,
+      "experts_never_selected": 26,
+      "frac_selections_to_top25pct_experts": 0.719,
+      "router_conf_top1_mean": 0.076,
+      "router_conf_topk_sum_mean": 0.326,
+      "weight_rank1": 0.229,
+      "weight_rank_last": 0.073,
+      "weight_by_rank": [
+        0.229,
+        0.168,
+        0.14,
+        0.118,
+        0.102,
+        0.09,
+        0.08,
+        0.073
+      ]
+    },
+    {
+      "layer": 5,
+      "experts_never_selected": 22,
+      "frac_selections_to_top25pct_experts": 0.651,
+      "router_conf_top1_mean": 0.084,
+      "router_conf_topk_sum_mean": 0.333,
+      "weight_rank1": 0.247,
+      "weight_rank_last": 0.066,
+      "weight_by_rank": [
+        0.247,
+        0.177,
+        0.142,
+        0.115,
+        0.096,
+        0.083,
+        0.073,
+        0.066
+      ]
+    },
+    {
+      "layer": 6,
+      "experts_never_selected": 37,
+      "frac_selections_to_top25pct_experts": 0.755,
+      "router_conf_top1_mean": 0.081,
+      "router_conf_topk_sum_mean": 0.305,
+      "weight_rank1": 0.255,
+      "weight_rank_last": 0.074,
+      "weight_by_rank": [
+        0.255,
+        0.165,
+        0.133,
+        0.111,
+        0.096,
+        0.087,
+        0.079,
+        0.074
+      ]
+    },
+    {
+      "layer": 7,
+      "experts_never_selected": 37,
+      "frac_selections_to_top25pct_experts": 0.802,
+      "router_conf_top1_mean": 0.08,
+      "router_conf_topk_sum_mean": 0.31,
+      "weight_rank1": 0.246,
+      "weight_rank_last": 0.072,
+      "weight_by_rank": [
+        0.246,
+        0.176,
+        0.135,
+        0.112,
+        0.095,
+        0.086,
+        0.078,
+        0.072
+      ]
+    },
+    {
+      "layer": 8,
+      "experts_never_selected": 32,
+      "frac_selections_to_top25pct_experts": 0.743,
+      "router_conf_top1_mean": 0.089,
+      "router_conf_topk_sum_mean": 0.353,
+      "weight_rank1": 0.244,
+      "weight_rank_last": 0.067,
+      "weight_by_rank": [
+        0.244,
+        0.175,
+        0.141,
+        0.115,
+        0.097,
+        0.085,
+        0.075,
+        0.067
+      ]
+    },
+    {
+      "layer": 9,
+      "experts_never_selected": 33,
+      "frac_selections_to_top25pct_experts": 0.777,
+      "router_conf_top1_mean": 0.086,
+      "router_conf_topk_sum_mean": 0.337,
+      "weight_rank1": 0.241,
+      "weight_rank_last": 0.074,
+      "weight_by_rank": [
+        0.241,
+        0.166,
+        0.135,
+        0.114,
+        0.101,
+        0.09,
+        0.081,
+        0.074
+      ]
+    },
+    {
+      "layer": 10,
+      "experts_never_selected": 20,
+      "frac_selections_to_top25pct_experts": 0.691,
+      "router_conf_top1_mean": 0.081,
+      "router_conf_topk_sum_mean": 0.33,
+      "weight_rank1": 0.233,
+      "weight_rank_last": 0.072,
+      "weight_by_rank": [
+        0.233,
+        0.168,
+        0.14,
+        0.118,
+        0.102,
+        0.089,
+        0.079,
+        0.072
+      ]
+    },
+    {
+      "layer": 11,
+      "experts_never_selected": 20,
+      "frac_selections_to_top25pct_experts": 0.669,
+      "router_conf_top1_mean": 0.082,
+      "router_conf_topk_sum_mean": 0.329,
+      "weight_rank1": 0.242,
+      "weight_rank_last": 0.073,
+      "weight_by_rank": [
+        0.242,
+        0.166,
+        0.135,
+        0.114,
+        0.1,
+        0.089,
+        0.08,
+        0.073
+      ]
+    },
+    {
+      "layer": 12,
+      "experts_never_selected": 20,
+      "frac_selections_to_top25pct_experts": 0.689,
+      "router_conf_top1_mean": 0.075,
+      "router_conf_topk_sum_mean": 0.317,
+      "weight_rank1": 0.228,
+      "weight_rank_last": 0.075,
+      "weight_by_rank": [
+        0.228,
+        0.167,
+        0.138,
+        0.116,
+        0.102,
+        0.091,
+        0.082,
+        0.075
+      ]
+    },
+    {
+      "layer": 13,
+      "experts_never_selected": 21,
+      "frac_selections_to_top25pct_experts": 0.646,
+      "router_conf_top1_mean": 0.083,
+      "router_conf_topk_sum_mean": 0.346,
+      "weight_rank1": 0.233,
+      "weight_rank_last": 0.07,
+      "weight_by_rank": [
+        0.233,
+        0.171,
+        0.14,
+        0.119,
+        0.101,
+        0.088,
+        0.078,
+        0.07
+      ]
+    },
+    {
+      "layer": 14,
+      "experts_never_selected": 26,
+      "frac_selections_to_top25pct_experts": 0.717,
+      "router_conf_top1_mean": 0.085,
+      "router_conf_topk_sum_mean": 0.334,
+      "weight_rank1": 0.246,
+      "weight_rank_last": 0.073,
+      "weight_by_rank": [
+        0.246,
+        0.167,
+        0.134,
+        0.114,
+        0.099,
+        0.087,
+        0.079,
+        0.073
+      ]
+    },
+    {
+      "layer": 15,
+      "experts_never_selected": 30,
+      "frac_selections_to_top25pct_experts": 0.732,
+      "router_conf_top1_mean": 0.084,
+      "router_conf_topk_sum_mean": 0.348,
+      "weight_rank1": 0.231,
+      "weight_rank_last": 0.073,
+      "weight_by_rank": [
+        0.231,
+        0.165,
+        0.137,
+        0.118,
+        0.103,
+        0.091,
+        0.081,
+        0.073
+      ]
+    },
+    {
+      "layer": 16,
+      "experts_never_selected": 30,
+      "frac_selections_to_top25pct_experts": 0.698,
+      "router_conf_top1_mean": 0.085,
+      "router_conf_topk_sum_mean": 0.349,
+      "weight_rank1": 0.235,
+      "weight_rank_last": 0.075,
+      "weight_by_rank": [
+        0.235,
+        0.163,
+        0.137,
+        0.117,
+        0.101,
+        0.091,
+        0.082,
+        0.075
+      ]
+    },
+    {
+      "layer": 17,
+      "experts_never_selected": 27,
+      "frac_selections_to_top25pct_experts": 0.691,
+      "router_conf_top1_mean": 0.088,
+      "router_conf_topk_sum_mean": 0.354,
+      "weight_rank1": 0.243,
+      "weight_rank_last": 0.068,
+      "weight_by_rank": [
+        0.243,
+        0.176,
+        0.14,
+        0.116,
+        0.097,
+        0.084,
+        0.075,
+        0.068
+      ]
+    },
+    {
+      "layer": 18,
+      "experts_never_selected": 37,
+      "frac_selections_to_top25pct_experts": 0.757,
+      "router_conf_top1_mean": 0.086,
+      "router_conf_topk_sum_mean": 0.33,
+      "weight_rank1": 0.252,
+      "weight_rank_last": 0.074,
+      "weight_by_rank": [
+        0.252,
+        0.168,
+        0.132,
+        0.11,
+        0.097,
+        0.088,
+        0.079,
+        0.074
+      ]
+    },
+    {
+      "layer": 19,
+      "experts_never_selected": 36,
+      "frac_selections_to_top25pct_experts": 0.784,
+      "router_conf_top1_mean": 0.088,
+      "router_conf_topk_sum_mean": 0.337,
+      "weight_rank1": 0.249,
+      "weight_rank_last": 0.071,
+      "weight_by_rank": [
+        0.249,
+        0.181,
+        0.136,
+        0.109,
+        0.094,
+        0.084,
+        0.076,
+        0.071
+      ]
+    },
+    {
+      "layer": 20,
+      "experts_never_selected": 39,
+      "frac_selections_to_top25pct_experts": 0.729,
+      "router_conf_top1_mean": 0.087,
+      "router_conf_topk_sum_mean": 0.363,
+      "weight_rank1": 0.233,
+      "weight_rank_last": 0.072,
+      "weight_by_rank": [
+        0.233,
+        0.167,
+        0.138,
+        0.117,
+        0.102,
+        0.09,
+        0.08,
+        0.072
+      ]
+    },
+    {
+      "layer": 21,
+      "experts_never_selected": 28,
+      "frac_selections_to_top25pct_experts": 0.747,
+      "router_conf_top1_mean": 0.087,
+      "router_conf_topk_sum_mean": 0.347,
+      "weight_rank1": 0.23,
+      "weight_rank_last": 0.078,
+      "weight_by_rank": [
+        0.23,
+        0.16,
+        0.134,
+        0.117,
+        0.103,
+        0.093,
+        0.085,
+        0.078
+      ]
+    },
+    {
+      "layer": 22,
+      "experts_never_selected": 18,
+      "frac_selections_to_top25pct_experts": 0.708,
+      "router_conf_top1_mean": 0.091,
+      "router_conf_topk_sum_mean": 0.363,
+      "weight_rank1": 0.231,
+      "weight_rank_last": 0.074,
+      "weight_by_rank": [
+        0.231,
+        0.163,
+        0.138,
+        0.119,
+        0.103,
+        0.091,
+        0.082,
+        0.074
+      ]
+    },
+    {
+      "layer": 23,
+      "experts_never_selected": 21,
+      "frac_selections_to_top25pct_experts": 0.666,
+      "router_conf_top1_mean": 0.092,
+      "router_conf_topk_sum_mean": 0.365,
+      "weight_rank1": 0.236,
+      "weight_rank_last": 0.075,
+      "weight_by_rank": [
+        0.236,
+        0.162,
+        0.134,
+        0.117,
+        0.103,
+        0.091,
+        0.082,
+        0.075
+      ]
+    },
+    {
+      "layer": 24,
+      "experts_never_selected": 20,
+      "frac_selections_to_top25pct_experts": 0.724,
+      "router_conf_top1_mean": 0.087,
+      "router_conf_topk_sum_mean": 0.357,
+      "weight_rank1": 0.23,
+      "weight_rank_last": 0.075,
+      "weight_by_rank": [
+        0.23,
+        0.165,
+        0.136,
+        0.117,
+        0.103,
+        0.092,
+        0.082,
+        0.075
+      ]
+    },
+    {
+      "layer": 25,
+      "experts_never_selected": 23,
+      "frac_selections_to_top25pct_experts": 0.651,
+      "router_conf_top1_mean": 0.091,
+      "router_conf_topk_sum_mean": 0.384,
+      "weight_rank1": 0.228,
+      "weight_rank_last": 0.072,
+      "weight_by_rank": [
+        0.228,
+        0.168,
+        0.14,
+        0.119,
+        0.104,
+        0.09,
+        0.08,
+        0.072
+      ]
+    },
+    {
+      "layer": 26,
+      "experts_never_selected": 20,
+      "frac_selections_to_top25pct_experts": 0.693,
+      "router_conf_top1_mean": 0.087,
+      "router_conf_topk_sum_mean": 0.361,
+      "weight_rank1": 0.234,
+      "weight_rank_last": 0.073,
+      "weight_by_rank": [
+        0.234,
+        0.168,
+        0.14,
+        0.117,
+        0.101,
+        0.089,
+        0.079,
+        0.073
+      ]
+    },
+    {
+      "layer": 27,
+      "experts_never_selected": 27,
+      "frac_selections_to_top25pct_experts": 0.748,
+      "router_conf_top1_mean": 0.088,
+      "router_conf_topk_sum_mean": 0.386,
+      "weight_rank1": 0.22,
+      "weight_rank_last": 0.072,
+      "weight_by_rank": [
+        0.22,
+        0.166,
+        0.141,
+        0.123,
+        0.105,
+        0.092,
+        0.081,
+        0.072
+      ]
+    },
+    {
+      "layer": 28,
+      "experts_never_selected": 27,
+      "frac_selections_to_top25pct_experts": 0.702,
+      "router_conf_top1_mean": 0.086,
+      "router_conf_topk_sum_mean": 0.366,
+      "weight_rank1": 0.223,
+      "weight_rank_last": 0.076,
+      "weight_by_rank": [
+        0.223,
+        0.164,
+        0.138,
+        0.118,
+        0.104,
+        0.093,
+        0.084,
+        0.076
+      ]
+    },
+    {
+      "layer": 29,
+      "experts_never_selected": 33,
+      "frac_selections_to_top25pct_experts": 0.69,
+      "router_conf_top1_mean": 0.091,
+      "router_conf_topk_sum_mean": 0.378,
+      "weight_rank1": 0.237,
+      "weight_rank_last": 0.07,
+      "weight_by_rank": [
+        0.237,
+        0.17,
+        0.138,
+        0.118,
+        0.102,
+        0.088,
+        0.077,
+        0.07
+      ]
+    },
+    {
+      "layer": 30,
+      "experts_never_selected": 45,
+      "frac_selections_to_top25pct_experts": 0.791,
+      "router_conf_top1_mean": 0.09,
+      "router_conf_topk_sum_mean": 0.354,
+      "weight_rank1": 0.244,
+      "weight_rank_last": 0.073,
+      "weight_by_rank": [
+        0.244,
+        0.168,
+        0.135,
+        0.114,
+        0.099,
+        0.089,
+        0.079,
+        0.073
+      ]
+    },
+    {
+      "layer": 31,
+      "experts_never_selected": 39,
+      "frac_selections_to_top25pct_experts": 0.814,
+      "router_conf_top1_mean": 0.099,
+      "router_conf_topk_sum_mean": 0.365,
+      "weight_rank1": 0.259,
+      "weight_rank_last": 0.066,
+      "weight_by_rank": [
+        0.259,
+        0.185,
+        0.138,
+        0.107,
+        0.091,
+        0.08,
+        0.073,
+        0.066
+      ]
+    },
+    {
+      "layer": 32,
+      "experts_never_selected": 32,
+      "frac_selections_to_top25pct_experts": 0.723,
+      "router_conf_top1_mean": 0.095,
+      "router_conf_topk_sum_mean": 0.386,
+      "weight_rank1": 0.24,
+      "weight_rank_last": 0.069,
+      "weight_by_rank": [
+        0.24,
+        0.17,
+        0.141,
+        0.116,
+        0.099,
+        0.088,
+        0.077,
+        0.069
+      ]
+    },
+    {
+      "layer": 33,
+      "experts_never_selected": 27,
+      "frac_selections_to_top25pct_experts": 0.73,
+      "router_conf_top1_mean": 0.101,
+      "router_conf_topk_sum_mean": 0.381,
+      "weight_rank1": 0.247,
+      "weight_rank_last": 0.071,
+      "weight_by_rank": [
+        0.247,
+        0.163,
+        0.136,
+        0.114,
+        0.1,
+        0.089,
+        0.079,
+        0.071
+      ]
+    },
+    {
+      "layer": 34,
+      "experts_never_selected": 17,
+      "frac_selections_to_top25pct_experts": 0.658,
+      "router_conf_top1_mean": 0.097,
+      "router_conf_topk_sum_mean": 0.384,
+      "weight_rank1": 0.241,
+      "weight_rank_last": 0.071,
+      "weight_by_rank": [
+        0.241,
+        0.168,
+        0.136,
+        0.116,
+        0.101,
+        0.088,
+        0.079,
+        0.071
+      ]
+    },
+    {
+      "layer": 35,
+      "experts_never_selected": 17,
+      "frac_selections_to_top25pct_experts": 0.61,
+      "router_conf_top1_mean": 0.097,
+      "router_conf_topk_sum_mean": 0.388,
+      "weight_rank1": 0.243,
+      "weight_rank_last": 0.071,
+      "weight_by_rank": [
+        0.243,
+        0.165,
+        0.137,
+        0.116,
+        0.101,
+        0.088,
+        0.079,
+        0.071
+      ]
+    },
+    {
+      "layer": 36,
+      "experts_never_selected": 16,
+      "frac_selections_to_top25pct_experts": 0.682,
+      "router_conf_top1_mean": 0.094,
+      "router_conf_topk_sum_mean": 0.393,
+      "weight_rank1": 0.231,
+      "weight_rank_last": 0.069,
+      "weight_by_rank": [
+        0.231,
+        0.168,
+        0.142,
+        0.119,
+        0.103,
+        0.089,
+        0.078,
+        0.069
+      ]
+    },
+    {
+      "layer": 37,
+      "experts_never_selected": 18,
+      "frac_selections_to_top25pct_experts": 0.613,
+      "router_conf_top1_mean": 0.105,
+      "router_conf_topk_sum_mean": 0.44,
+      "weight_rank1": 0.233,
+      "weight_rank_last": 0.064,
+      "weight_by_rank": [
+        0.233,
+        0.178,
+        0.145,
+        0.118,
+        0.101,
+        0.086,
+        0.074,
+        0.064
+      ]
+    },
+    {
+      "layer": 38,
+      "experts_never_selected": 16,
+      "frac_selections_to_top25pct_experts": 0.637,
+      "router_conf_top1_mean": 0.099,
+      "router_conf_topk_sum_mean": 0.412,
+      "weight_rank1": 0.237,
+      "weight_rank_last": 0.069,
+      "weight_by_rank": [
+        0.237,
+        0.171,
+        0.143,
+        0.118,
+        0.1,
+        0.086,
+        0.076,
+        0.069
+      ]
+    },
+    {
+      "layer": 39,
+      "experts_never_selected": 20,
+      "frac_selections_to_top25pct_experts": 0.683,
+      "router_conf_top1_mean": 0.094,
+      "router_conf_topk_sum_mean": 0.42,
+      "weight_rank1": 0.218,
+      "weight_rank_last": 0.072,
+      "weight_by_rank": [
+        0.218,
+        0.167,
+        0.142,
+        0.122,
+        0.106,
+        0.093,
+        0.08,
+        0.072
+      ]
+    },
+    {
+      "layer": 40,
+      "experts_never_selected": 23,
+      "frac_selections_to_top25pct_experts": 0.663,
+      "router_conf_top1_mean": 0.093,
+      "router_conf_topk_sum_mean": 0.417,
+      "weight_rank1": 0.218,
+      "weight_rank_last": 0.072,
+      "weight_by_rank": [
+        0.218,
+        0.167,
+        0.14,
+        0.124,
+        0.106,
+        0.093,
+        0.081,
+        0.072
+      ]
+    },
+    {
+      "layer": 41,
+      "experts_never_selected": 23,
+      "frac_selections_to_top25pct_experts": 0.639,
+      "router_conf_top1_mean": 0.097,
+      "router_conf_topk_sum_mean": 0.444,
+      "weight_rank1": 0.218,
+      "weight_rank_last": 0.069,
+      "weight_by_rank": [
+        0.218,
+        0.171,
+        0.145,
+        0.123,
+        0.106,
+        0.09,
+        0.078,
+        0.069
+      ]
+    },
+    {
+      "layer": 42,
+      "experts_never_selected": 31,
+      "frac_selections_to_top25pct_experts": 0.667,
+      "router_conf_top1_mean": 0.101,
+      "router_conf_topk_sum_mean": 0.43,
+      "weight_rank1": 0.226,
+      "weight_rank_last": 0.067,
+      "weight_by_rank": [
+        0.226,
+        0.171,
+        0.145,
+        0.122,
+        0.104,
+        0.088,
+        0.077,
+        0.067
+      ]
+    },
+    {
+      "layer": 43,
+      "experts_never_selected": 26,
+      "frac_selections_to_top25pct_experts": 0.713,
+      "router_conf_top1_mean": 0.09,
+      "router_conf_topk_sum_mean": 0.375,
+      "weight_rank1": 0.233,
+      "weight_rank_last": 0.072,
+      "weight_by_rank": [
+        0.233,
+        0.169,
+        0.139,
+        0.118,
+        0.102,
+        0.088,
+        0.079,
+        0.072
+      ]
+    },
+    {
+      "layer": 44,
+      "experts_never_selected": 29,
+      "frac_selections_to_top25pct_experts": 0.728,
+      "router_conf_top1_mean": 0.091,
+      "router_conf_topk_sum_mean": 0.375,
+      "weight_rank1": 0.233,
+      "weight_rank_last": 0.072,
+      "weight_by_rank": [
+        0.233,
+        0.166,
+        0.138,
+        0.117,
+        0.103,
+        0.091,
+        0.081,
+        0.072
+      ]
+    },
+    {
+      "layer": 45,
+      "experts_never_selected": 30,
+      "frac_selections_to_top25pct_experts": 0.764,
+      "router_conf_top1_mean": 0.085,
+      "router_conf_topk_sum_mean": 0.355,
+      "weight_rank1": 0.227,
+      "weight_rank_last": 0.077,
+      "weight_by_rank": [
+        0.227,
+        0.16,
+        0.137,
+        0.118,
+        0.104,
+        0.093,
+        0.084,
+        0.077
+      ]
+    },
+    {
+      "layer": 46,
+      "experts_never_selected": 26,
+      "frac_selections_to_top25pct_experts": 0.68,
+      "router_conf_top1_mean": 0.077,
+      "router_conf_topk_sum_mean": 0.355,
+      "weight_rank1": 0.21,
+      "weight_rank_last": 0.074,
+      "weight_by_rank": [
+        0.21,
+        0.17,
+        0.143,
+        0.121,
+        0.106,
+        0.093,
+        0.082,
+        0.074
+      ]
+    },
+    {
+      "layer": 47,
+      "experts_never_selected": 20,
+      "frac_selections_to_top25pct_experts": 0.611,
+      "router_conf_top1_mean": 0.111,
+      "router_conf_topk_sum_mean": 0.519,
+      "weight_rank1": 0.216,
+      "weight_rank_last": 0.062,
+      "weight_by_rank": [
+        0.216,
+        0.174,
+        0.147,
+        0.126,
+        0.108,
+        0.092,
+        0.075,
+        0.062
+      ]
+    }
+  ]
+}
