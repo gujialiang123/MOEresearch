@@ -113,12 +113,17 @@ def run_combo(reg_id: str, batch: int, inlen: int, outlen: int, stage: str, out_
     bench_log = out_dir / "bench.log"
 
     # Sections: default = memory-focused; override via V9_SECTIONS env (comma list).
-    default_sections = ["SpeedOfLight", "MemoryWorkloadAnalysis", "Occupancy", "LaunchStats"]
-    sections = os.environ.get("V9_SECTIONS")
-    sections = sections.split(",") if sections else default_sections
-    section_args = []
-    for s in sections:
-        section_args += ["--section", s]
+    # If V9_METRICS is set, use targeted --metrics instead (far fewer replay passes).
+    metrics = os.environ.get("V9_METRICS")
+    if metrics:
+        section_args = ["--metrics", metrics]
+    else:
+        default_sections = ["SpeedOfLight", "MemoryWorkloadAnalysis", "Occupancy", "LaunchStats"]
+        sections = os.environ.get("V9_SECTIONS")
+        sections = sections.split(",") if sections else default_sections
+        section_args = []
+        for s in sections:
+            section_args += ["--section", s]
     ncu_cmd = [
         "sudo", "-n", NCU,
         "--target-processes", "all",

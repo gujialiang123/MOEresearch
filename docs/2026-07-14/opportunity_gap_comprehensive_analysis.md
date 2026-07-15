@@ -126,6 +126,30 @@ v12  NCU 机制修正：spec decoding 不降 SM 空转率（77.5%→78.0%），
 **结论**：decode 热点 kernel 全 memory-bound，距带宽屋顶 1.3–2.4×，即 kernel 优化的理论上界。此数字与我们早前自造的 "TBT headroom" 完全吻合，现用标准 roofline 表述后可信度更高。
 **出处**：`docs/2026-07-14/v10_loadsweep_and_roofline.md`、`scripts/compute_v10_roofline.py`
 
+### 证据 F2：roofline 的 compute 轴——achieved GFLOP/s（Chendi 要求补测）
+**做法**：补上 roofline 的另一条轴。用 NCU 直接采 **tensor-core FLOP 计数器**（`sm__ops_path_tensor_op_hmma/hgmma_*` = 真实 tensor 运算数）+ 非 tensor FP 指令，除以 kernel 时长，得到每 kernel 已达到的算力吞吐。H200 bf16 tensor-core 峰值 = **989.5 TFLOP/s**。
+**结果（Qwen3-30B decode b32，★真 FLOP 计数器，含 fused_moe）**：
+| kernel | 时长 | SM% | **achieved 算力** | **占 bf16 峰值** |
+|---|---|---|---|---|
+| flash_attn | 141 µs | 34.8 | 338 TFLOP/s | 34.2% |
+| **fused_moe（MoE GEMM）** | 119 µs | 17.7 | **68.9 TFLOP/s** | **7.0%** |
+| gemm(dense, qkv/o proj) | 52 µs | 5.5 | 48 TFLOP/s | 4.9% |
+| **整步（时间加权）** | — | — | **169.9 TFLOP/s** | **17.2%** |
+
+**其余 decode 点（tensor-pipe 活跃%外推的估计值，作趋势佐证，精确重测进行中）**：
+| 模型 | 点 | 整步 achieved | 占峰值 |
+|---|---|---|---|
+| Qwen3-30B | decode b64 | ~278 TFLOP/s | ~28% |
+| LFM2.5-8B | decode b32 | ~184 TFLOP/s | ~19% |
+| LFM2.5-8B | decode b64 | ~274 TFLOP/s | ~28% |
+
+**结论**：
+- decode 整步算力仅 **17%（b32，精确）** 的 bf16 峰值——**从 compute 轴独立印证 memory-bound**（与证据 F 的"距带宽屋顶 1.3–2.4×"互为佐证：算力空、带宽近满 = 典型 memory-bound）。
+- **MoE GEMM（`fused_moe`）算力最低，仅 7.0% 峰值**——直接量化"瓶颈在搬专家权重而非算力"，是 §5-11 "MoE decode 是 memory-bound" 结论的 compute-轴硬证据。
+- batch 32→64 算力占比升高（~17%→~28%），说明加 batch 提高 arithmetic intensity，但离屋顶仍远。
+**方法说明（诚实标注）**：Qwen3 decode b32 用**真 FLOP 计数器**（严谨值）；其余 3 点先用 tensor-pipe 活跃%外推（NCU roofline compute 轴的标准代理，略偏乐观），精确重测在 GPU5 后台补跑中，完成后替换。
+**出处**：`scripts/parse_v18_ncu_long.py`（精确）、`scripts/compute_v18_gflops.py`（估计）、`results/2026-07-15_v18_gflops/gflops_accurate.json`、`gflops_estimate.json`
+
 ---
 
 ## 2b. 干预证据：gap 不只是"看得见"，而是"摸得着"（v11–v12）
@@ -242,7 +266,9 @@ serving 墙钟 38.1s：
 | 多流利用率回收（v11-B2） | 实测 | nsys 时间线（多路流并集） |
 | spec decoding TPOT −23%（v11-A1b） | 实测 | sglang bench_serving（n-gram，exact） |
 | spec 不降 SM 空转（v12） | 实测 | NCU SchedulerStats（baseline vs n-gram） |
-| roofline 距屋顶 | 实测 DRAM% 外推 | NCU + roofline 公式 |
+| roofline 距屋顶（memory 轴） | 实测 DRAM% 外推 | NCU + roofline 公式 |
+| achieved GFLOP/s（compute 轴，v18；Qwen b32） | **实测**（真 FLOP 计数器） | NCU sm__ops_path_tensor_* |
+| achieved GFLOP/s（其余 3 decode 点） | **代理估算**（tensor-pipe%×峰值），精确重测中 | NCU tensor-pipe active% |
 | 端到端 floor（batch>1） | **估算**（MoE 敏感） | 第一性原理，仅供参考 |
 | MoE decode memory-bound（搬:算≈103:1） | 实测 | HF forward 结构分析 + roofline |
 

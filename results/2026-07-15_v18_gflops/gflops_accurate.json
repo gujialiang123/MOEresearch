@@ -1,0 +1,54 @@
+{
+  "peak_tflops": 989.5,
+  "results": [
+    {
+      "label": "results/2026-07-15_v18_gflops/qwen3-30b-a3b-bf16/agent_decode_b32/ncu_raw.csv",
+      "overall_tflops": 169.9,
+      "pct_peak": 17.2,
+      "kernels": [
+        {
+          "kernel": "flash_attn",
+          "dur_us": 140.9,
+          "sm_pct": 34.8,
+          "achieved_tflops": 338.1,
+          "pct_peak": 34.2
+        },
+        {
+          "kernel": "fused_moe",
+          "dur_us": 119.1,
+          "sm_pct": 17.7,
+          "achieved_tflops": 68.9,
+          "pct_peak": 7.0
+        },
+        {
+          "kernel": "gemm(dense)",
+          "dur_us": 51.7,
+          "sm_pct": 5.5,
+          "achieved_tflops": 48.0,
+          "pct_peak": 4.9
+        },
+        {
+          "kernel": "rmsnorm",
+          "dur_us": 16.5,
+          "sm_pct": 1.5,
+          "achieved_tflops": 0.1,
+          "pct_peak": 0.0
+        },
+        {
+          "kernel": "router_topk",
+          "dur_us": 11.3,
+          "sm_pct": 0.3,
+          "achieved_tflops": 0.0,
+          "pct_peak": 0.0
+        },
+        {
+          "kernel": "activation",
+          "dur_us": 3.7,
+          "sm_pct": 3.2,
+          "achieved_tflops": 0.2,
+          "pct_peak": 0.0
+        }
+      ]
+    }
+  ]
+}
