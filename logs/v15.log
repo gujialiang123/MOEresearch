@@ -1,0 +1,22 @@
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:  12%|█▎        | 2/16 [00:00<00:01, 12.83it/s]Loading checkpoint shards:  25%|██▌       | 4/16 [00:00<00:00, 12.23it/s]Loading checkpoint shards:  38%|███▊      | 6/16 [00:00<00:00, 12.21it/s]Loading checkpoint shards:  50%|█████     | 8/16 [00:00<00:00, 12.09it/s]Loading checkpoint shards:  62%|██████▎   | 10/16 [00:00<00:00, 11.96it/s]Loading checkpoint shards:  75%|███████▌  | 12/16 [00:00<00:00, 11.92it/s]Loading checkpoint shards:  88%|████████▊ | 14/16 [00:01<00:00, 12.00it/s]Loading checkpoint shards: 100%|██████████| 16/16 [00:01<00:00, 12.75it/s]
+E=128 topk=8 L=48
+found 48 MoE blocks
+ baseline(8): avg PPL = 5.7685
+        top7: avg PPL = 5.8974
+        top6: avg PPL = 6.0847
+        top5: avg PPL = 6.2080
+        top4: avg PPL = 7.0948
+        top3: avg PPL = 8.8240
+        top2: avg PPL = 20.8389
+
+== PPL cost vs experts used ==
+  topk     avg_PPL  PPL_increase
+     8       5.769         0.00%
+     7       5.897         2.23%
+     6       6.085         5.48%
+     5       6.208         7.62%
+     4       7.095        22.99%
+     3       8.824        52.97%
+     2      20.839       261.25%
+
+wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-07-15_v15_ppl/ppl_vs_topk.json
