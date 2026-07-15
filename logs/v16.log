@@ -1,0 +1,22 @@
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:  12%|█▎        | 2/16 [00:00<00:01, 10.99it/s]Loading checkpoint shards:  25%|██▌       | 4/16 [00:00<00:01, 10.45it/s]Loading checkpoint shards:  38%|███▊      | 6/16 [00:00<00:00, 10.22it/s]Loading checkpoint shards:  50%|█████     | 8/16 [00:00<00:00, 10.16it/s]Loading checkpoint shards:  62%|██████▎   | 10/16 [00:00<00:00, 10.11it/s]Loading checkpoint shards:  75%|███████▌  | 12/16 [00:01<00:00, 10.06it/s]Loading checkpoint shards:  88%|████████▊ | 14/16 [00:01<00:00, 10.07it/s]Loading checkpoint shards: 100%|██████████| 16/16 [00:01<00:00, 11.69it/s]Loading checkpoint shards: 100%|██████████| 16/16 [00:01<00:00, 10.74it/s]
+E=128 topk=8 L=48
+saved raw.npz for plotting
+
+==== Q1 LOAD IMBALANCE ====
+  Gini (avg over layers): 0.646  (0=balanced, 1=all to one)
+  hottest 10% experts handle 41% of traffic
+  hottest 25% experts handle 73% of traffic
+  hottest 50% experts handle 94% of traffic
+
+==== Q2 CONFIDENCE ====
+  top-1 prob mean=0.0905 (uniform baseline 1/128=0.0078)
+  percentiles: p5=0.048, p25=0.065, p50=0.079, p75=0.097, p95=0.140
+
+==== Q3 WEIGHT BY RANK ====
+  rank:        1      2      3      4      5      6      7      8
+  mean:    0.237  0.170  0.139  0.117  0.101  0.088  0.078  0.070
+  std:     0.095  0.031  0.025  0.022  0.019  0.018  0.017  0.016
+  rank8 percentiles: p5=0.044, p25=0.061, p50=0.071, p75=0.081, p95=0.094, p99=0.102
+  frac tokens with fringe(rank8) weight > 0.10: 1.4%
+
+wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-07-15_v16_router_dist/router_dist.json and router_distributions.png
