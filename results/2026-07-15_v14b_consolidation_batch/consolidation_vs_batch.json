@@ -1,0 +1,38 @@
+{
+  "E": 128,
+  "TOPK": 8,
+  "L": 48,
+  "fringe_from_rank": 6,
+  "results": [
+    {
+      "batch": 4,
+      "avg_active_experts": 26.7,
+      "transfer_saved": 0.2241,
+      "weight_redirected": 0.1492
+    },
+    {
+      "batch": 8,
+      "avg_active_experts": 43.6,
+      "transfer_saved": 0.1967,
+      "weight_redirected": 0.1497
+    },
+    {
+      "batch": 16,
+      "avg_active_experts": 62.6,
+      "transfer_saved": 0.169,
+      "weight_redirected": 0.1477
+    },
+    {
+      "batch": 32,
+      "avg_active_experts": 81.2,
+      "transfer_saved": 0.1334,
+      "weight_redirected": 0.1491
+    },
+    {
+      "batch": 64,
+      "avg_active_experts": 95.7,
+      "transfer_saved": 0.1027,
+      "weight_redirected": 0.1481
+    }
+  ]
+}

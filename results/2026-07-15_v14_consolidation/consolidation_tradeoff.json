@@ -1,0 +1,37 @@
+{
+  "E": 128,
+  "TOPK": 8,
+  "L": 48,
+  "results": [
+    {
+      "consolidate_fringe_from_rank": 8,
+      "avg_transfer_saved": 0.0,
+      "avg_weight_redirected": 0.0
+    },
+    {
+      "consolidate_fringe_from_rank": 7,
+      "avg_transfer_saved": 0.0376,
+      "avg_weight_redirected": 0.0718
+    },
+    {
+      "consolidate_fringe_from_rank": 6,
+      "avg_transfer_saved": 0.0827,
+      "avg_weight_redirected": 0.151
+    },
+    {
+      "consolidate_fringe_from_rank": 5,
+      "avg_transfer_saved": 0.13,
+      "avg_weight_redirected": 0.2394
+    },
+    {
+      "consolidate_fringe_from_rank": 4,
+      "avg_transfer_saved": 0.1953,
+      "avg_weight_redirected": 0.3399
+    },
+    {
+      "consolidate_fringe_from_rank": 3,
+      "avg_transfer_saved": 0.2734,
+      "avg_weight_redirected": 0.4555
+    }
+  ]
+}
