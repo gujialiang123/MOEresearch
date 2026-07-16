@@ -75,4 +75,15 @@
 ==PROF== Profiling "void cutlass::device_kernel<flash::enable_sm90_or_later<flash::FlashAttnFwdSm90<flash::CollectiveMainloopFwdSm90<(int)2, cute::tuple<cute::C<(int)1>, cute::C<(int)1>, cute::C<(int)1>>, cute::tuple<cute::C<(int)128>, cute::C<(int)128>, cute::C<(int)128>>, (int)128, cutlass::bfloat16_t, float, cutlass::arch::Sm90, (bool)1, (bool)0, (bool)0, (bool)1, (bool)1, (bool)0, (bool)0, (bool)1, (bool)1, (bool)1, (bool)1, (bool)0, cutlass::bfloat16_t>, flash::CollectiveEpilogueFwd<cute::tuple<cute::C<(int)128>, cute::C<(int)128>, cute::C<(int)128>>, cute::tuple<cute::C<(int)1>, cute::C<(int)1>, cute::C<(int)1>>, cutlass::bfloat16_t, cutlass::arch::Sm90, (int)256, (bool)1, (bool)1, (bool)1, (bool)0>, flash::VarlenDynamicPersistentTileScheduler<(int)128, (int)128, (int)256, (int)128, (bool)1, (bool)1, (bool)1, (bool)1, (bool)1, (bool)1>>>>(T1::Params)": 0%....50%....100% - 9 passes
 ==PROF== Profiling "void cutlass::device_kernel<flash::FlashAttnFwdCombine<cute::tuple<cute::C<(int)8>, cute::C<(int)128>>, (int)5, (int)256, (int)1, (bool)0, (bool)1, cutlass::bfloat16_t, float, cutlass::arch::Sm90>>(T1::Params)": 0%....50%....100% - 9 passes
 ==PROF== Profiling "_ZN7cutlass13device_kernelIN5flash19FlashAttnFwdCombineIN4cute5tupleIJNS3_1CILi8EEENS5_ILi128EEEEEELi5ELi256ELi1ELb0ELb1ENS_10bfloat16_tEfNS_4arch4Sm90EEEEEvNT_6ParamsE": 0%....50%....100% - 9 passes
-==PROF== Profiling "void flashinfer::norm::FusedAddRMSNormKernel<(unsigned int)8, __nv_bfloat16>(T2 *, T2 *, T2 *, unsigned int, unsigned int, unsigned int, float, float)": 0%....50%....
+==PROF== Profiling "void flashinfer::norm::FusedAddRMSNormKernel<(unsigned int)8, __nv_bfloat16>(T2 *, T2 *, T2 *, unsigned int, unsigned int, unsigned int, float, float)": 0%....50%....100% - 9 passes
+==PROF== Profiling "_ZN10flashinfer4norm21FusedAddRMSNormKernelILj8E13__nv_bfloat16EEvPT0_S4_S4_jjjff": 0%....50%....100% - 9 passes
+==PROF== Profiling "void topkGatingSoftmax<__nv_bfloat16, (int)8, (int)128, (int)4, (int)16>(const T1 *, const bool *, float *, int, int *, int, int, int, bool, float, const float *)": 0%....50%....100% - 9 passes
+==PROF== Profiling "_Z17topkGatingSoftmaxI13__nv_bfloat16Li8ELi128ELi4ELi16EEvPKT_PKbPfiPiiiibfPKf": 0%....50%....100% - 9 passes
+==PROF== Profiling "void flashinfer::activation::act_and_mul_kernel<__nv_bfloat16, &silu<float>>(T1 *, const T1 *, int)": 0%....50%....100% - 9 passes
+==PROF== Profiling "_ZN10flashinfer10activation18act_and_mul_kernelI13__nv_bfloat16XadL_Z4siluIfET_RKS4_EEEEvPS4_PS5_i": 0%....50%....100% - 9 passes
+==PROF== Profiling "void flashinfer::norm::FusedAddRMSNormKernel<(unsigned int)8, __nv_bfloat16>(T2 *, T2 *, T2 *, unsigned int, unsigned int, unsigned int, float, float)": 0%/home/t-jialianggu/.conda/envs/sglang-dev/lib/python3.11/multiprocessing/resource_tracker.py:254: UserWarning: resource_tracker: There appear to be 1 leaked semaphore objects to clean up at shutdown
+  warnings.warn('resource_tracker: There appear to be %d '
+==ERROR== Failed to profile "FusedAddRMSNormKernel" in process 2154039
+==PROF== Trying to shutdown target application
+==ERROR== The application returned an error code (9).
+==PROF== Report: /home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-07-15_v19b_ncu_decode/qwen3-30b-a3b-bf16/agent_decode_b32/ncu.ncu-rep

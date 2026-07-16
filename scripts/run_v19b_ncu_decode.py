@@ -86,7 +86,7 @@ exec {CONDA_ENV}/bin/python -m sglang.bench_one_batch \\
   --profile-filename-prefix {log_prefix} \\
   --result-filename {result_file} \\
   --run-name ncu_v19b \\
-  --mem-fraction-static 0.85 \\
+  --mem-fraction-static 0.70 \\
   --chunked-prefill-size {MODEL["chunked"]} \\
   --schedule-policy lpm \\
   --attention-backend fa3 \\

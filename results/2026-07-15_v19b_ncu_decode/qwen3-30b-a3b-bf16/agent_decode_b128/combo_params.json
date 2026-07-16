@@ -1,0 +1,21 @@
+{
+  "model": "qwen3-30b-a3b-bf16",
+  "regime": "agent_decode_b128",
+  "batch": 128,
+  "input_len": 2700,
+  "output_len": 32,
+  "stage": "decode",
+  "metrics": [
+    "gpu__time_duration.sum",
+    "dram__bytes_read.sum",
+    "dram__bytes_write.sum",
+    "dram__throughput.avg.pct_of_peak_sustained_elapsed",
+    "sm__throughput.avg.pct_of_peak_sustained_elapsed",
+    "sm__warps_active.avg.pct_of_peak_sustained_active",
+    "l1tex__t_sector_hit_rate.pct",
+    "lts__t_sector_hit_rate.pct",
+    "launch__occupancy_limit_registers",
+    "launch__occupancy_limit_shared_mem",
+    "launch__occupancy_limit_warps"
+  ]
+}

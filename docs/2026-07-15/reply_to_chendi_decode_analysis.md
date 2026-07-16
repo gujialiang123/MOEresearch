@@ -33,7 +33,23 @@ Profiling `sglang.bench_one_batch` decode stage under NCU with the 11 metrics yo
 
 - Sweeping decode batch {32, 64, 128} to push toward the **decode upper bound** (larger effective batch amortizes expert-weight movement → best achievable arithmetic intensity), plus a prefill reference point.
 - All artifacts saved per regime: `ncu.ncu-rep` + `ncu_raw.csv` + `bench.log` + `combo_params.json` under `results/2026-07-15_v19b_ncu_decode/<model>/<regime>/`.
-- Status: b32 rep done (8.8 MB), b64/b128 + LFM still profiling — I'll drop the parsed metric table here once they land.
+- **Update — all Qwen decode regimes done (b32/b64/b128) + prefill reference.** Parsed 11-metric summary below. Full parsed table: `results/2026-07-15_v19b_ncu_decode/qwen3-30b-a3b-bf16/ncu_summary.json`.
+
+**Two hot kernels dominate decode (FlashAttention + fused_moe ≈ 65–83% of the step), both DRAM-bound:**
+
+| regime | step total (µs) | FlashAttn (µs, DRAM%) | fused_moe (µs, DRAM%) | FA+MoE share | fused_moe warps_active% | fused_moe L2 hit% |
+|---|--:|--:|--:|--:|--:|--:|
+| decode b32  | 452 | 166 (68%) | 127 (67%) | 65% | 37.6 | 12.2 |
+| decode b64  | 316 | 102 (74%) | 124 (55%) | 71% | 23.2 | 25.9 |
+| decode b128 | 402 | 190 (79%) | 145 (57%) | 83% | 26.5 | **41.5** |
+
+Key reads from your metric list:
+- **Both hot kernels are memory-bound** (DRAM% 55–79% vs SM% 15–54%) — decode is streaming weights/KV, not computing.
+- **fused_moe occupancy is warp-limited** (`launch__occupancy_limit_warps`; `sm__warps_active` only 23–38%) — room to raise occupancy at the kernel level.
+- **Biggest lever, measured directly:** as batch grows 32→128, **fused_moe L2 hit rate climbs 12% → 41.5%** — larger effective batch reuses expert weights instead of re-streaming from HBM. This is the "move once, serve more tokens" lever quantified (it directly attacks the 103:1 move:compute ratio).
+- **Prefill contrast:** in prefill (b1) fused_moe is *compute-bound* (SM 58%, warps 12%) — opposite regime, confirming the decode movement bottleneck is decode-specific.
+
+Full gap analysis + how-much-can-we-get: `docs/2026-07-15/v19_partC_decode_potential.md`.
 
 **Kernels actually run in one decode step (Qwen3-30B, b32) — 13 kernel launches:**
 
