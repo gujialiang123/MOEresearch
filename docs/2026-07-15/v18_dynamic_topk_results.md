@@ -1,5 +1,14 @@
 # v18：动态 top-k（置信度自适应）vs 固定 top-k — GSM8K 精度 × 平均激活专家
 
+> ## ⚠️ ERRATUM（2026-07-16，勘误）
+> v18 的实现与测量存在问题，**其速度/E2E 结论不能作为 dynamic-K 加速证据**：
+> 1. **没有物理跳过被丢弃的 expert**：旧 forward 只把 routing weight 置零（`rw = rw * keep`），但 `expert_mask` 仍由完整 `selected_experts` 构造，被丢弃的 assignment 仍进入 `expert_layer(...)`，只是结果乘零。因此旧 `avg_k` 是**逻辑 K，不是实际执行 K**。
+> 2. **每层 `.item()` 污染 timing**：`self._k_sum += int(keep.sum().item())` 在每层每 step 做 D2H 同步，使 wall/tok-s 不可信。
+> 3. 因此本文档的 **wall_s / tok_per_s 列不能解释为加速**（HF-eager 逻辑置零，非真实少算，且 timing 被同步污染）。
+> **质量结论**（准确率 vs avg_k）仍可视为"数学上的 zero-weight pruning"探索，但仍受答案解析（旧用 last-number，见 P0.5）、样本量（200 题，±3-4% 噪声）与生成长度影响，属**待验证现象**而非确定规律。
+>
+> **已修正版本**见 `scripts/dynamic_topk_utils.py`（物理跳过 + 无同步计数 + strict 解析）、`tests/test_dynamic_topk.py`（9/9 通过）、`scripts/run_v20_dynamic_topk_equivalence.py`（真实模型 keep-all 精确 0 误差）、`docs/2026-07-16/v20_dynamic_topk_validation.md`。
+
 **日期**：2026-07-15
 **目的**：验证"按 router 置信度自适应决定每 token 用几个专家"（top-p 式）能否在**更低的平均 k** 下达到与固定 top-k **同等的精度** —— 这是"动态 topk 值不值得做 / 能不能撑一篇 paper"的核心实验。
 **脚本**：`scripts/run_v18_dynamic_topk.py`
