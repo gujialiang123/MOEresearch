@@ -90,6 +90,16 @@ def rep_ngram_frac(seq, n=4):
     return round(1 - uniq/total, 4) if total else 0.0
 
 def run_config(name, baseline_seqs=None):
+    raw_path = f"{OUT}/{name}_raw.jsonl"
+    sum_path = f"{OUT}/{name}_summary.json"
+    # config-level resume: a written per-config summary means this config fully
+    # completed. avg_k counters need a full pass, so we resume at config
+    # granularity (skip whole finished configs, re-run partial ones).
+    if os.path.exists(sum_path):
+        rows = [json.loads(l) for l in open(raw_path)]
+        s = json.load(open(sum_path))
+        print(f"[resume] {name} already complete ({len(rows)} rows) -> skip", flush=True)
+        return s, rows
     spec = CONFIGS[name]
     if spec is None:
         ctrl.disable()
@@ -100,6 +110,8 @@ def run_config(name, baseline_seqs=None):
                     benchmark_mode=False)
     rows = []
     gen_ms_total = 0.0
+    open(raw_path, "w").close()  # truncate: fresh pass (config-level resume only)
+    written = 0
     torch.cuda.synchronize()
     for i in range(0, len(prompts), args.batch):
         chunk = prompts[i:i+args.batch]
@@ -155,6 +167,14 @@ def run_config(name, baseline_seqs=None):
                 "gen_token_ids": gen_ids,   # FULL raw ids -> recompute any metric later
                 "text": text,               # FULL generated text
             })
+        # incremental write: flush rows produced in this batch (crash-safe,
+        # "write as much as computed" -> partial configs are inspectable / not lost)
+        with open(raw_path, "a") as f:
+            for r in rows[written:]:
+                f.write(json.dumps(r) + "\n")
+            f.flush(); os.fsync(f.fileno())
+        written = len(rows)
+        print(f"  [{name}] {written}/{len(prompts)} samples written", flush=True)
     stats = ctrl.stats() if spec is not None else {"avg_k_decode": float(TOPK), "avg_k_prefill": float(TOPK)}
     n = len(rows)
     correct = sum(r["correct"] for r in rows)
@@ -179,10 +199,9 @@ def run_config(name, baseline_seqs=None):
         "eos_emitted_frac": round(sum(1 for r in rows if r["eos_pos"] >= 0)/n, 3),
         "generation_wall_ms": round(gen_ms_total, 1),
     }
-    # save raw JSONL (FULL token ids + text -> any metric recomputable offline)
-    with open(f"{OUT}/{name}_raw.jsonl", "w") as f:
-        for r in rows:
-            f.write(json.dumps(r) + "\n")
+    # per-config summary doubles as the "config complete" marker for resume
+    # (raw JSONL was already written incrementally, batch by batch, above)
+    json.dump(summary, open(sum_path, "w"), indent=2)
     return summary, rows
 
 names = args.configs.split(",")
