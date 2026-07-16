@@ -1,0 +1,35 @@
+{
+  "model": "/data/hf/models/Qwen3-30B-A3B-Instruct-2507",
+  "E": 128,
+  "topk": 8,
+  "L": 48,
+  "block0_keepall_renorm_survivors": {
+    "moe_out_max_abs_err": 0.0,
+    "moe_out_rel_l2": 0.0,
+    "router_logit_max_abs_err": 0.0
+  },
+  "block0_keepall_no_renorm": {
+    "moe_out_max_abs_err": 0.0,
+    "moe_out_rel_l2": 0.0,
+    "router_logit_max_abs_err": 0.0
+  },
+  "block0_keepall_fold_mass_to_top1": {
+    "moe_out_max_abs_err": 0.0,
+    "moe_out_rel_l2": 0.0,
+    "router_logit_max_abs_err": 0.0
+  },
+  "greedy_generation_token_match": [
+    true,
+    true
+  ],
+  "greedy_generation_all_match": true,
+  "tiny_dynamic_tau0.7": {
+    "avg_k_prefill": 8.0,
+    "avg_k_decode": 4.9395,
+    "tok_prefill": 1392,
+    "tok_decode": 3024,
+    "k_sum_prefill": 11136,
+    "k_sum_decode": 14937
+  },
+  "ACCEPTANCE_PASS": true
+}
