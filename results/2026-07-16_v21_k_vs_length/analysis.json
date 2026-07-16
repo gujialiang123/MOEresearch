@@ -1,0 +1,91 @@
+{
+  "dir": "results/2026-07-16_v21_k_vs_length",
+  "baseline": "fixed_k8",
+  "rows": [
+    {
+      "config": "fixed_k4",
+      "K": 4,
+      "n": 500,
+      "accuracy_pct": 74.8,
+      "no_hash_pct": 19.4,
+      "gen_len_mean": 289.5,
+      "L_to_answer_mean": 277.7,
+      "L_post_answer_mean": 11.8,
+      "rep_4gram_mean": 0.1208,
+      "hit_max_new_pct": 14.4,
+      "delta_len_vs_k8_mean": 38.0,
+      "delta_len_95ci": [
+        31.63,
+        44.46
+      ]
+    },
+    {
+      "config": "fixed_k6",
+      "K": 6,
+      "n": 500,
+      "accuracy_pct": 85.8,
+      "no_hash_pct": 5.2,
+      "gen_len_mean": 260.6,
+      "L_to_answer_mean": 250.2,
+      "L_post_answer_mean": 10.3,
+      "rep_4gram_mean": 0.1209,
+      "hit_max_new_pct": 5.8,
+      "delta_len_vs_k8_mean": 9.1,
+      "delta_len_95ci": [
+        4.78,
+        13.47
+      ]
+    },
+    {
+      "config": "fixed_k8",
+      "K": 8,
+      "n": 500,
+      "accuracy_pct": 83.4,
+      "no_hash_pct": 5.0,
+      "gen_len_mean": 251.5,
+      "L_to_answer_mean": 242.8,
+      "L_post_answer_mean": 8.7,
+      "rep_4gram_mean": 0.1203,
+      "hit_max_new_pct": 5.2,
+      "delta_len_vs_k8_mean": 0,
+      "delta_len_95ci": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "config": "fixed_k10",
+      "K": 10,
+      "n": 500,
+      "accuracy_pct": 80.0,
+      "no_hash_pct": 4.2,
+      "gen_len_mean": 246.1,
+      "L_to_answer_mean": 238.9,
+      "L_post_answer_mean": 7.2,
+      "rep_4gram_mean": 0.1193,
+      "hit_max_new_pct": 4.4,
+      "delta_len_vs_k8_mean": -5.4,
+      "delta_len_95ci": [
+        -9.62,
+        -1.28
+      ]
+    },
+    {
+      "config": "fixed_k12",
+      "K": 12,
+      "n": 500,
+      "accuracy_pct": 79.0,
+      "no_hash_pct": 4.0,
+      "gen_len_mean": 245.8,
+      "L_to_answer_mean": 238.6,
+      "L_post_answer_mean": 7.2,
+      "rep_4gram_mean": 0.1222,
+      "hit_max_new_pct": 4.0,
+      "delta_len_vs_k8_mean": -5.7,
+      "delta_len_95ci": [
+        -9.89,
+        -1.4
+      ]
+    }
+  ]
+}
