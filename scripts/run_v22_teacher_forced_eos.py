@@ -100,42 +100,40 @@ for qi, ex in enumerate(ds):
 
     # positions in the *generated* region: logits at index (plen-1 + t) predict gen token t
     G = len(base_seq)
-    ref_logits = None
-    for k in KSET:
-        lg = logits_for(full, k)  # [plen+G, V]
-        # prediction positions for generated tokens 0..G-1
-        pred_slice = lg[plen - 1: plen - 1 + G]  # [G, V]
+    def extract(k):
+        lg = logits_for(full, k)                      # [plen+G, V]
+        pred_slice = lg[plen - 1: plen - 1 + G]       # [G, V]
         logp = F.log_softmax(pred_slice, dim=-1)
         p = logp.exp()
-        ent = -(p * logp).sum(-1)  # [G]
-        eos_logp = logp[:, EOS]    # [G]
-        # margin z_EOS - max_{v!=EOS} z
+        ent = -(p * logp).sum(-1)                     # [G]
+        eos_logp = logp[:, EOS]                       # [G]
         z = pred_slice.clone()
         z_eos = z[:, EOS].clone()
         z[:, EOS] = float("-inf")
-        margin = z_eos - z.max(-1).values  # [G]
-        # NLL of the actual baseline next token
+        margin = z_eos - z.max(-1).values             # [G]
         tgt = torch.tensor(base_seq, device=DEV)
         nll = -logp.gather(-1, tgt.unsqueeze(-1)).squeeze(-1)  # [G]
-        row = {"eos_logp": eos_logp, "margin": margin, "ent": ent, "nll": nll, "logp": logp}
-        if k == TOPK:
-            ref_logits = logp
-        # termination zone = last W positions before baseline EOS
-        lo = max(0, base_eos - args.window)
-        zone = slice(lo, base_eos + 1)
+        return {"logp": logp, "eos_logp": eos_logp, "margin": margin, "ent": ent, "nll": nll}
+
+    # compute K=8 reference FIRST (so KL is available for ALL k, incl. k<8)
+    ref = extract(TOPK)
+    lo = max(0, base_eos - args.window)
+    zone = slice(lo, base_eos + 1)
+
+    for k in KSET:
+        row = ref if k == TOPK else extract(k)
+        kl = (ref["logp"].exp() * (ref["logp"] - row["logp"])).sum(-1)  # KL(p8 || pk) [G]
         rec = {
             "qi": qi, "k": k, "G": G, "base_eos": base_eos,
-            "eos_logp_at_eos": float(eos_logp[base_eos]),
-            "margin_at_eos": float(margin[base_eos]),
-            "eos_logp_zone_mean": float(eos_logp[zone].mean()),
-            "margin_zone_mean": float(margin[zone].mean()),
-            "entropy_zone_mean": float(ent[zone].mean()),
-            "nll_zone_mean": float(nll[zone].mean()),
+            "eos_logp_at_eos": float(row["eos_logp"][base_eos]),
+            "margin_at_eos": float(row["margin"][base_eos]),
+            "eos_logp_zone_mean": float(row["eos_logp"][zone].mean()),
+            "margin_zone_mean": float(row["margin"][zone].mean()),
+            "entropy_zone_mean": float(row["ent"][zone].mean()),
+            "nll_zone_mean": float(row["nll"][zone].mean()),
+            "kl_from_k8_zone_mean": float(kl[zone].mean()),
+            "kl_from_k8_at_eos": float(kl[base_eos]),
         }
-        if ref_logits is not None:
-            kl = (ref_logits.exp() * (ref_logits - row["logp"])).sum(-1)  # KL(p8 || pk) [G]
-            rec["kl_from_k8_zone_mean"] = float(kl[zone].mean())
-            rec["kl_from_k8_at_eos"] = float(kl[base_eos])
         results.append(rec)
     if qi < 20:  # dump per-position for a few problems for figures
         per_pos_dump.append({"qi": qi, "base_eos": base_eos, "G": G})
