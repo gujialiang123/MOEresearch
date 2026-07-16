@@ -88,6 +88,9 @@ def logits_for(full_ids, k):
 
 results = []
 per_pos_dump = []
+raw_path = f"{args.out}/per_problem_raw.jsonl"
+open(raw_path, "w").close()  # truncate; incremental append per problem (crash-safe)
+written = 0
 for qi, ex in enumerate(ds):
     text = tok.apply_chat_template([{"role": "user", "content": ex["question"] + SUFFIX}],
                                    tokenize=False, add_generation_prompt=True)
@@ -135,6 +138,12 @@ for qi, ex in enumerate(ds):
             "kl_from_k8_at_eos": float(kl[base_eos]),
         }
         results.append(rec)
+    # incremental: flush this problem's rows immediately (crash-safe, resumable-ish)
+    with open(raw_path, "a") as f:
+        for r in results[written:]:
+            f.write(json.dumps(r) + "\n")
+        f.flush(); os.fsync(f.fileno())
+    written = len(results)
     if qi < 20:  # dump per-position for a few problems for figures
         per_pos_dump.append({"qi": qi, "base_eos": base_eos, "G": G})
     if (qi + 1) % 10 == 0:
@@ -162,9 +171,7 @@ env = {"torch": torch.__version__, "transformers": __import__("transformers").__
        "git_commit": os.popen("git rev-parse HEAD 2>/dev/null").read().strip()}
 out = {"model": MODEL, "args": vars(args), "env": env, "window": args.window, "by_k": agg}
 json.dump(out, open(f"{args.out}/summary.json", "w"), indent=2)
-with open(f"{args.out}/per_problem_raw.jsonl", "w") as f:
-    for r in results:
-        f.write(json.dumps(r) + "\n")
+# per_problem_raw.jsonl was already written incrementally, per problem, above
 
 print("\n== Teacher-forced termination zone (last {} tok before baseline EOS) ==".format(args.window))
 print(f"{'K':>4}{'ood':>5}{'logp(EOS)@eos':>15}{'margin@eos':>12}{'logp(EOS)_zone':>16}{'margin_zone':>13}{'KL(p8||pk)':>12}")
