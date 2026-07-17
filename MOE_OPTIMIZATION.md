@@ -25,6 +25,9 @@ Agent workload 是 **decode-bound**（decode 占 wall 88–96%）；decode 里 *
 | **v19 Part A** | **decode/prefill wall 占比（扫并发）** | `scripts/run_v19_wall_sweep.sh` | `results/2026-07-15_v19_wall_sweep/` | （见 Part C） |
 | **v19 Part B** | **NCU decode kernel（11 指标，4 regime）** | `scripts/run_v19b_ncu_decode.py`, `parse_v19b_ncu.py` | `results/2026-07-15_v19b_ncu_decode/` | （见 Part C） |
 | **v19 Part C** | **decode 能拿多少 + gap 在哪（综合）** | — | `.../ncu_summary.json` | `docs/2026-07-15/v19_partC_decode_potential.md` |
+| **v20** | **Dynamic top-K 正确性修复+验证（P0：物理跳过/去同步/严格解析）** | `scripts/dynamic_topk_utils.py`, `run_v20_dynamic_topk_equivalence.py`, `tests/test_dynamic_topk.py` | `results/2026-07-16_v20_equivalence/` | `docs/2026-07-16/v20_dynamic_topk_validation.md` |
+| **v21** | **固定 top-K「K→生成长度」剂量曲线 + L_to/L_post 分解（GSM8K 500）** | `scripts/run_v20_dynamic_topk_free_generation.py`, `analyze_v21_k_vs_length.py` | `results/2026-07-16_v21_k_vs_length/` | `docs/2026-07-16/v21_k_vs_length_results.md` |
+| **v22** | **Teacher-forced 终止分析：直接终止效应 vs 轨迹中介（logp(EOS)/margin/KL）** | `scripts/run_v22_teacher_forced_eos.py` | `results/2026-07-16_v22_teacher_forced/` | `docs/2026-07-16/v22_teacher_forced_results.md` |
 
 **背景/调研文档**：
 - `docs/2026-07-15/moe_routing_optimization_survey.md` — router 次优性 + route-for-efficiency 文献调研

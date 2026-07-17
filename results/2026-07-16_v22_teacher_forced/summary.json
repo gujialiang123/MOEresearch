@@ -1,0 +1,80 @@
+{
+  "model": "/data/hf/models/Qwen3-30B-A3B-Instruct-2507",
+  "args": {
+    "limit": 100,
+    "kset": "4,6,8,10,12",
+    "max_new": 512,
+    "window": 64,
+    "out": "results/2026-07-16_v22_teacher_forced"
+  },
+  "env": {
+    "torch": "2.9.1+cu128",
+    "transformers": "4.57.1",
+    "cuda": "12.8",
+    "gpu": "NVIDIA H200",
+    "git_commit": "13720ee4642d9dcde25bbd6e17f673595183281f"
+  },
+  "window": 64,
+  "by_k": {
+    "4": {
+      "k": 4,
+      "ood": false,
+      "n": 100,
+      "eos_logp_at_eos_mean": -1.3366,
+      "margin_at_eos_mean": 10.2332,
+      "eos_logp_zone_mean": -39.184,
+      "margin_zone_mean": -38.9578,
+      "entropy_zone_mean": 0.098,
+      "nll_zone_mean": 0.2338,
+      "kl_from_k8_zone_mean": 0.18898
+    },
+    "6": {
+      "k": 6,
+      "ood": false,
+      "n": 100,
+      "eos_logp_at_eos_mean": -1.4022,
+      "margin_at_eos_mean": 14.6119,
+      "eos_logp_zone_mean": -42.8833,
+      "margin_zone_mean": -42.5993,
+      "entropy_zone_mean": 0.0761,
+      "nll_zone_mean": 0.1062,
+      "kl_from_k8_zone_mean": 0.07108
+    },
+    "8": {
+      "k": 8,
+      "ood": false,
+      "n": 100,
+      "eos_logp_at_eos_mean": -1.3936,
+      "margin_at_eos_mean": 15.645,
+      "eos_logp_zone_mean": -46.0637,
+      "margin_zone_mean": -45.7667,
+      "entropy_zone_mean": 0.0724,
+      "nll_zone_mean": 0.0353,
+      "kl_from_k8_zone_mean": 0.0
+    },
+    "10": {
+      "k": 10,
+      "ood": true,
+      "n": 100,
+      "eos_logp_at_eos_mean": -1.4074,
+      "margin_at_eos_mean": 15.4863,
+      "eos_logp_zone_mean": -45.5931,
+      "margin_zone_mean": -45.298,
+      "entropy_zone_mean": 0.0714,
+      "nll_zone_mean": 0.0406,
+      "kl_from_k8_zone_mean": 0.00646
+    },
+    "12": {
+      "k": 12,
+      "ood": true,
+      "n": 100,
+      "eos_logp_at_eos_mean": -1.3936,
+      "margin_at_eos_mean": 15.6538,
+      "eos_logp_zone_mean": -46.0768,
+      "margin_zone_mean": -45.7796,
+      "entropy_zone_mean": 0.0726,
+      "nll_zone_mean": 0.036,
+      "kl_from_k8_zone_mean": 0.00036
+    }
+  }
+}
