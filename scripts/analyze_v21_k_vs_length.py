@@ -14,7 +14,7 @@ Run: python scripts/analyze_v21_k_vs_length.py [--dir results/2026-07-16_v21_k_v
 import os, sys, json, glob, argparse, statistics, random
 
 ap = argparse.ArgumentParser()
-ap.add_argument("--dir", default="/home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-07-16_v21_k_vs_length")
+ap.add_argument("--dir", default="/home/t-jialianggu/work/MOEresearch/results/2026-07-16_v21_k_vs_length")
 args = ap.parse_args()
 
 def load(name):

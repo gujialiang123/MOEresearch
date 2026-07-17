@@ -1,0 +1,49 @@
+loading model...
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:  12%|█▎        | 2/16 [00:00<00:01, 11.34it/s]Loading checkpoint shards:  25%|██▌       | 4/16 [00:00<00:01, 10.85it/s]Loading checkpoint shards:  38%|███▊      | 6/16 [00:00<00:00, 10.80it/s]Loading checkpoint shards:  50%|█████     | 8/16 [00:00<00:00, 10.77it/s]Loading checkpoint shards:  62%|██████▎   | 10/16 [00:00<00:00, 10.82it/s]Loading checkpoint shards:  75%|███████▌  | 12/16 [00:01<00:00, 10.71it/s]Loading checkpoint shards:  88%|████████▊ | 14/16 [00:01<00:00, 10.55it/s]Loading checkpoint shards: 100%|██████████| 16/16 [00:01<00:00, 12.30it/s]Loading checkpoint shards: 100%|██████████| 16/16 [00:01<00:00, 11.32it/s]
+E=128 topk=8 L=48
+
+=== topk=8 ===
+The following generation flags are not valid and may be ignored: ['temperature', 'top_p', 'top_k']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+  topk=8 batch 1: 300.7s (64 q)
+  topk=8 batch 2: 284.3s (64 q)
+  topk=8 batch 3: 292.8s (64 q)
+  topk=8 batch 4: 110.4s (8 q)
+{"topk": 8, "accuracy": 0.835, "correct": 167, "n": 200, "wall_s": 988.2, "total_gen_tokens": 48792, "tok_per_s": 49.4, "avg_gen_tokens": 244.0, "median_gen_tokens": 225, "p90_gen_tokens": 400, "s_per_q": 4.941}
+
+=== topk=7 ===
+  topk=7 batch 1: 281.4s (64 q)
+  topk=7 batch 2: 265.8s (64 q)
+  topk=7 batch 3: 283.8s (64 q)
+  topk=7 batch 4: 105.1s (8 q)
+{"topk": 7, "accuracy": 0.83, "correct": 166, "n": 200, "wall_s": 936.1, "total_gen_tokens": 49614, "tok_per_s": 53.0, "avg_gen_tokens": 248.1, "median_gen_tokens": 233, "p90_gen_tokens": 400, "s_per_q": 4.681}
+
+=== topk=6 ===
+  topk=6 batch 1: 275.1s (64 q)
+  topk=6 batch 2: 269.8s (64 q)
+  topk=6 batch 3: 269.5s (64 q)
+  topk=6 batch 4: 94.2s (8 q)
+{"topk": 6, "accuracy": 0.83, "correct": 166, "n": 200, "wall_s": 908.6, "total_gen_tokens": 50397, "tok_per_s": 55.5, "avg_gen_tokens": 252.0, "median_gen_tokens": 247, "p90_gen_tokens": 400, "s_per_q": 4.543}
+
+=== topk=5 ===
+  topk=5 batch 1: 269.5s (64 q)
+  topk=5 batch 2: 259.9s (64 q)
+  topk=5 batch 3: 252.6s (64 q)
+  topk=5 batch 4: 96.5s (8 q)
+{"topk": 5, "accuracy": 0.8, "correct": 160, "n": 200, "wall_s": 878.6, "total_gen_tokens": 52096, "tok_per_s": 59.3, "avg_gen_tokens": 260.5, "median_gen_tokens": 253, "p90_gen_tokens": 400, "s_per_q": 4.393}
+
+=== topk=4 ===
+  topk=4 batch 1: 238.3s (64 q)
+  topk=4 batch 2: 238.7s (64 q)
+  topk=4 batch 3: 247.4s (64 q)
+  topk=4 batch 4: 91.7s (8 q)
+{"topk": 4, "accuracy": 0.75, "correct": 150, "n": 200, "wall_s": 816.1, "total_gen_tokens": 54917, "tok_per_s": 67.3, "avg_gen_tokens": 274.6, "median_gen_tokens": 267, "p90_gen_tokens": 400, "s_per_q": 4.081}
+
+== GSM8K accuracy + time vs topk ==
+ topk     acc  drop_pp   wall_s    tok/s  avg_tok  speedup
+    8   83.5%     0.0    988.2     49.4    244.0    1.00x
+    7   83.0%     0.5    936.1     53.0    248.1    1.06x
+    6   83.0%     0.5    908.6     55.5    252.0    1.09x
+    5   80.0%     3.5    878.6     59.3    260.5    1.12x
+    4   75.0%     8.5    816.1     67.3    274.6    1.21x
+
+wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-07-15_v17_gsm8k_topk/gsm8k_vs_topk.json

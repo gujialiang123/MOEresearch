@@ -19,8 +19,8 @@ exec /home/t-jialianggu/.conda/envs/sglang-dev/bin/python -m sglang.bench_one_ba
   --profile \
   --profile-activities CUDA_PROFILER \
   --profile-stage prefill \
-  --profile-filename-prefix /home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-07-10_v9_ncu_realworkload/lfm2.5-8b-a1b/agent_prefill_b1/sglang_bench \
-  --result-filename /home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-07-10_v9_ncu_realworkload/lfm2.5-8b-a1b/agent_prefill_b1/bench_one_batch_result.jsonl \
+  --profile-filename-prefix /home/t-jialianggu/work/MOEresearch/results/2026-07-10_v9_ncu_realworkload/lfm2.5-8b-a1b/agent_prefill_b1/sglang_bench \
+  --result-filename /home/t-jialianggu/work/MOEresearch/results/2026-07-10_v9_ncu_realworkload/lfm2.5-8b-a1b/agent_prefill_b1/bench_one_batch_result.jsonl \
   --run-name ncu_v9 \
   --mem-fraction-static 0.85 \
   --chunked-prefill-size 4096 \

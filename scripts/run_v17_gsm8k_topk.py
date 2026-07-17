@@ -16,7 +16,7 @@ from transformers.models.qwen3_moe import modeling_qwen3_moe as M
 from datasets import load_dataset
 
 MODEL = "/data/hf/models/Qwen3-30B-A3B-Instruct-2507"
-OUT = "/home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-07-15_v17_gsm8k_topk"
+OUT = "/home/t-jialianggu/work/MOEresearch/results/2026-07-15_v17_gsm8k_topk"
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--limit", type=int, default=200)

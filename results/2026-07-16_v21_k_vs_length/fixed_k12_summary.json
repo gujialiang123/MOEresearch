@@ -1,0 +1,23 @@
+{
+  "config": "fixed_k12",
+  "ood_super_native": true,
+  "n": 500,
+  "strict_accuracy": 0.79,
+  "correct": 395,
+  "parse_failures": 93,
+  "no_hash_frac": 0.04,
+  "avg_k_decode": 12.0,
+  "avg_k_prefill": 12.0,
+  "gen_len_mean": 245.8,
+  "gen_len_median": 225,
+  "gen_len_p90": 392,
+  "gen_len_max": 512,
+  "hit_max_new_frac": 0.04,
+  "L_to_answer_mean": 238.6,
+  "L_post_answer_mean": 7.2,
+  "L_to_answer_mean_withhash": 227.2,
+  "L_post_answer_mean_withhash": 7.5,
+  "rep_4gram_mean": 0.1222,
+  "eos_emitted_frac": 0.96,
+  "generation_wall_ms": 2768878.6
+}

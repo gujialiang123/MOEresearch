@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-BASE = Path("/home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-06-09_sglang_triton_sweep")
+BASE = Path("/home/t-jialianggu/work/MOEresearch/results/2026-06-09_sglang_triton_sweep")
 REGIMES = ["R_short_decode", "R_medium_balanced", "R_long_prefill", "R_concurrent_decode"]
 
 REGIME_META = {

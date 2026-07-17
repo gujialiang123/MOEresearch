@@ -6,7 +6,7 @@ GPU=${GPUID:-4}
 NCU=/opt/nvidia/nsight-compute/2026.2.1/ncu
 CONDA=/home/t-jialianggu/.conda/envs/sglang-dev
 MODELP=/data/hf/models/Qwen3-30B-A3B-Instruct-2507
-OUT=/home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-07-15_v12_ncu_spec/$VARIANT
+OUT=/home/t-jialianggu/work/MOEresearch/results/2026-07-15_v12_ncu_spec/$VARIANT
 mkdir -p $OUT
 SPEC=""
 [ "$VARIANT" = "ngram" ] && SPEC="--speculative-algorithm NGRAM --speculative-num-draft-tokens 8 --speculative-num-steps 4"

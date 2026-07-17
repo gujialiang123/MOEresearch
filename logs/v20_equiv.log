@@ -1,0 +1,12 @@
+loading model...
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:  12%|█▎        | 2/16 [00:00<00:00, 14.24it/s]Loading checkpoint shards:  25%|██▌       | 4/16 [00:00<00:00, 13.36it/s]Loading checkpoint shards:  38%|███▊      | 6/16 [00:00<00:00, 13.10it/s]Loading checkpoint shards:  50%|█████     | 8/16 [00:00<00:00, 13.02it/s]Loading checkpoint shards:  62%|██████▎   | 10/16 [00:00<00:00, 13.00it/s]Loading checkpoint shards:  75%|███████▌  | 12/16 [00:00<00:00, 12.93it/s]Loading checkpoint shards:  88%|████████▊ | 14/16 [00:01<00:00, 12.95it/s]Loading checkpoint shards: 100%|██████████| 16/16 [00:01<00:00, 13.79it/s]
+E=128 topk=8 L=48, 48 MoE blocks
+[keep-all renorm_survivors] MoE max_abs=0.00e+00 rel_L2=0.00e+00 logit_err=0.00e+00
+[keep-all no_renorm] MoE max_abs=0.00e+00 rel_L2=0.00e+00 logit_err=0.00e+00
+[keep-all fold_mass_to_top1] MoE max_abs=0.00e+00 rel_L2=0.00e+00 logit_err=0.00e+00
+The following generation flags are not valid and may be ignored: ['temperature', 'top_p', 'top_k']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+[greedy keep-all] token-for-token match: [True, True]
+[dynamic tau=0.7 decode_only] stats: {'avg_k_prefill': 8.0, 'avg_k_decode': 4.9395, 'tok_prefill': 1392, 'tok_decode': 3024, 'k_sum_prefill': 11136, 'k_sum_decode': 14937}
+
+ACCEPTANCE_PASS = True
+wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-07-16_v20_equivalence/equivalence_report.json

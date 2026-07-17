@@ -29,7 +29,7 @@ ap.add_argument("--configs", type=str, default="fixed_k4,fixed_k6,fixed_k8,fixed
 ap.add_argument("--phase", type=str, default="all")
 ap.add_argument("--renorm", type=str, default="renorm_survivors")
 ap.add_argument("--out", type=str,
-                default="/home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-07-16_v21_k_vs_length")
+                default="/home/t-jialianggu/work/MOEresearch/results/2026-07-16_v21_k_vs_length")
 args = ap.parse_args()
 OUT = args.out
 os.makedirs(OUT, exist_ok=True)

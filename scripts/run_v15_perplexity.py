@@ -16,7 +16,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from transformers.models.qwen3_moe import modeling_qwen3_moe as M
 
 MODEL = "/data/hf/models/Qwen3-30B-A3B-Instruct-2507"
-OUT = "/home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-07-15_v15_ppl"
+OUT = "/home/t-jialianggu/work/MOEresearch/results/2026-07-15_v15_ppl"
 os.makedirs(OUT, exist_ok=True)
 
 tok = AutoTokenizer.from_pretrained(MODEL, trust_remote_code=True)

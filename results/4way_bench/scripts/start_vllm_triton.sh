@@ -23,4 +23,4 @@ vllm serve /data/hf/models/Qwen3-30B-A3B-Instruct-2507 \
   --max-num-seqs 32 \
   --dtype bfloat16 \
   --trust-remote-code \
-  > /home/t-jialianggu/work/EndtoEnd-auto-optimization/results/4way_bench/vllm_triton/server.log 2>&1
+  > /home/t-jialianggu/work/MOEresearch/results/4way_bench/vllm_triton/server.log 2>&1

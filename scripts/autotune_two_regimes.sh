@@ -4,7 +4,7 @@
 set -euo pipefail
 
 GPU="$1"; PORT="$2"; REGIME_A="$3"; REGIME_B="$4"; N="$5"
-REPO="/home/t-jialianggu/work/EndtoEnd-auto-optimization"
+REPO="/home/t-jialianggu/work/MOEresearch"
 PY="/home/t-jialianggu/.conda/envs/sglang-dev/bin/python"
 
 cd "$REPO"

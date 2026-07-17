@@ -5,7 +5,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-OUT = "/home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-07-15_v16_router_dist"
+OUT = "/home/t-jialianggu/work/MOEresearch/results/2026-07-15_v16_router_dist"
 d = np.load(f"{OUT}/raw.npz")
 E = int(d["E"]); TOPK = int(d["TOPK"])
 ec20 = d["expert_counts_layer20"]; cum_share = d["cum_share"]

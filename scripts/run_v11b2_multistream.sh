@@ -16,7 +16,7 @@ else
 fi
 NSYS=/home/t-chendili/cuda/12.9/bin/nsys
 CONDA=/home/t-jialianggu/.conda/envs/sglang-dev
-OUT=/home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-07-15_v11b2_multistream/$NAME/streams$STREAMS
+OUT=/home/t-jialianggu/work/MOEresearch/results/2026-07-15_v11b2_multistream/$NAME/streams$STREAMS
 mkdir -p $OUT
 export HOME=/home/t-jialianggu CUDA_VISIBLE_DEVICES=$GPU CUDA_HOME=$CONDA
 export PATH=$CONDA/bin:/usr/local/bin:/usr/bin:/bin

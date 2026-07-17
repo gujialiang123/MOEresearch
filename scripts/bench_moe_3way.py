@@ -189,7 +189,7 @@ def main():
     
     print(f"\nH200 bf16 theoretical peak: {H200_PEAK} TFLOPS")
     
-    out_path = "/home/t-jialianggu/work/EndtoEnd-auto-optimization/results/cuda_vs_triton_bench.json"
+    out_path = "/home/t-jialianggu/work/MOEresearch/results/cuda_vs_triton_bench.json"
     with open(out_path, "w") as f:
         json.dump({"model": "Qwen3-30B-A3B", "gpu": "NVIDIA H200",
                    "h200_bf16_peak_tflops": H200_PEAK,

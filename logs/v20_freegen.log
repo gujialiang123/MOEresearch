@@ -1,0 +1,19 @@
+loading model...
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:  12%|█▎        | 2/16 [00:00<00:00, 14.75it/s]Loading checkpoint shards:  25%|██▌       | 4/16 [00:00<00:00, 13.98it/s]Loading checkpoint shards:  38%|███▊      | 6/16 [00:00<00:00, 13.73it/s]Loading checkpoint shards:  50%|█████     | 8/16 [00:00<00:00, 13.51it/s]Loading checkpoint shards:  62%|██████▎   | 10/16 [00:00<00:00, 13.53it/s]Loading checkpoint shards:  75%|███████▌  | 12/16 [00:00<00:00, 13.37it/s]Loading checkpoint shards:  88%|████████▊ | 14/16 [00:01<00:00, 13.43it/s]Loading checkpoint shards: 100%|██████████| 16/16 [00:01<00:00, 14.35it/s]
+
+=== baseline ===
+The following generation flags are not valid and may be ignored: ['temperature', 'top_p', 'top_k']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+{"config": "baseline", "n": 16, "strict_accuracy": 0.625, "correct": 10, "parse_failures": 6, "avg_k_decode": 8.0, "avg_k_prefill": 8.0, "gen_len_mean": 266.7, "gen_len_median": 247, "gen_len_p90": 400, "gen_len_max": 400, "hit_max_new_frac": 0.188, "generation_wall_ms": 149058.2}
+
+=== fixed_k5 ===
+{"config": "fixed_k5", "n": 16, "strict_accuracy": 0.6875, "correct": 11, "parse_failures": 5, "avg_k_decode": 5.0, "avg_k_prefill": 5.0, "gen_len_mean": 292.5, "gen_len_median": 312, "gen_len_p90": 400, "gen_len_max": 400, "hit_max_new_frac": 0.188, "generation_wall_ms": 126329.2}
+
+=== dyn_tau0.7 ===
+{"config": "dyn_tau0.7", "n": 16, "strict_accuracy": 0.625, "correct": 10, "parse_failures": 6, "avg_k_decode": 4.8525, "avg_k_prefill": 8.0, "gen_len_mean": 300.8, "gen_len_median": 314, "gen_len_p90": 400, "gen_len_max": 400, "hit_max_new_frac": 0.375, "generation_wall_ms": 135192.6}
+
+== SMALL validation: config | acc | parse_fail | avg_k_dec | gen_len_mean | wall_ms ==
+baseline       acc= 62.5% pf=6 k_dec=8.0 len=267 wall=149058ms
+fixed_k5       acc= 68.8% pf=5 k_dec=5.0 len=292 wall=126329ms
+dyn_tau0.7     acc= 62.5% pf=6 k_dec=4.8525 len=301 wall=135193ms
+
+wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-07-16_v20_free_gen/summary.json

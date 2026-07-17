@@ -22,7 +22,7 @@ REGIME=${1:?usage: $0 <regime_id> <gpu_id> <port>}
 GPU=${2:?usage: $0 <regime_id> <gpu_id> <port>}
 PORT=${3:?usage: $0 <regime_id> <gpu_id> <port>}
 
-REPO=/home/t-jialianggu/work/EndtoEnd-auto-optimization
+REPO=/home/t-jialianggu/work/MOEresearch
 NSYS=/home/t-chendili/cuda/12.6/bin/nsys
 PY=/home/t-jialianggu/.conda/envs/sglang-dev/bin/python
 

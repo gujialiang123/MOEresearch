@@ -1,0 +1,12 @@
+
+=== qwen3-30b-a3b-bf16 / agent_decode_b128 (0.0m) ===
+  NCU qwen3-30b-a3b-bf16 × agent_decode_b128 (b=128 decode)...
+    exit=0 wall=765s
+    CSV 41980 bytes
+
+=== qwen3-30b-a3b-bf16 / agent_prefill_b1 (12.8m) ===
+  NCU qwen3-30b-a3b-bf16 × agent_prefill_b1 (b=1 prefill)...
+    exit=0 wall=492s
+    CSV 42027 bytes
+
+=== v19b NCU [qwen3-30b-a3b-bf16] done in 21.0 min ===

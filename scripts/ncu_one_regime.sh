@@ -7,7 +7,7 @@ REGIME=$1
 
 ENV=/home/t-jialianggu/.conda/envs/sglang-dev
 NCU=/home/t-chendili/.conda/pkgs/nsight-compute-2026.1.1.2-h1ff7d1d_0/bin/ncu
-REPO=/home/t-jialianggu/work/EndtoEnd-auto-optimization
+REPO=/home/t-jialianggu/work/MOEresearch
 OUT_DIR=$REPO/results/2026-06-09_sglang_triton_sweep/ncu/$REGIME
 mkdir -p $OUT_DIR
 

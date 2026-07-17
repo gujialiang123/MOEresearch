@@ -13,7 +13,7 @@ else
 fi
 NSYS=/home/t-chendili/cuda/12.9/bin/nsys
 CONDA=/home/t-jialianggu/.conda/envs/sglang-dev
-OUT=/home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-07-10_v9d_nsys/$NAME
+OUT=/home/t-jialianggu/work/MOEresearch/results/2026-07-10_v9d_nsys/$NAME
 mkdir -p $OUT
 
 export HOME=/home/t-jialianggu CUDA_VISIBLE_DEVICES=$GPU CUDA_HOME=$CONDA

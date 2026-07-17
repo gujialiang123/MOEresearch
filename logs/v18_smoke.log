@@ -1,0 +1,19 @@
+loading model...
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:  12%|█▎        | 2/16 [00:00<00:01, 13.12it/s]Loading checkpoint shards:  25%|██▌       | 4/16 [00:00<00:00, 12.48it/s]Loading checkpoint shards:  38%|███▊      | 6/16 [00:00<00:00, 12.44it/s]Loading checkpoint shards:  50%|█████     | 8/16 [00:00<00:00, 12.34it/s]Loading checkpoint shards:  62%|██████▎   | 10/16 [00:00<00:00, 12.30it/s]Loading checkpoint shards:  75%|███████▌  | 12/16 [00:00<00:00, 11.99it/s]Loading checkpoint shards:  88%|████████▊ | 14/16 [00:01<00:00, 11.66it/s]Loading checkpoint shards: 100%|██████████| 16/16 [00:01<00:00, 12.74it/s]
+E=128 topk=8 L=48
+
+=== dynamic tau=0.8 (kmin=1, kmax=8) ===
+The following generation flags are not valid and may be ignored: ['temperature', 'top_p', 'top_k']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+  batch 1: 8 q, avg_k so far=5.731
+{"accuracy": 1.0, "correct": 8, "n": 8, "wall_s": 154.3, "avg_k": 5.731, "total_gen_tokens": 1887, "tok_per_s": 12.2, "avg_gen_tokens": 235.9, "tau": 0.8, "kmin": 1, "kmax": 8}
+
+=== dynamic tau=0.9 (kmin=1, kmax=8) ===
+  batch 1: 8 q, avg_k so far=6.938
+{"accuracy": 1.0, "correct": 8, "n": 8, "wall_s": 129.3, "avg_k": 6.938, "total_gen_tokens": 1926, "tok_per_s": 14.9, "avg_gen_tokens": 240.8, "tau": 0.9, "kmin": 1, "kmax": 8}
+
+== DYNAMIC top-k: accuracy vs realized avg-k ==
+   tau   avg_k     acc   wall_s  avg_gen
+   0.8   5.731  100.0%    154.3    235.9
+   0.9   6.938  100.0%    129.3    240.8
+
+wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-07-15_v18_dynamic_topk/dynamic_vs_tau.json

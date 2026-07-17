@@ -4,7 +4,7 @@
 # C8 = triton_kernel       — triton_kernels library's matmul_ogs
 set +e
 eval "$(conda shell.bash hook)" && conda activate sglang-dev
-cd /home/t-jialianggu/work/EndtoEnd-auto-optimization
+cd /home/t-jialianggu/work/MOEresearch
 
 wait_port_free() {
   local port=$1

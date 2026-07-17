@@ -15,7 +15,7 @@ else
   MODELP=/data/hf/models/Qwen3-30B-A3B-Instruct-2507; CHUNK=16384; NAME=qwen3-30b-a3b-bf16
 fi
 CONDA=/home/t-jialianggu/.conda/envs/sglang-dev
-OUT=/home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-07-15_v19_wall_sweep/$NAME
+OUT=/home/t-jialianggu/work/MOEresearch/results/2026-07-15_v19_wall_sweep/$NAME
 mkdir -p $OUT
 
 export HOME=/home/t-jialianggu CUDA_VISIBLE_DEVICES=$GPU CUDA_HOME=$CONDA

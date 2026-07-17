@@ -17,7 +17,7 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 MODEL = "/data/hf/models/Qwen3-30B-A3B-Instruct-2507"
-OUT = "/home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-07-15_v16_router_dist"
+OUT = "/home/t-jialianggu/work/MOEresearch/results/2026-07-15_v16_router_dist"
 os.makedirs(OUT, exist_ok=True)
 
 tok = AutoTokenizer.from_pretrained(MODEL, trust_remote_code=True)

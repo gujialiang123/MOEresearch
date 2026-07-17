@@ -1,0 +1,71 @@
+loading model...
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:  12%|█▎        | 2/16 [00:00<00:01, 12.73it/s]Loading checkpoint shards:  25%|██▌       | 4/16 [00:00<00:00, 12.34it/s]Loading checkpoint shards:  38%|███▊      | 6/16 [00:00<00:00, 12.33it/s]Loading checkpoint shards:  50%|█████     | 8/16 [00:00<00:00, 12.21it/s]Loading checkpoint shards:  62%|██████▎   | 10/16 [00:00<00:00, 12.04it/s]Loading checkpoint shards:  75%|███████▌  | 12/16 [00:01<00:00, 11.65it/s]Loading checkpoint shards:  88%|████████▊ | 14/16 [00:01<00:00, 11.81it/s]Loading checkpoint shards: 100%|██████████| 16/16 [00:01<00:00, 12.68it/s]
+Using the latest cached version of the dataset since gsm8k couldn't be found on the Hugging Face Hub
+WARNING:datasets.load:Using the latest cached version of the dataset since gsm8k couldn't be found on the Hugging Face Hub
+Found the latest cached dataset configuration 'main' at /home/t-jialianggu/work/EndtoEnd-auto-optimization/.hf_cache/datasets/gsm8k/main/0.0.0/740312add88f781978c0658806c59bc2815b9866 (last modified on Wed Jul 15 20:39:51 2026).
+WARNING:datasets.packaged_modules.cache.cache:Found the latest cached dataset configuration 'main' at /home/t-jialianggu/work/EndtoEnd-auto-optimization/.hf_cache/datasets/gsm8k/main/0.0.0/740312add88f781978c0658806c59bc2815b9866 (last modified on Wed Jul 15 20:39:51 2026).
+
+=== fixed_k8 ===
+The following generation flags are not valid and may be ignored: ['temperature', 'top_p', 'top_k']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+  [fixed_k8] 64/500 samples written
+  [fixed_k8] 128/500 samples written
+  [fixed_k8] 192/500 samples written
+  [fixed_k8] 256/500 samples written
+  [fixed_k8] 320/500 samples written
+  [fixed_k8] 384/500 samples written
+  [fixed_k8] 448/500 samples written
+  [fixed_k8] 500/500 samples written
+{"config": "fixed_k8", "ood_super_native": false, "n": 500, "strict_accuracy": 0.834, "correct": 417, "parse_failures": 76, "no_hash_frac": 0.05, "avg_k_decode": 8.0, "avg_k_prefill": 8.0, "gen_len_mean": 251.5, "gen_len_median": 228, "gen_len_p90": 414, "gen_len_max": 512, "hit_max_new_frac": 0.052, "L_to_answer_mean": 242.8, "L_post_answer_mean": 8.7, "L_to_answer_mean_withhash": 228.6, "L_post_answer_mean_withhash": 9.2, "rep_4gram_mean": 0.1203, "eos_emitted_frac": 0.948, "generation_wall_ms": 2395524.8}
+
+=== fixed_k4 ===
+  [fixed_k4] 64/500 samples written
+  [fixed_k4] 128/500 samples written
+  [fixed_k4] 192/500 samples written
+  [fixed_k4] 256/500 samples written
+  [fixed_k4] 320/500 samples written
+  [fixed_k4] 384/500 samples written
+  [fixed_k4] 448/500 samples written
+  [fixed_k4] 500/500 samples written
+{"config": "fixed_k4", "ood_super_native": false, "n": 500, "strict_accuracy": 0.748, "correct": 374, "parse_failures": 117, "no_hash_frac": 0.194, "avg_k_decode": 4.0, "avg_k_prefill": 4.0, "gen_len_mean": 289.5, "gen_len_median": 262, "gen_len_p90": 512, "gen_len_max": 512, "hit_max_new_frac": 0.144, "L_to_answer_mean": 277.7, "L_post_answer_mean": 11.8, "L_to_answer_mean_withhash": 238.7, "L_post_answer_mean_withhash": 14.7, "rep_4gram_mean": 0.1208, "eos_emitted_frac": 0.856, "generation_wall_ms": 1938001.0}
+
+=== fixed_k6 ===
+  [fixed_k6] 64/500 samples written
+  [fixed_k6] 128/500 samples written
+  [fixed_k6] 192/500 samples written
+  [fixed_k6] 256/500 samples written
+  [fixed_k6] 320/500 samples written
+  [fixed_k6] 384/500 samples written
+  [fixed_k6] 448/500 samples written
+  [fixed_k6] 500/500 samples written
+{"config": "fixed_k6", "ood_super_native": false, "n": 500, "strict_accuracy": 0.858, "correct": 429, "parse_failures": 63, "no_hash_frac": 0.052, "avg_k_decode": 6.0, "avg_k_prefill": 6.0, "gen_len_mean": 260.6, "gen_len_median": 239, "gen_len_p90": 419, "gen_len_max": 512, "hit_max_new_frac": 0.058, "L_to_answer_mean": 250.2, "L_post_answer_mean": 10.3, "L_to_answer_mean_withhash": 235.9, "L_post_answer_mean_withhash": 10.9, "rep_4gram_mean": 0.1209, "eos_emitted_frac": 0.942, "generation_wall_ms": 2120986.1}
+
+=== fixed_k10 ===
+  [fixed_k10] 64/500 samples written
+  [fixed_k10] 128/500 samples written
+  [fixed_k10] 192/500 samples written
+  [fixed_k10] 256/500 samples written
+  [fixed_k10] 320/500 samples written
+  [fixed_k10] 384/500 samples written
+  [fixed_k10] 448/500 samples written
+  [fixed_k10] 500/500 samples written
+{"config": "fixed_k10", "ood_super_native": true, "n": 500, "strict_accuracy": 0.8, "correct": 400, "parse_failures": 90, "no_hash_frac": 0.042, "avg_k_decode": 10.0, "avg_k_prefill": 10.0, "gen_len_mean": 246.1, "gen_len_median": 222, "gen_len_p90": 391, "gen_len_max": 512, "hit_max_new_frac": 0.044, "L_to_answer_mean": 238.9, "L_post_answer_mean": 7.2, "L_to_answer_mean_withhash": 226.9, "L_post_answer_mean_withhash": 7.5, "rep_4gram_mean": 0.1193, "eos_emitted_frac": 0.956, "generation_wall_ms": 2564379.6}
+
+=== fixed_k12 ===
+  [fixed_k12] 64/500 samples written
+  [fixed_k12] 128/500 samples written
+  [fixed_k12] 192/500 samples written
+  [fixed_k12] 256/500 samples written
+  [fixed_k12] 320/500 samples written
+  [fixed_k12] 384/500 samples written
+  [fixed_k12] 448/500 samples written
+  [fixed_k12] 500/500 samples written
+{"config": "fixed_k12", "ood_super_native": true, "n": 500, "strict_accuracy": 0.79, "correct": 395, "parse_failures": 93, "no_hash_frac": 0.04, "avg_k_decode": 12.0, "avg_k_prefill": 12.0, "gen_len_mean": 245.8, "gen_len_median": 225, "gen_len_p90": 392, "gen_len_max": 512, "hit_max_new_frac": 0.04, "L_to_answer_mean": 238.6, "L_post_answer_mean": 7.2, "L_to_answer_mean_withhash": 227.2, "L_post_answer_mean_withhash": 7.5, "rep_4gram_mean": 0.1222, "eos_emitted_frac": 0.96, "generation_wall_ms": 2768878.6}
+
+== config | K | acc | pf | no_hash | len | L_to_ans | L_post | rep4 | wall ==
+fixed_k8    k=8.0 acc= 83.4% pf=76 noH=0.05 len=252 Lto=243 Lpost=9 rep=0.120 wall=2396s
+fixed_k4    k=4.0 acc= 74.8% pf=117 noH=0.19 len=290 Lto=278 Lpost=12 rep=0.121 wall=1938s
+fixed_k6    k=6.0 acc= 85.8% pf=63 noH=0.05 len=261 Lto=250 Lpost=10 rep=0.121 wall=2121s
+fixed_k10   k=10.0 acc= 80.0% pf=90 noH=0.04 len=246 Lto=239 Lpost=7 rep=0.119 wall=2564s
+fixed_k12   k=12.0 acc= 79.0% pf=93 noH=0.04 len=246 Lto=239 Lpost=7 rep=0.122 wall=2769s
+
+wrote results/2026-07-16_v21_k_vs_length/summary.json

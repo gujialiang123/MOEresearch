@@ -3,7 +3,7 @@
 # Logs to /tmp/ncu_batch_<regime>.log per regime.
 # Designed to run as detached background job (nohup + &).
 set -uo pipefail
-SCRIPT=/home/t-jialianggu/work/EndtoEnd-auto-optimization/scripts/bench_ncu_one_regime.sh
+SCRIPT=/home/t-jialianggu/work/MOEresearch/scripts/bench_ncu_one_regime.sh
 LOGDIR=/tmp/ncu_batch
 mkdir -p $LOGDIR
 echo "[$(date)] starting NCU batch" > $LOGDIR/index.log

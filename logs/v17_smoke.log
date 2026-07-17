@@ -1,0 +1,19 @@
+loading model...
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:  12%|█▎        | 2/16 [00:00<00:01, 11.77it/s]Loading checkpoint shards:  25%|██▌       | 4/16 [00:01<00:04,  2.56it/s]Loading checkpoint shards:  38%|███▊      | 6/16 [00:01<00:02,  3.96it/s]Loading checkpoint shards:  50%|█████     | 8/16 [00:01<00:01,  5.29it/s]Loading checkpoint shards:  62%|██████▎   | 10/16 [00:01<00:00,  6.49it/s]Loading checkpoint shards:  75%|███████▌  | 12/16 [00:02<00:00,  7.52it/s]Loading checkpoint shards:  88%|████████▊ | 14/16 [00:02<00:00,  8.27it/s]Loading checkpoint shards: 100%|██████████| 16/16 [00:02<00:00, 10.08it/s]Loading checkpoint shards: 100%|██████████| 16/16 [00:02<00:00,  6.65it/s]
+E=128 topk=8 L=48
+
+=== topk=8 ===
+The following generation flags are not valid and may be ignored: ['temperature', 'top_p', 'top_k']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+  topk=8 batch 1: 117.3s (8 q)
+{"topk": 8, "accuracy": 1.0, "correct": 8, "n": 8, "wall_s": 117.3, "total_gen_tokens": 1767, "tok_per_s": 15.1, "avg_gen_tokens": 220.9, "median_gen_tokens": 225, "p90_gen_tokens": 300, "s_per_q": 14.668}
+
+=== topk=4 ===
+  topk=4 batch 1: 109.1s (8 q)
+{"topk": 4, "accuracy": 1.0, "correct": 8, "n": 8, "wall_s": 109.1, "total_gen_tokens": 2401, "tok_per_s": 22.0, "avg_gen_tokens": 300.1, "median_gen_tokens": 262, "p90_gen_tokens": 479, "s_per_q": 13.641}
+
+== GSM8K accuracy + time vs topk ==
+ topk     acc  drop_pp   wall_s    tok/s  avg_tok  speedup
+    8  100.0%     0.0    117.3     15.1    220.9    1.00x
+    4  100.0%     0.0    109.1     22.0    300.1    1.07x
+
+wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-07-15_v17_gsm8k_topk/gsm8k_vs_topk.json

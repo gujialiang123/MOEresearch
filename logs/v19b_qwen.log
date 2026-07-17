@@ -1,0 +1,41 @@
+
+=== qwen3-30b-a3b-bf16 / agent_decode_b32 (0.0m) ===
+  NCU qwen3-30b-a3b-bf16 × agent_decode_b32 (b=32 decode)...
+  ERROR: Command '['sudo', '-n', '/opt/nvidia/nsight-compute/2026.2.1/ncu', '--target-processes', 'all', '--profile-from-start', 'off', '--launch-count', '40', '--kernel-name-base', 'demangled', '--kernel-name', 'regex:fused_moe|nvjet|flash|cutlass|RMSNorm|act_and_mul|topk|conv1d|moe_sum|gemm', '--metrics', 'gpu__time_duration.sum,dram__bytes_read.sum,dram__bytes_write.sum,dram__throughput.avg.pct_of_peak_sustained_elapsed,sm__throughput.avg.pct_of_peak_sustained_elapsed,sm__warps_active.avg.pct_of_peak_sustained_active,l1tex__t_sector_hit_rate.pct,lts__t_sector_hit_rate.pct,launch__occupancy_limit_registers,launch__occupancy_limit_shared_mem,launch__occupancy_limit_warps', '--force-overwrite', '--export', '/home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-07-15_v19b_ncu_decode/qwen3-30b-a3b-bf16/agent_decode_b32/ncu', '--', '/home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-07-15_v19b_ncu_decode/qwen3-30b-a3b-bf16/agent_decode_b32/inference.sh']' timed out after 2999.999985496048 seconds
+Traceback (most recent call last):
+  File "/home/t-jialianggu/work/EndtoEnd-auto-optimization/scripts/run_v19b_ncu_decode.py", line 150, in main
+    run_combo(reg_id, b, inl, outl, stage, out_dir)
+  File "/home/t-jialianggu/work/EndtoEnd-auto-optimization/scripts/run_v19b_ncu_decode.py", line 127, in run_combo
+    proc = subprocess.run(ncu_cmd, stdout=f, stderr=subprocess.STDOUT, timeout=3000)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/t-jialianggu/.conda/envs/sglang/lib/python3.11/subprocess.py", line 550, in run
+    stdout, stderr = process.communicate(input, timeout=timeout)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/t-jialianggu/.conda/envs/sglang/lib/python3.11/subprocess.py", line 1209, in communicate
+    stdout, stderr = self._communicate(input, endtime, timeout)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/t-jialianggu/.conda/envs/sglang/lib/python3.11/subprocess.py", line 2141, in _communicate
+    self.wait(timeout=self._remaining_time(endtime))
+  File "/home/t-jialianggu/.conda/envs/sglang/lib/python3.11/subprocess.py", line 1264, in wait
+    return self._wait(timeout=timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/t-jialianggu/.conda/envs/sglang/lib/python3.11/subprocess.py", line 2045, in _wait
+    raise TimeoutExpired(self.args, timeout)
+subprocess.TimeoutExpired: Command '['sudo', '-n', '/opt/nvidia/nsight-compute/2026.2.1/ncu', '--target-processes', 'all', '--profile-from-start', 'off', '--launch-count', '40', '--kernel-name-base', 'demangled', '--kernel-name', 'regex:fused_moe|nvjet|flash|cutlass|RMSNorm|act_and_mul|topk|conv1d|moe_sum|gemm', '--metrics', 'gpu__time_duration.sum,dram__bytes_read.sum,dram__bytes_write.sum,dram__throughput.avg.pct_of_peak_sustained_elapsed,sm__throughput.avg.pct_of_peak_sustained_elapsed,sm__warps_active.avg.pct_of_peak_sustained_active,l1tex__t_sector_hit_rate.pct,lts__t_sector_hit_rate.pct,launch__occupancy_limit_registers,launch__occupancy_limit_shared_mem,launch__occupancy_limit_warps', '--force-overwrite', '--export', '/home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-07-15_v19b_ncu_decode/qwen3-30b-a3b-bf16/agent_decode_b32/ncu', '--', '/home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-07-15_v19b_ncu_decode/qwen3-30b-a3b-bf16/agent_decode_b32/inference.sh']' timed out after 2999.999985496048 seconds
+
+=== qwen3-30b-a3b-bf16 / agent_decode_b64 (50.0m) ===
+  NCU qwen3-30b-a3b-bf16 × agent_decode_b64 (b=64 decode)...
+    exit=1 wall=10s
+    !! no ncu-rep produced
+
+=== qwen3-30b-a3b-bf16 / agent_decode_b128 (50.2m) ===
+  NCU qwen3-30b-a3b-bf16 × agent_decode_b128 (b=128 decode)...
+    exit=1 wall=11s
+    !! no ncu-rep produced
+
+=== qwen3-30b-a3b-bf16 / agent_prefill_b1 (50.4m) ===
+  NCU qwen3-30b-a3b-bf16 × agent_prefill_b1 (b=1 prefill)...
+    exit=1 wall=9s
+    !! no ncu-rep produced
+
+=== v19b NCU [qwen3-30b-a3b-bf16] done in 50.5 min ===

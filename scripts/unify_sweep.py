@@ -5,7 +5,7 @@ import json
 import subprocess
 from pathlib import Path
 
-REPO = Path("/home/t-jialianggu/work/EndtoEnd-auto-optimization")
+REPO = Path("/home/t-jialianggu/work/MOEresearch")
 BASE = REPO / "results/2026-06-09_sglang_triton_sweep"
 REGIMES = ["R_short_decode", "R_medium_balanced", "R_long_prefill", "R_concurrent_decode"]
 

@@ -19,7 +19,7 @@ exec /home/t-jialianggu/.conda/envs/sglang-dev/bin/python -m sglang.bench_one_ba
   --profile \
   --profile-activities CUDA_PROFILER \
   --profile-stage decode \
-  --profile-filename-prefix /home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-07-08_v6_ncu/lfm2.5-8b-a1b/cookbook_baseline/R_decode_c128_out256/sglang_bench \
-  --result-filename /home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-07-08_v6_ncu/lfm2.5-8b-a1b/cookbook_baseline/R_decode_c128_out256/bench_one_batch_result.jsonl \
+  --profile-filename-prefix /home/t-jialianggu/work/MOEresearch/results/2026-07-08_v6_ncu/lfm2.5-8b-a1b/cookbook_baseline/R_decode_c128_out256/sglang_bench \
+  --result-filename /home/t-jialianggu/work/MOEresearch/results/2026-07-08_v6_ncu/lfm2.5-8b-a1b/cookbook_baseline/R_decode_c128_out256/bench_one_batch_result.jsonl \
   --run-name ncu_v6 \
   --mem-fraction-static 0.85 --max-running-requests 128 --chunked-prefill-size -1 --schedule-policy lpm --moe-runner-backend auto

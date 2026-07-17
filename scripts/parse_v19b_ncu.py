@@ -5,7 +5,7 @@ metrics, and compute decode roofline signals (DRAM %, occupancy limiter, bytes).
 import csv, glob, os, json
 from collections import defaultdict, OrderedDict
 
-ROOT = "/home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-07-15_v19b_ncu_decode/qwen3-30b-a3b-bf16"
+ROOT = "/home/t-jialianggu/work/MOEresearch/results/2026-07-15_v19b_ncu_decode/qwen3-30b-a3b-bf16"
 METRICS = [
     "gpu__time_duration.sum", "dram__bytes_read.sum", "dram__bytes_write.sum",
     "dram__throughput.avg.pct_of_peak_sustained_elapsed",

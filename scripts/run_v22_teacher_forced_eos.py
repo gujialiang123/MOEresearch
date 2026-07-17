@@ -40,7 +40,7 @@ ap.add_argument("--kset", type=str, default="4,6,8,10,12")
 ap.add_argument("--max_new", type=int, default=512)
 ap.add_argument("--window", type=int, default=64, help="termination-zone window before baseline EOS")
 ap.add_argument("--out", type=str,
-                default="/home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-07-16_v22_teacher_forced")
+                default="/home/t-jialianggu/work/MOEresearch/results/2026-07-16_v22_teacher_forced")
 args = ap.parse_args()
 os.makedirs(args.out, exist_ok=True)
 KSET = [int(x) for x in args.kset.split(",")]

@@ -1,0 +1,32 @@
+loading model...
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:  12%|█▎        | 2/16 [00:00<00:01, 13.44it/s]Loading checkpoint shards:  25%|██▌       | 4/16 [00:00<00:00, 13.04it/s]Loading checkpoint shards:  38%|███▊      | 6/16 [00:00<00:00, 12.71it/s]Loading checkpoint shards:  50%|█████     | 8/16 [00:00<00:00, 12.64it/s]Loading checkpoint shards:  62%|██████▎   | 10/16 [00:00<00:00, 12.67it/s]Loading checkpoint shards:  75%|███████▌  | 12/16 [00:00<00:00, 12.43it/s]Loading checkpoint shards:  88%|████████▊ | 14/16 [00:01<00:00, 12.33it/s]Loading checkpoint shards: 100%|██████████| 16/16 [00:01<00:00, 13.24it/s]
+Using the latest cached version of the dataset since gsm8k couldn't be found on the Hugging Face Hub
+WARNING:datasets.load:Using the latest cached version of the dataset since gsm8k couldn't be found on the Hugging Face Hub
+Found the latest cached dataset configuration 'main' at /home/t-jialianggu/work/EndtoEnd-auto-optimization/.hf_cache/datasets/gsm8k/main/0.0.0/740312add88f781978c0658806c59bc2815b9866 (last modified on Wed Jul 15 20:39:51 2026).
+WARNING:datasets.packaged_modules.cache.cache:Found the latest cached dataset configuration 'main' at /home/t-jialianggu/work/EndtoEnd-auto-optimization/.hf_cache/datasets/gsm8k/main/0.0.0/740312add88f781978c0658806c59bc2815b9866 (last modified on Wed Jul 15 20:39:51 2026).
+The following generation flags are not valid and may be ignored: ['temperature', 'top_p', 'top_k']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+The attention mask is not set and cannot be inferred from input because pad token is same as eos token. As a consequence, you may observe unexpected behavior. Please pass your input's `attention_mask` to obtain reliable results.
+  done 10/100
+  done 20/100
+  done 30/100
+  done 40/100
+  done 50/100
+  done 60/100
+  done 70/100
+  done 80/100
+  done 90/100
+  done 100/100
+
+== Teacher-forced termination zone (last 64 tok before baseline EOS) ==
+   K  ood  logp(EOS)@eos  margin@eos  logp(EOS)_zone  margin_zone  KL(p8||pk)
+   4False        -1.3366     10.2332         -39.184     -38.9578     0.18898
+   6False        -1.4022     14.6119        -42.8833     -42.5993     0.07108
+   8False        -1.3936      15.645        -46.0637     -45.7667         0.0
+  10 True        -1.4074     15.4863        -45.5931      -45.298     0.00646
+  12 True        -1.3936     15.6538        -46.0768     -45.7796     0.00036
+
+Interpretation: if lower K systematically LOWERS logp(EOS)/margin in the
+termination zone (identical prefix), that is DIRECT evidence K reduces the
+termination probability (not mediated by trajectory divergence).
+
+wrote results/2026-07-16_v22_teacher_forced/summary.json

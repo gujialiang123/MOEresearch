@@ -1,0 +1,49 @@
+loading model...
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:  12%|█▎        | 2/16 [00:00<00:01, 11.93it/s]Loading checkpoint shards:  25%|██▌       | 4/16 [00:00<00:01, 11.12it/s]Loading checkpoint shards:  38%|███▊      | 6/16 [00:00<00:00, 10.95it/s]Loading checkpoint shards:  50%|█████     | 8/16 [00:00<00:00, 10.92it/s]Loading checkpoint shards:  62%|██████▎   | 10/16 [00:00<00:00, 10.89it/s]Loading checkpoint shards:  75%|███████▌  | 12/16 [00:01<00:00, 10.88it/s]Loading checkpoint shards:  88%|████████▊ | 14/16 [00:01<00:00, 10.70it/s]Loading checkpoint shards: 100%|██████████| 16/16 [00:01<00:00, 12.33it/s]Loading checkpoint shards: 100%|██████████| 16/16 [00:01<00:00, 11.45it/s]
+E=128 topk=8 L=48
+
+=== dynamic tau=0.6 (kmin=1, kmax=8) ===
+The following generation flags are not valid and may be ignored: ['temperature', 'top_p', 'top_k']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+  batch 1: 64 q, avg_k so far=3.845
+  batch 2: 64 q, avg_k so far=3.847
+  batch 3: 64 q, avg_k so far=3.851
+  batch 4: 8 q, avg_k so far=3.851
+{"accuracy": 0.73, "correct": 146, "n": 200, "wall_s": 1113.8, "avg_k": 3.851, "total_gen_tokens": 54747, "tok_per_s": 49.2, "avg_gen_tokens": 273.7, "tau": 0.6, "kmin": 1, "kmax": 8}
+
+=== dynamic tau=0.7 (kmin=1, kmax=8) ===
+  batch 1: 64 q, avg_k so far=4.718
+  batch 2: 64 q, avg_k so far=4.714
+  batch 3: 64 q, avg_k so far=4.717
+  batch 4: 8 q, avg_k so far=4.717
+{"accuracy": 0.8, "correct": 160, "n": 200, "wall_s": 1093.2, "avg_k": 4.717, "total_gen_tokens": 53039, "tok_per_s": 48.5, "avg_gen_tokens": 265.2, "tau": 0.7, "kmin": 1, "kmax": 8}
+
+=== dynamic tau=0.8 (kmin=1, kmax=8) ===
+  batch 1: 64 q, avg_k so far=5.736
+  batch 2: 64 q, avg_k so far=5.735
+  batch 3: 64 q, avg_k so far=5.739
+  batch 4: 8 q, avg_k so far=5.739
+{"accuracy": 0.805, "correct": 161, "n": 200, "wall_s": 1040.0, "avg_k": 5.739, "total_gen_tokens": 51236, "tok_per_s": 49.3, "avg_gen_tokens": 256.2, "tau": 0.8, "kmin": 1, "kmax": 8}
+
+=== dynamic tau=0.88 (kmin=1, kmax=8) ===
+  batch 1: 64 q, avg_k so far=6.722
+  batch 2: 64 q, avg_k so far=6.722
+  batch 3: 64 q, avg_k so far=6.722
+  batch 4: 8 q, avg_k so far=6.723
+{"accuracy": 0.825, "correct": 165, "n": 200, "wall_s": 1039.2, "avg_k": 6.723, "total_gen_tokens": 49990, "tok_per_s": 48.1, "avg_gen_tokens": 249.9, "tau": 0.88, "kmin": 1, "kmax": 8}
+
+=== dynamic tau=0.95 (kmin=1, kmax=8) ===
+  batch 1: 64 q, avg_k so far=7.853
+  batch 2: 64 q, avg_k so far=7.852
+  batch 3: 64 q, avg_k so far=7.853
+  batch 4: 8 q, avg_k so far=7.853
+{"accuracy": 0.815, "correct": 163, "n": 200, "wall_s": 1040.4, "avg_k": 7.853, "total_gen_tokens": 49578, "tok_per_s": 47.7, "avg_gen_tokens": 247.9, "tau": 0.95, "kmin": 1, "kmax": 8}
+
+== DYNAMIC top-k: accuracy vs realized avg-k ==
+   tau   avg_k     acc   wall_s  avg_gen
+   0.6   3.851   73.0%   1113.8    273.7
+   0.7   4.717   80.0%   1093.2    265.2
+   0.8   5.739   80.5%   1040.0    256.2
+  0.88   6.723   82.5%   1039.2    249.9
+  0.95   7.853   81.5%   1040.4    247.9
+
+wrote /home/t-jialianggu/work/EndtoEnd-auto-optimization/results/2026-07-15_v18_dynamic_topk/dynamic_vs_tau.json
