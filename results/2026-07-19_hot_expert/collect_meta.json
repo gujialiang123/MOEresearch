@@ -1,0 +1,46 @@
+{
+  "model": "/data/hf/models/Qwen3-30B-A3B-Instruct-2507",
+  "E": 128,
+  "TOPK": 8,
+  "L": 48,
+  "moe_intermediate_size": 768,
+  "hidden_size": 2048,
+  "args": {
+    "workloads": "gsm8k,coding,general,synthetic",
+    "n_per_workload": 40,
+    "max_new": 160,
+    "out": "results/2026-07-19_hot_expert"
+  },
+  "git_commit": "148f3f1c3cb50dbcbd1a0c76ec1fe2d218bef3dd",
+  "torch": "2.9.1+cu128",
+  "workloads": [
+    {
+      "workload": "gsm8k",
+      "n_prompts": 40,
+      "n_tokens_all": 9495,
+      "n_tokens_decode": 6299,
+      "trace": "results/2026-07-19_hot_expert/traces/gsm8k.npz"
+    },
+    {
+      "workload": "coding",
+      "n_prompts": 40,
+      "n_tokens_all": 7548,
+      "n_tokens_decode": 6400,
+      "trace": "results/2026-07-19_hot_expert/traces/coding.npz"
+    },
+    {
+      "workload": "general",
+      "n_prompts": 40,
+      "n_tokens_all": 7044,
+      "n_tokens_decode": 6400,
+      "trace": "results/2026-07-19_hot_expert/traces/general.npz"
+    },
+    {
+      "workload": "synthetic",
+      "n_prompts": 40,
+      "n_tokens_all": 6252,
+      "n_tokens_decode": 4541,
+      "trace": "results/2026-07-19_hot_expert/traces/synthetic.npz"
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+loading model...
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:  12%|█▎        | 2/16 [00:00<00:01, 10.48it/s]Loading checkpoint shards:  25%|██▌       | 4/16 [00:00<00:01,  9.97it/s]Loading checkpoint shards:  31%|███▏      | 5/16 [00:00<00:01,  9.82it/s]Loading checkpoint shards:  38%|███▊      | 6/16 [00:00<00:01,  9.69it/s]Loading checkpoint shards:  44%|████▍     | 7/16 [00:00<00:00,  9.63it/s]Loading checkpoint shards:  50%|█████     | 8/16 [00:00<00:00,  9.66it/s]Loading checkpoint shards:  56%|█████▋    | 9/16 [00:00<00:00,  9.52it/s]Loading checkpoint shards:  62%|██████▎   | 10/16 [00:01<00:00,  9.53it/s]Loading checkpoint shards:  69%|██████▉   | 11/16 [00:01<00:00,  9.51it/s]Loading checkpoint shards:  75%|███████▌  | 12/16 [00:01<00:00,  9.52it/s]Loading checkpoint shards:  81%|████████▏ | 13/16 [00:01<00:00,  9.60it/s]Loading checkpoint shards:  88%|████████▊ | 14/16 [00:01<00:00,  9.61it/s]Loading checkpoint shards:  94%|█████████▍| 15/16 [00:01<00:00,  9.62it/s]Loading checkpoint shards: 100%|██████████| 16/16 [00:01<00:00, 10.23it/s]
+E=128 topk=8 L=48
+
+=== workload: gsm8k ===
+Using the latest cached version of the dataset since gsm8k couldn't be found on the Hugging Face Hub (offline mode is enabled).
+WARNING:datasets.load:Using the latest cached version of the dataset since gsm8k couldn't be found on the Hugging Face Hub (offline mode is enabled).
+Found the latest cached dataset configuration 'main' at /home/t-jialianggu/work/MOEresearch/.hf_cache/datasets/gsm8k/main/0.0.0/740312add88f781978c0658806c59bc2815b9866 (last modified on Wed Jul 15 20:39:51 2026).
+WARNING:datasets.packaged_modules.cache.cache:Found the latest cached dataset configuration 'main' at /home/t-jialianggu/work/MOEresearch/.hf_cache/datasets/gsm8k/main/0.0.0/740312add88f781978c0658806c59bc2815b9866 (last modified on Wed Jul 15 20:39:51 2026).
+The following generation flags are not valid and may be ignored: ['temperature', 'top_p', 'top_k']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+  [gsm8k] 10/40  (185s)
+  [gsm8k] 20/40  (368s)
+  [gsm8k] 30/40  (533s)
+  [gsm8k] 40/40  (685s)
+  saved results/2026-07-19_hot_expert/traces/gsm8k.npz  (n_all=9495, n_decode=6299)
+
+=== workload: coding ===
+  [coding] 10/40  (151s)
+  [coding] 20/40  (302s)
+  [coding] 30/40  (451s)
+  [coding] 40/40  (599s)
+  saved results/2026-07-19_hot_expert/traces/coding.npz  (n_all=7548, n_decode=6400)
+
+=== workload: general ===
+  [general] 10/40  (148s)
+  [general] 20/40  (296s)
+  [general] 30/40  (444s)
+  [general] 40/40  (592s)
+  saved results/2026-07-19_hot_expert/traces/general.npz  (n_all=7044, n_decode=6400)
+
+=== workload: synthetic ===
+  [synthetic] 10/40  (106s)
+  [synthetic] 20/40  (217s)
+  [synthetic] 30/40  (328s)
+  [synthetic] 40/40  (439s)
+  saved results/2026-07-19_hot_expert/traces/synthetic.npz  (n_all=6252, n_decode=4541)
+
+wrote results/2026-07-19_hot_expert/collect_meta.json

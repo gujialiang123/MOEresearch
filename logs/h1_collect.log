@@ -1,0 +1,25 @@
+loading model...
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:  12%|█▎        | 2/16 [00:00<00:01, 11.00it/s]Loading checkpoint shards:  25%|██▌       | 4/16 [00:00<00:01, 10.50it/s]Loading checkpoint shards:  38%|███▊      | 6/16 [00:00<00:00, 10.23it/s]Loading checkpoint shards:  50%|█████     | 8/16 [00:00<00:00, 10.17it/s]Loading checkpoint shards:  62%|██████▎   | 10/16 [00:00<00:00, 10.19it/s]Loading checkpoint shards:  75%|███████▌  | 12/16 [00:01<00:00, 10.16it/s]Loading checkpoint shards:  88%|████████▊ | 14/16 [00:01<00:00, 10.16it/s]Loading checkpoint shards: 100%|██████████| 16/16 [00:01<00:00, 11.79it/s]Loading checkpoint shards: 100%|██████████| 16/16 [00:01<00:00, 10.81it/s]
+E=128 topk=8 L=48
+
+=== workload: gsm8k ===
+Using the latest cached version of the dataset since gsm8k couldn't be found on the Hugging Face Hub (offline mode is enabled).
+WARNING:datasets.load:Using the latest cached version of the dataset since gsm8k couldn't be found on the Hugging Face Hub (offline mode is enabled).
+Found the latest cached dataset configuration 'main' at /home/t-jialianggu/work/MOEresearch/.hf_cache/datasets/gsm8k/main/0.0.0/740312add88f781978c0658806c59bc2815b9866 (last modified on Wed Jul 15 20:39:51 2026).
+WARNING:datasets.packaged_modules.cache.cache:Found the latest cached dataset configuration 'main' at /home/t-jialianggu/work/MOEresearch/.hf_cache/datasets/gsm8k/main/0.0.0/740312add88f781978c0658806c59bc2815b9866 (last modified on Wed Jul 15 20:39:51 2026).
+The following generation flags are not valid and may be ignored: ['temperature', 'top_p', 'top_k']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+  [gsm8k] 10/40  (183s)
+  [gsm8k] 20/40  (371s)
+  [gsm8k] 30/40  (554s)
+  [gsm8k] 40/40  (742s)
+Traceback (most recent call last):
+  File "/home/t-jialianggu/work/MOEresearch/scripts/hot_expert/run_h1_collect_traces.py", line 152, in <module>
+    summary.append(collect_workload(wl, prompts))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/t-jialianggu/.conda/envs/sglang/lib/python3.11/site-packages/torch/utils/_contextlib.py", line 120, in decorate_context
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/t-jialianggu/work/MOEresearch/scripts/hot_expert/run_h1_collect_traces.py", line 142, in collect_workload
+    top1_over_time=np.array(top1_over_time, dtype=object) if top1_over_time else np.array([]))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: could not broadcast input array from shape (48,160) into shape (48,)

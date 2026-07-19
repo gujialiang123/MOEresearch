@@ -95,6 +95,13 @@ def build_prompts(name, n):
 
 @torch.inference_mode()
 def collect_workload(name, prompts):
+    path = f"{OUT}/traces/{name}.npz"
+    if os.path.exists(path):
+        d = np.load(path, allow_pickle=True)
+        print(f"  [resume] {name} trace exists -> skip", flush=True)
+        return {"workload": name, "n_prompts": len(prompts),
+                "n_tokens_all": int(d["n_tokens_all"]), "n_tokens_decode": int(d["n_tokens_decode"]),
+                "trace": path}
     counts_all = np.zeros((L, E), dtype=np.int64)
     counts_decode = np.zeros((L, E), dtype=np.int64)
     n_all = 0
@@ -133,13 +140,14 @@ def collect_workload(name, prompts):
             top1_over_time.append(seq_top1)
         if (qi + 1) % 10 == 0:
             print(f"  [{name}] {qi+1}/{len(prompts)}  ({time.time()-t0:.0f}s)", flush=True)
-    # save
+    # save (top1_over_time is ragged per-seq [L, G_i]; store as object list safely)
     path = f"{OUT}/traces/{name}.npz"
-    np.savez_compressed(path,
-                        counts_all=counts_all, counts_decode=counts_decode,
-                        n_tokens_all=n_all, n_tokens_decode=n_dec,
-                        E=E, TOPK=TOPK, L=L,
-                        top1_over_time=np.array(top1_over_time, dtype=object) if top1_over_time else np.array([]))
+    save_kw = dict(counts_all=counts_all, counts_decode=counts_decode,
+                   n_tokens_all=n_all, n_tokens_decode=n_dec,
+                   E=E, TOPK=TOPK, L=L, n_top1_seqs=len(top1_over_time))
+    for si, arr in enumerate(top1_over_time):
+        save_kw[f"top1_seq{si}"] = arr  # each [L, G_i]
+    np.savez_compressed(path, **save_kw)
     print(f"  saved {path}  (n_all={n_all}, n_decode={n_dec})", flush=True)
     return {"workload": name, "n_prompts": len(prompts), "n_tokens_all": int(n_all),
             "n_tokens_decode": int(n_dec), "trace": path}

@@ -1,0 +1,142 @@
+{
+  "meta": {
+    "E": 128,
+    "TOPK": 8,
+    "L": 48,
+    "positions": "decode",
+    "topn": 32,
+    "workloads": [
+      "gsm8k",
+      "coding",
+      "general",
+      "synthetic"
+    ],
+    "n_tokens_decode": {
+      "gsm8k": 6299,
+      "coding": 6400,
+      "general": 6400,
+      "synthetic": 4541
+    }
+  },
+  "expert_size": {
+    "params_per_expert": 4718592,
+    "bytes_per_expert_bf16": 9437184,
+    "MB_per_expert_bf16": 9.437,
+    "all_experts_one_layer_MB": 1208.0,
+    "H200_L2_MB": 50.0,
+    "experts_fitting_in_L2": 5
+  },
+  "Q1_cross_layer": {
+    "topn": 32,
+    "mean_pairwise_jaccard": 0.1571,
+    "median_pairwise_jaccard": 0.1429,
+    "p90_pairwise_jaccard": 0.2075,
+    "adjacent_layer_mean_jaccard": 0.1339,
+    "global_hotset_mean_layer_coverage": 0.3028,
+    "perlayer_hotset_mean_coverage": 0.5322,
+    "interp": "high jaccard => same experts hot across layers (global residency ok); low => per-layer hot sets differ (need per-layer residency)"
+  },
+  "Q2_cross_workload": {
+    "topn": 32,
+    "pairwise": {
+      "gsm8k__vs__coding": {
+        "mean_jaccard": 0.2153,
+        "min_jaccard": 0.1228,
+        "max_jaccard": 0.3333
+      },
+      "gsm8k__vs__general": {
+        "mean_jaccard": 0.2196,
+        "min_jaccard": 0.1034,
+        "max_jaccard": 0.3617
+      },
+      "gsm8k__vs__synthetic": {
+        "mean_jaccard": 0.253,
+        "min_jaccard": 0.1228,
+        "max_jaccard": 0.4222
+      },
+      "coding__vs__general": {
+        "mean_jaccard": 0.184,
+        "min_jaccard": 0.0159,
+        "max_jaccard": 0.3061
+      },
+      "coding__vs__synthetic": {
+        "mean_jaccard": 0.1681,
+        "min_jaccard": 0.0492,
+        "max_jaccard": 0.3913
+      },
+      "general__vs__synthetic": {
+        "mean_jaccard": 0.0779,
+        "min_jaccard": 0.0,
+        "max_jaccard": 0.2075
+      }
+    },
+    "mean_over_pairs": 0.1863,
+    "gsm8k_hotset_cross_coverage": {
+      "gsm8k_hotset_covers_coding": 0.2813,
+      "gsm8k_hotset_covers_general": 0.3141,
+      "gsm8k_hotset_covers_synthetic": 0.3973
+    },
+    "interp": "high jaccard => hotness is a global prior (static hot set works); low => input-dependent (cannot precompute)"
+  },
+  "Q3_l2_fit": {
+    "residency_budget_curve": [
+      {
+        "topn_per_layer": 1,
+        "resident_all_layers_GB": 0.453,
+        "one_layer_topn_MB": 9.44,
+        "fits_in_L2_one_layer": true,
+        "decode_traffic_coverage": 0.0335
+      },
+      {
+        "topn_per_layer": 2,
+        "resident_all_layers_GB": 0.906,
+        "one_layer_topn_MB": 18.87,
+        "fits_in_L2_one_layer": true,
+        "decode_traffic_coverage": 0.0617
+      },
+      {
+        "topn_per_layer": 4,
+        "resident_all_layers_GB": 1.812,
+        "one_layer_topn_MB": 37.75,
+        "fits_in_L2_one_layer": true,
+        "decode_traffic_coverage": 0.1102
+      },
+      {
+        "topn_per_layer": 8,
+        "resident_all_layers_GB": 3.624,
+        "one_layer_topn_MB": 75.5,
+        "fits_in_L2_one_layer": false,
+        "decode_traffic_coverage": 0.1923
+      },
+      {
+        "topn_per_layer": 16,
+        "resident_all_layers_GB": 7.248,
+        "one_layer_topn_MB": 150.99,
+        "fits_in_L2_one_layer": false,
+        "decode_traffic_coverage": 0.3257
+      },
+      {
+        "topn_per_layer": 32,
+        "resident_all_layers_GB": 14.496,
+        "one_layer_topn_MB": 301.99,
+        "fits_in_L2_one_layer": false,
+        "decode_traffic_coverage": 0.5322
+      },
+      {
+        "topn_per_layer": 64,
+        "resident_all_layers_GB": 28.991,
+        "one_layer_topn_MB": 603.98,
+        "fits_in_L2_one_layer": false,
+        "decode_traffic_coverage": 0.8147
+      },
+      {
+        "topn_per_layer": 128,
+        "resident_all_layers_GB": 57.982,
+        "one_layer_topn_MB": 1207.96,
+        "fits_in_L2_one_layer": false,
+        "decode_traffic_coverage": 1.0
+      }
+    ],
+    "interp": "coverage vs VRAM/L2 budget. If small resident set already covers most decode traffic AND fits, caching is viable."
+  }
+}
