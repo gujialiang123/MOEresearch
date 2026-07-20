@@ -29,8 +29,25 @@ v20/v21/v22 已确立：降 K → 输出变长，主因是**轨迹中介的 L_to
 
 ## 结果
 
-### v23 — Prefill K × Decode K 因子实验
-（待填）
+### v23 — Prefill K × Decode K 因子实验（★ 主结果：解离 prefill vs decode）
+n=500, renorm_survivors。paired Δlen vs 8x8 (95%CI)：
+
+| 配置 | Δlen vs 8x8 | acc_strict | noMark | 含义 |
+|--|--:|--:|--:|--|
+| 8x8 (baseline) | 0 | 83.4% | 5.0% | — |
+| 6x8 (prefill K6) | +3.3 (−0.2, 7.0) **ns** | 85.0% | 5.6% | 只扰动 prompt/KV |
+| 8x6 (decode K6) | **+6.7 (2.7, 10.7)** 显著 | 85.0% | 6.2% | 只扰动 decode |
+| 6x6 (both K6) | +11.8 (7.1, 16.6) | 86.0% | 6.0% | 完整 K6 |
+| 4x8 (prefill K4) | +3.4 (−1.2, 8.2) **ns** | 83.4% | 6.8% | 强 prefill 干预 |
+| 8x4 (decode K4) | **+28.2 (22.9, 33.6)** 显著 | 81.8% | 10.0% | 强 decode 干预 |
+| 4x4 (both K4) | （4x4 运行中，早上补） | | | |
+
+**因子效应（K=6）**：prefill_effect=**+3.3 (ns)** | decode_effect=**+6.7 (sig)** | interaction=+1.9 (ns，近似可加)。
+
+**关键结论（强解离）**：
+1. **长度效应几乎完全是 decode 阶段现象**：decode 效应 +6.7(K6)/+28(K4)，均显著；**prefill 效应 ~+3，即使 K4 也不显著**。
+2. → 降低 prompt 编码的 K 几乎不改变生成长度；驱动变长的是**降低 autoregressive decode 的 K**。这与机理一致：prefill 只编码一次 prompt，decode 才是逐步生成、且被 renorm 的 per-token 放大逐步累积的地方。
+3. K6 时 prefill 与 decode 近似可加（interaction ns）；decode 效应约为 prefill 的 2 倍。
 
 ### v28 — Decode K 剂量曲线（renorm_survivors, decode-only, n=500）
 
