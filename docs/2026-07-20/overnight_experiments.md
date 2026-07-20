@@ -140,4 +140,30 @@ n=500, renorm_survivors。paired Δlen vs 8x8 (95%CI)：
 ---
 
 ## 综合结论
-（待填）
+
+### 统一机制图景（v20–v28 合并）
+把"降 K → 生成变长"这一现象（v21）彻底机理化，今晚得到一个**连贯、严格、且对 v21 有重大修正**的结论链：
+
+1. **这是 decode 阶段现象，不是 prefill**（v23）：decode 效应 +6.7(K6)/+28(K4) 显著；prefill 效应 ~+3，即使 K4 也不显著。降低 prompt 编码的 K 几乎不改变长度。
+2. **本质是权重重归一化（renorm）的 per-token 自适应放大产物，不是"专家数量"内在效应**（v24 + mode D）：同样 decode K8→K4，
+   - renorm_survivors：+28（显著）
+   - no_renorm：+3.8（不显著）
+   - calibrated_norm_match（norm 匹配到 K8）：+7.7（≈no_renorm，远小于 renorm）
+   - fold_mass_to_top1：+144（崩溃）
+   匹配 norm 无法恢复效应 → 驱动因素是 renorm 的 **per-token 1/Σw 放大**（在"该走的专家被丢、置信度低"的 token 上放大最多），而非 norm 大小或专家数量。
+3. **单步直接效应很小，长度变化是轨迹累积**（v26）：只改当前一步 K，next-token 分布几乎不变（KL≤0.06，top-1 一致 96–98%）。大的长度改变来自许多步微小扰动的累积（轨迹发散）。
+4. **模型"想出答案"的时刻几乎不变，只是更晚提交标记**（v25）：t_ready +5 vs t_marker +17 —— 额外长度更多是 answer-ready 后的延迟提交/冗长，而非需要更多推理。
+5. **剂量-响应是平滑的凸曲线**（v28）：每降一档 K 长度增量递增（2→5→8→13, K8→4），无 K5 突变临界点；但这是 renorm 模式下的曲线（no_renorm 下预期压平，v28b 验证中）。
+
+### 一句话（论文级重构）
+> 在标准 renorm_survivors 路由下，**降低 decode 阶段的 K 会通过对存活专家的 per-token 自适应放大，在自回归轨迹上逐步累积成更长的生成**；模型在几乎相同的步数就已"知道答案"，只是更晚提交答案标记。这**本质是一个权重重归一化产物（Scale-Preserving / renorm-induced），而非"专家越少越需要更多推理"的内在效应**——v21 的"推理-计算替代"叙事被 renorm 混淆。它是 **decode 特有**（非 prefill）现象。
+
+### 对应决策树
+命中计划的"**尺度结果**"分支 → **Scale-Preserving Expert Sparsification**（效应主要存在于 renorm）。这比原假设更严格、更有警示意义（关于 expert-dropping 的实现方式会人为制造长度变化）。
+
+### 局限 / 早上待办
+- 4x4（K4 both，interaction 项）运行中；v28b no_renorm 全 dose（n=500）验证中。
+- 结论基于 HF-eager + GSM8K + greedy；跨任务/跨架构（Qwen1.5-MoE, Phi-3.5-MoE）验证未做。
+- per-token 自适应放大的精确因果可在 raw log 上进一步分层验证。
+- 真实系统收益（sglang fused kernel 的 latency/TPOT）未测——本轮只回答行为/机理。
+- 所有 raw log（含完整 token ids）已保存，任意新指标可离线重算，无需重跑。
