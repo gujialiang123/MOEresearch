@@ -57,7 +57,23 @@ v20/v21/v22 已确立：降 K → 输出变长，主因是**轨迹中介的 L_to
 对比 v22（trajectory-fixed cumulative effect）：v22 在 baseline EOS 那一点测 margin，发现 k4 margin 收窄；v26 是纯单步、跨位置平均，两者测的是不同量，不矛盾。v26 才是"当前步直接效应"的干净版。
 
 ### v25 — Answer-readiness
-（待填）
+**n=80 题, K8 gold-answer logprob 探针, 阈值=−0.5（64 个 K8-correct 校准）, ready_found_frac≈0.98。**
+
+| config | t_ready | t_marker | t_eos | marker−ready | eos−marker |
+|--|--:|--:|--:|--:|--:|
+| 8x8 (dk=8) | 99.3 | 225.5 | 238.7 | 133.3 | 13.1 |
+| 8x6 (dk=6) | 103.3 | 234.3 | 242.9 | 140.5 | 8.6 |
+| 8x4 (dk=4) | 104.6 | 242.8 | 251.8 | 143.2 | 10.5 |
+
+Δ(K8→K4)：**t_ready 仅 +5.3**，t_marker +17.3，marker−ready +9.9。
+
+**关键结论（对 v21 的重要细化）**：
+- **模型"想出答案"的时刻几乎不随 K 变**（t_ready 99→105，仅 +5）。
+- **但"输出 #### 标记"的时刻明显推迟**（t_marker +17）。
+- 二者之差（marker−ready，"知道答案却还没写出来"的间隔）增大 +10。
+- → 低 K 增加的长度，**更多是"已经答案就绪、却继续生成、延迟提交标记"**，而非纯粹"需要更多推理才能得到答案"。这把 v21 的"推理-计算替代"细化为**部分是 answer-ready 的冗长/延迟提交**（更偏 termination/commitment 侧），只有小部分（+5）是真正的答案形成延迟。
+
+**注意**：t_ready 依赖 gold-answer logprob 探针 + 固定阈值；绝对值随阈值变，但相对位移（Δt_ready≈+5 vs Δt_marker≈+17）是稳健信号。raw log 保留每题每 checkpoint，可换阈值/换探针重算。
 
 ---
 

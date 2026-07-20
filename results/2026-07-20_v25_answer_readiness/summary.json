@@ -1,0 +1,36 @@
+{
+  "threshold": -0.5,
+  "n_calib": 64,
+  "by_config": {
+    "8x8": {
+      "config": "8x8",
+      "n": 80,
+      "t_ready_mean": 99.3,
+      "t_marker_mean": 225.5,
+      "t_eos_mean": 238.7,
+      "marker_minus_ready_mean": 133.3,
+      "eos_minus_marker_mean": 13.1,
+      "ready_found_frac": 0.988
+    },
+    "8x6": {
+      "config": "8x6",
+      "n": 80,
+      "t_ready_mean": 103.3,
+      "t_marker_mean": 234.3,
+      "t_eos_mean": 242.9,
+      "marker_minus_ready_mean": 140.5,
+      "eos_minus_marker_mean": 8.6,
+      "ready_found_frac": 0.988
+    },
+    "8x4": {
+      "config": "8x4",
+      "n": 80,
+      "t_ready_mean": 104.6,
+      "t_marker_mean": 242.8,
+      "t_eos_mean": 251.8,
+      "marker_minus_ready_mean": 143.2,
+      "eos_minus_marker_mean": 10.5,
+      "ready_found_frac": 0.975
+    }
+  }
+}
