@@ -1,0 +1,23 @@
+{
+  "config": "8x6_no_renorm",
+  "prefill_k": 8,
+  "decode_k": 6,
+  "weight_mode": "no_renorm",
+  "n": 500,
+  "acc_strict": 0.858,
+  "acc_tol": 0.93,
+  "no_marker_frac": 0.048,
+  "no_eos_frac": 0.05,
+  "hit_max_frac": 0.05,
+  "len_mean": 252.7,
+  "len_median": 231.5,
+  "len_p90": 402,
+  "len_p95": 512,
+  "len_p99": 512,
+  "L_to_marker_mean": 230.7,
+  "L_post_marker_mean": 8.89,
+  "rep_4gram_mean": 0.12,
+  "avg_k_decode": 6.0,
+  "avg_k_prefill": 8.0,
+  "gen_wall_ms": 1965135.6
+}
