@@ -1,0 +1,18 @@
+{
+  "config": "k6_b0.0",
+  "decode_k": 6,
+  "beta": 0.0,
+  "n": 500,
+  "acc_strict": 0.858,
+  "acc_tol": 0.93,
+  "no_marker": 0.048,
+  "no_eos": 0.05,
+  "hit_max": 0.05,
+  "len_mean": 252.7,
+  "len_median": 231.5,
+  "len_p90": 402,
+  "len_p95": 512,
+  "L_to_marker_mean": 230.7,
+  "rep_4gram": 0.1203,
+  "avg_k_decode": 6.0
+}

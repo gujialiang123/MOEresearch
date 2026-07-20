@@ -1,0 +1,197 @@
+{
+  "dir": "/home/t-jialianggu/work/MOEresearch/results/2026-07-20_v29_partial_renorm",
+  "configs": {
+    "k4_b0.0": {
+      "decode_k": 4,
+      "beta": 0.0,
+      "n": 500,
+      "len_mean": 255.3,
+      "delta_len": 3.734,
+      "ci": [
+        -0.664,
+        8.042
+      ],
+      "acc_strict": 0.86,
+      "no_marker": 0.048,
+      "hit_max": 0.052
+    },
+    "k4_b0.25": {
+      "decode_k": 4,
+      "beta": 0.25,
+      "n": 500,
+      "len_mean": 259.4,
+      "delta_len": 7.886,
+      "ci": [
+        4.25,
+        11.64
+      ],
+      "acc_strict": 0.862,
+      "no_marker": 0.056,
+      "hit_max": 0.056
+    },
+    "k4_b0.5": {
+      "decode_k": 4,
+      "beta": 0.5,
+      "n": 500,
+      "len_mean": 261.3,
+      "delta_len": 9.79,
+      "ci": [
+        5.18,
+        14.472
+      ],
+      "acc_strict": 0.868,
+      "no_marker": 0.052,
+      "hit_max": 0.056
+    },
+    "k4_b0.75": {
+      "decode_k": 4,
+      "beta": 0.75,
+      "n": 500,
+      "len_mean": 270.9,
+      "delta_len": 19.38,
+      "ci": [
+        14.726,
+        24.134
+      ],
+      "acc_strict": 0.836,
+      "no_marker": 0.08,
+      "hit_max": 0.084
+    },
+    "k4_b1.0": {
+      "decode_k": 4,
+      "beta": 1.0,
+      "n": 500,
+      "len_mean": 279.7,
+      "delta_len": 28.164,
+      "ci": [
+        22.866,
+        33.568
+      ],
+      "acc_strict": 0.818,
+      "no_marker": 0.1,
+      "hit_max": 0.116
+    },
+    "k6_b0.0": {
+      "decode_k": 6,
+      "beta": 0.0,
+      "n": 500,
+      "len_mean": 252.7,
+      "delta_len": 1.14,
+      "ci": [
+        -2.55,
+        4.766
+      ],
+      "acc_strict": 0.858,
+      "no_marker": 0.048,
+      "hit_max": 0.05
+    },
+    "k6_b0.25": {
+      "decode_k": 6,
+      "beta": 0.25,
+      "n": 500,
+      "len_mean": 252.6,
+      "delta_len": 1.03,
+      "ci": [
+        -2.886,
+        4.784
+      ],
+      "acc_strict": 0.87,
+      "no_marker": 0.036,
+      "hit_max": 0.036
+    },
+    "k6_b0.5": {
+      "decode_k": 6,
+      "beta": 0.5,
+      "n": 500,
+      "len_mean": 255.9,
+      "delta_len": 4.332,
+      "ci": [
+        1.058,
+        7.652
+      ],
+      "acc_strict": 0.864,
+      "no_marker": 0.052,
+      "hit_max": 0.056
+    },
+    "k6_b0.75": {
+      "decode_k": 6,
+      "beta": 0.75,
+      "n": 500,
+      "len_mean": 259.9,
+      "delta_len": 8.4,
+      "ci": [
+        4.438,
+        12.468
+      ],
+      "acc_strict": 0.846,
+      "no_marker": 0.062,
+      "hit_max": 0.064
+    },
+    "k6_b1.0": {
+      "decode_k": 6,
+      "beta": 1.0,
+      "n": 320,
+      "len_mean": 260.9,
+      "delta_len": 5.981,
+      "ci": [
+        0.841,
+        11.106
+      ],
+      "acc_strict": 0.8562,
+      "no_marker": 0.0656,
+      "hit_max": 0.0688
+    },
+    "k8_native": {
+      "decode_k": 8,
+      "beta": 1.0,
+      "n": 500,
+      "len_mean": 251.5,
+      "delta_len": 0.0,
+      "ci": [
+        0.0,
+        0.0
+      ],
+      "acc_strict": 0.834,
+      "no_marker": 0.05,
+      "hit_max": 0.052
+    }
+  },
+  "beta_trend": {
+    "4": {
+      "betas": [
+        0.0,
+        0.25,
+        0.5,
+        0.75,
+        1.0
+      ],
+      "lens": [
+        255.3,
+        259.4,
+        261.3,
+        270.9,
+        279.7
+      ],
+      "strictly_monotone_inc": true,
+      "concordant_pairs": "4/4"
+    },
+    "6": {
+      "betas": [
+        0.0,
+        0.25,
+        0.5,
+        0.75,
+        1.0
+      ],
+      "lens": [
+        252.7,
+        252.6,
+        255.9,
+        259.9,
+        260.9
+      ],
+      "strictly_monotone_inc": false,
+      "concordant_pairs": "3/4"
+    }
+  }
+}

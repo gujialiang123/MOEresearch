@@ -1,0 +1,25 @@
+{
+  "tag": "v29_partial_renorm",
+  "timestamp": "2026-07-20T20:47:01",
+  "git_commit": "4aebeadcf7e91b593b2c9461b8f19763257f12ce",
+  "model": "/data/hf/models/Qwen3-30B-A3B-Instruct-2507",
+  "config": {
+    "decode_ks": [
+      4
+    ],
+    "betas": [
+      0.0,
+      0.25
+    ],
+    "limit": 500,
+    "max_new": 512,
+    "split": "test"
+  },
+  "config_hash": "967eee47fbb82f1a",
+  "env": {
+    "torch": "2.9.1+cu128",
+    "transformers": "4.57.1",
+    "cuda": "12.8",
+    "gpu": "NVIDIA H200"
+  }
+}

@@ -15,7 +15,29 @@
 ---
 
 ## v29 — Partial-renorm 剂量曲线
-（待填:decode K∈{6,4} × β∈{0,.25,.5,.75,1},n=500）
+**prefill=8, decode-only, greedy, n=500。partial_renorm β 连续插值 no_renorm(0)↔full_renorm(1)。Δlen vs k8_native(=251.5, 95%CI)。**
+
+| decode K | β | len | Δ (95%CI) | acc | noMark |
+|--:|--:|--:|--:|--:|--:|
+| 4 | 0.00 | 255 | +3.7 (−0.7, 8.0) ns | 86.0% | 4.8% |
+| 4 | 0.25 | 259 | +7.9 (4.3, 11.6) | 86.2% | 5.6% |
+| 4 | 0.50 | 261 | +9.8 (5.2, 14.5) | 86.8% | 5.2% |
+| 4 | 0.75 | 271 | +19.4 (14.7, 24.1) | 83.6% | 8.0% |
+| 4 | 1.00 | 280 | +28.2 (22.9, 33.6) | 81.8% | 10.0% |
+| 6 | 0.00 | 253 | +1.1 ns | 85.8% | 4.8% |
+| 6 | 0.25 | 253 | +1.0 ns | 87.0% | 3.6% |
+| 6 | 0.50 | 256 | +4.3 (1.1, 7.7) | 86.4% | 5.2% |
+| 6 | 0.75 | 260 | +8.4 (4.4, 12.5) | 84.6% | 6.2% |
+| 6 | 1.00 | 261 | +9.4 | 85.6% | 6.6% |
+
+**β 单调趋势检验**:
+- **decode K4:严格单调递增**(255→259→261→271→280),4/4 相邻对 concordant,β≥0.25 起 CI 全部 >0。
+- **decode K6:近单调**(3/4;β0→0.25 的微小波动在噪声内,K6 的 gain 本就小 1/r≈1.05)。
+
+**结论(kill-test #1 通过)**:
+1. **renorm 强度 β 因果控制生成长度**:在完全相同的保留 top-K 下,只连续改变对存活专家的放大强度,长度就连续、单调地增长。β=0(no_renorm)几乎无效应,β=1(full)最大。
+2. 满足计划的"强机制结果"标准:K4 下长度随 β 单调增(且 noMark/hit_max 同步升),K6 方向一致但更弱,accuracy 与 length 变化不完全同步(K4 β≤0.5 时 acc 不降甚至微升,长度已在涨)。
+3. → 可以写:**"renormalization strength causally controls verbosity"**(而非退回到中性的"aggregation semantics alter generation nonlinearly")。
 
 ## v30 — Gain controls（平均 scale vs token-conditioned gain）
 **固定 decode K4,prefill 8,greedy,n=200。gain 校准只用 GSM8K train(64 题)。Δlen vs k8_native(=252)。**

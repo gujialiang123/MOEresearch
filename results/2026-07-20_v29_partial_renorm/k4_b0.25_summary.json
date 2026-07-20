@@ -1,0 +1,18 @@
+{
+  "config": "k4_b0.25",
+  "decode_k": 4,
+  "beta": 0.25,
+  "n": 500,
+  "acc_strict": 0.862,
+  "acc_tol": 0.934,
+  "no_marker": 0.056,
+  "no_eos": 0.056,
+  "hit_max": 0.056,
+  "len_mean": 259.4,
+  "len_median": 239.0,
+  "len_p90": 412,
+  "len_p95": 512,
+  "L_to_marker_mean": 233.7,
+  "rep_4gram": 0.1212,
+  "avg_k_decode": 4.0
+}
