@@ -69,10 +69,19 @@ v20/v21/v22 已确立：降 K → 输出变长，主因是**轨迹中介的 L_to
    - **重要反转**：v21 用的是 renorm_survivors，所以 v21 的"降 K → 变长（推理替代）"结论，很大程度上是**被 renormalization 混淆的**。换 no_renorm 后效应基本消失。
 3. **fold 证明"质量放置方式"极其关键**：把丢弃质量堆到 top-1 会让输出爆炸、精度崩溃 → 不是简单的"norm 大小"，而是**存活专家的相对混合/方向**被改变。
 
-**待补（决定性实验）**：`calibrated_norm_match`（mode D）—— 保留 no_renorm 的相对混合、但把 branch norm 用冻结的 per-layer scalar 匹配到 K8。
-- 若长度效应**回来** → 是 **norm 尺度**在起作用；
-- 若仍**不显著** → 是存活专家的**重分配/方向**在起作用（而非单纯 norm）。
-（正在 GPU6 上跑。）
+**已补（mode D 决定性结果，n=200）**：`calibrated_norm_match`（冻结 per-layer scalar 把 branch norm 匹配到 K8，但保留 no_renorm 的相对混合）：
+
+| K | renorm | no_renorm | **calibrated_norm_match** | fold |
+|--|--:|--:|--:|--:|
+| 8x6 | +6.7 | +4.0 | **+5.3** | +20 |
+| 8x4 | +28.2 | +3.8 | **+7.7** | +144 |
+
+**决定性结论**：calibrated（norm 匹配到 K8）给 K4 只有 **+7.7**，远小于 renorm 的 **+28**，接近 no_renorm 的 +3.8。
+→ **匹配 branch norm 并不能恢复 renorm 的长度效应**，所以效应**不是** branch norm 的大小造成的。
+→ renorm 与 calibrated 数学上都是"no_renorm × 标量"，区别在于：**renorm 的标量是 per-token 的 1/Σw_survivors**（随路由置信度变化：模型越不确定、被丢质量越多，upscale 越大），calibrated 是**冻结的 per-layer 平均标量**。二者平均尺度接近（s≈1.05），但长度效应差 4 倍（+28 vs +7.7）。
+→ 因此驱动长度增长的是 **renorm 的 per-token 自适应放大**（恰好在"该走的专家被丢掉、置信度低"的 token 上把存活专家放大最多），而非专家数量、也非平均 norm。**"降 K → 变长"本质上是一个权重重归一化（自适应放大）的产物**，v21 的"推理替代"叙事被此混淆。
+
+（注：per-token 自适应的精确因果仍可在 raw log 上进一步验证；但"calibrated≈no_renorm≪renorm"这一点已足以排除"norm 大小"和"专家数量"作为主因。）
 
 ### v26 — 当前步直接效应
 **n=60 题, ~6600 采样位置/K. 在完全相同的 K8 历史上，只改当前一步的 K。**
