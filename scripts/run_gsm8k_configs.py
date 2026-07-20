@@ -37,7 +37,12 @@ ap.add_argument("--configs", required=True, help="comma list of PxD[:weight_mode
 ap.add_argument("--default_weight_mode", default="renorm_survivors")
 ap.add_argument("--out_root", default="/home/t-jialianggu/work/MOEresearch/results")
 ap.add_argument("--resume", action="store_true")
+ap.add_argument("--calib_scalars", default=None, help="JSON of {'layer,K': scalar} for calibrated_norm_match")
 args = ap.parse_args()
+
+CALIB = {}
+if args.calib_scalars and os.path.exists(args.calib_scalars):
+    CALIB = json.load(open(args.calib_scalars))
 
 OUT = os.path.join(args.out_root, f"2026-07-20_{args.tag}")
 os.makedirs(OUT, exist_ok=True)
@@ -99,7 +104,8 @@ def run_config(cfg, baseline_seqs):
                 done_ids.add(json.loads(l)["id"])
             except Exception:
                 pass
-    policy = KP.KPolicy(prefill_k=cfg["prefill_k"], decode_k=cfg["decode_k"], weight_mode=cfg["weight_mode"])
+    policy = KP.KPolicy(prefill_k=cfg["prefill_k"], decode_k=cfg["decode_k"], weight_mode=cfg["weight_mode"],
+                        calib_scalars=CALIB)
     ctx = KP.attach_policy(model, policy)
     rows = []
     fout = open(out_path, "a")
