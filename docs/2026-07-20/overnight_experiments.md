@@ -187,3 +187,15 @@ n=500, renorm_survivors。paired Δlen vs 8x8 (95%CI)：
 - per-token 自适应放大的精确因果可在 raw log 上进一步分层验证。
 - 真实系统收益（sglang fused kernel 的 latency/TPOT）未测——本轮只回答行为/机理。
 - 所有 raw log（含完整 token ids）已保存，任意新指标可离线重算，无需重跑。
+
+---
+
+## Full-test 1319 confirmatory 状态
+- 8x8 baseline (n=1319)：len=253.1, acc=82.7%, noMark=4.55% —— **与 n=500 (251.5/83.4%/5.0%) 高度吻合**，主结果在全测试集上稳健。
+- 8x4 / 8x6 decode 配置（n=1319）：仍在 GPU6/7 上跑（增量保存、可 resume），完成后将把主 decode 效应提升到 full-test n。早上可直接读 `results/2026-07-20_v28_fulltest_k{4,6}/`。
+
+## 产物清单（本夜）
+- 代码：`moe_research/{k_policy,answer_parsing,stats}.py`、`tests/test_k_policy.py`（8/8）、
+  `scripts/{run_gsm8k_configs,run_v25_answer_readiness,run_v26_direct_effect_probe,calibrate_norm_match,analyze_v23_v28,verify_k_policy_realmodel}.py`
+- 结果：`results/2026-07-20_*`（各实验 raw jsonl 含完整 token ids + summary + analysis）
+- 全部 commit 并 push 到 `origin/main`（github.com/gujialiang123/MOEresearch）。
