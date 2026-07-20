@@ -27,7 +27,8 @@ from typing import Optional, Callable
 import torch
 import torch.nn.functional as F
 
-WEIGHT_MODES = ("renorm_survivors", "no_renorm", "fold_mass_to_top1", "calibrated_norm_match")
+WEIGHT_MODES = ("renorm_survivors", "no_renorm", "fold_mass_to_top1", "calibrated_norm_match",
+                "partial_renorm", "clipped_gain", "fixed_gain", "shuffled_gain")
 
 # thread/async-safe current phase ("prefill" | "decode"); default prefill for a
 # bare forward with no cache.
@@ -39,12 +40,19 @@ class KPolicy:
     prefill_k: int = 8
     decode_k: int = 8
     weight_mode: str = "renorm_survivors"
-    # optional selectors for localization (v27). Return True => APPLY the policy K
+    # partial_renorm: y = M_K^{-beta} * sum_{kept} w_j E_j ; beta=0 => no_renorm,
+    #   beta=1 => full renorm_survivors. M_K = retained (native-normalized) mass.
+    renorm_beta: float = 1.0
+    # clipped_gain: g = min(1/M_K, gain_clip)
+    gain_clip: Optional[float] = None
+    # optional selectors for localization (v27/v32b). Return True => APPLY policy K
     # at this (layer_idx)/(decode_step). When None => apply everywhere.
     layer_selector: Optional[Callable[[int], bool]] = None
     decode_step_selector: Optional[Callable[[int], bool]] = None
-    # calibrated_norm_match scalars: dict[(layer_idx, k)] -> float, frozen offline.
+    # frozen per-(layer,k) scalars for calibrated_norm_match / fixed_gain: dict["l,k"]->float
     calib_scalars: dict = field(default_factory=dict)
+    # gain provider for shuffled_gain: fn(layer_idx, phase, decode_step, n_tokens, device)-> [n,1] tensor
+    gain_provider: Optional[Callable] = None
 
     def __post_init__(self):
         if self.weight_mode not in WEIGHT_MODES:
@@ -152,18 +160,38 @@ def _make_moe_forward(ctx: PolicyContext):
 
         base = rw / rw.sum(dim=-1, keepdim=True) if self.norm_topk_prob else rw
         keep_f = keep.to(base.dtype)
+        layer_idx = getattr(self, "_kp_layer_idx", -1)
+        # M_full = pool mass; M_K = retained mass; r = M_K/M_full (retained fraction).
+        # Using r (not M_K alone) makes native-K EXACTLY gain=1 for all modes.
+        M_full = base.sum(dim=-1, keepdim=True).clamp_min(1e-20)  # [T,1]
+        M_K = (base * keep_f).sum(dim=-1, keepdim=True).clamp_min(1e-20)  # [T,1]
+        inv_r = M_full / M_K  # = 1/r, the full-renorm gain (==1 at keep-all)
 
         wm = policy.weight_mode
-        if wm == "renorm_survivors":
-            surv = (base * keep_f).sum(dim=-1, keepdim=True).clamp_min(1e-20)
-            weights = base * keep_f * (base.sum(dim=-1, keepdim=True) / surv)
-        elif wm == "calibrated_norm_match":
-            # no_renorm relative mix, scaled by a frozen per-(layer,K) scalar to
-            # match the K8 branch norm (isolates norm from redistribution).
-            s = policy.calib_scalars.get(f"{getattr(self, '_kp_layer_idx', -1)},{int(eff_k)}", 1.0)
-            weights = base * keep_f * float(s)
-        elif wm == "no_renorm":
+        if wm == "renorm_survivors" or (wm == "partial_renorm" and policy.renorm_beta == 1.0):
+            weights = base * keep_f * inv_r
+        elif wm == "no_renorm" or (wm == "partial_renorm" and policy.renorm_beta == 0.0):
             weights = base * keep_f
+        elif wm == "partial_renorm":
+            # y = r^{-beta} * sum_{kept} w_j E_j ; interpolates no_renorm(0) <-> renorm(1)
+            weights = base * keep_f * inv_r.pow(float(policy.renorm_beta))
+        elif wm == "clipped_gain":
+            # full-renorm gain 1/r clipped at gain_clip
+            weights = base * keep_f * inv_r.clamp(max=float(policy.gain_clip))
+        elif wm == "fixed_gain":
+            # frozen per-(layer,k) mean gain from calibration (isolates avg scale)
+            s = policy.calib_scalars.get(f"{layer_idx},{int(eff_k)}", 1.0)
+            weights = base * keep_f * float(s)
+        elif wm == "shuffled_gain":
+            # per-token gain drawn from a calibration pool (breaks token correspondence)
+            if policy.gain_provider is not None:
+                g = policy.gain_provider(layer_idx, phase, ctx.decode_step, base.shape[0], base.device)
+            else:
+                g = inv_r
+            weights = base * keep_f * g
+        elif wm == "calibrated_norm_match":
+            s = policy.calib_scalars.get(f"{layer_idx},{int(eff_k)}", 1.0)
+            weights = base * keep_f * float(s)
         else:  # fold_mass_to_top1
             dropped = (base * (~keep).to(base.dtype)).sum(dim=-1, keepdim=True)
             weights = base * keep_f
