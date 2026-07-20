@@ -20,10 +20,12 @@ v20/v21/v22 已确立：降 K → 输出变长，主因是**轨迹中介的 L_to
 | 实验 | 目的 | 配置 | GPU | 状态 |
 |---|---|---|---|---|
 | **v23** phase factorial | 分离 prefill vs decode | 7 configs, n=500 | GPU4/7 | ✅ 完成 |
-| **v28** decode dose | decode K 剂量曲线 + 临界点 | pk=8, dk∈{8,7,6,5,4}, n=500 | GPU5 | 运行中 |
-| **v24** weight ablation | 排除 renorm/residual-scale 假象 | (8,8)(8,6)(8,4)(6,8)(4,8) × {no_renorm, fold_top1}, n=200 | GPU6 | 运行中 |
-| **v26** direct-effect | 真·当前步直接效应（改进 v22） | fixed-K8 KV fork, K∈{8,6,4}, n=60 | GPU7 | 运行中 |
-| **v25** answer-readiness | t_ready vs t_marker vs t_eos | 复用 v23 轨迹, n=80 | 待 v23 完成 | 待运行 |
+| **v28** decode dose (renorm) | decode K 剂量曲线 + 临界点 | pk=8, dk∈{8,7,6,5,4}, n=500 | GPU5 | ✅ 完成 |
+| **v24** weight ablation + mode D | 排除 renorm/scale 假象 | 4 weight modes (含 calibrated_norm_match) | GPU6 | ✅ 完成 |
+| **v26** direct-effect | 真·当前步直接效应（改进 v22） | fixed-K8 KV fork, K∈{8,6,4}, n=60 | GPU7 | ✅ 完成 |
+| **v25** answer-readiness | t_ready vs t_marker vs t_eos | 复用 v23 轨迹, n=80 | GPU4 | ✅ 完成 |
+| **v28b** decode dose (no_renorm) | 对照 renorm 剂量曲线是否压平 | pk=8, dk∈{8,7,6,5,4} no_renorm | GPU4/5 | 🔄 confirmatory（8x5 补跑中）|
+| **full-test 1319** | 主效应 full-test 确认 | 8x8/8x6/8x4 renorm, n=1319 | GPU6/7 | 🔄 confirmatory（运行中）|
 
 ---
 
