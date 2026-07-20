@@ -72,6 +72,62 @@ class GainCalibrator:
             h.remove()
         return self
 
+    @torch.inference_mode()
+    def record_decode(self, model, tok, prompts, device, max_new=512, gen_batch=16):
+        """Record 1/r gains at DECODE positions (per layer, decode-position bin), by
+        generating the native K8 greedy baseline then teacher-forcing the full sequence
+        and reading routing at positions >= prompt_len. Routing-only (gate+softmax+topk),
+        no expert compute. Position bins use the decode step (pos - prompt_len)."""
+        import types as _t
+        SUFFIX = "\nPlease reason step by step, and put your final answer after '#### '."
+        texts = [tok.apply_chat_template([{"role": "user", "content": p + SUFFIX}],
+                 tokenize=False, add_generation_prompt=True) for p in prompts]
+        eos = tok.eos_token_id
+        eos_set = set(eos) if isinstance(eos, list) else {eos}
+        seqs = []
+        for bs in range(0, len(texts), gen_batch):
+            enc = tok(texts[bs:bs+gen_batch], return_tensors="pt", padding=True,
+                      add_special_tokens=False).to(device)
+            out = model.generate(**enc, max_new_tokens=max_new, do_sample=False,
+                                 pad_token_id=tok.pad_token_id)
+            in_len = enc["input_ids"].shape[1]; am = enc["attention_mask"]
+            for j in range(out.shape[0]):
+                prompt_ids = enc["input_ids"][j][am[j].bool()].tolist()
+                gen = out[j, in_len:].tolist(); cut = len(gen)
+                for pos, tk in enumerate(gen):
+                    if tk in eos_set:
+                        cut = pos + 1; break
+                seqs.append((len(prompt_ids), prompt_ids + gen[:cut]))
+
+        state = {"plen": 0}
+        low_k, norm = self.low_k, self.norm_topk_prob
+
+        def mk(idx):
+            def hook(module, inp, out):
+                hs = inp[0].view(-1, inp[0].shape[-1])
+                rw = F.softmax(module.gate(hs), dim=1, dtype=torch.float)
+                rwk, _ = torch.topk(rw, module.top_k, dim=-1)
+                base = rwk / rwk.sum(-1, keepdim=True) if norm else rwk
+                keep = (torch.arange(base.shape[-1], device=base.device) < low_k)
+                M_full = base.sum(-1, keepdim=True).clamp_min(1e-20)
+                M_K = (base * keep).sum(-1, keepdim=True).clamp_min(1e-20)
+                inv_r = (M_full / M_K).squeeze(-1).tolist()
+                plen = state["plen"]
+                for pos, g in enumerate(inv_r):
+                    if pos < plen:
+                        continue
+                    self.pools.setdefault((idx, position_bin(pos - plen)), []).append(g)
+            return hook
+        handles = [b.register_forward_hook(mk(i)) for i, b in enumerate(self.blocks)]
+        try:
+            for plen, ids in seqs:
+                state["plen"] = plen
+                model(torch.tensor([ids], device=device))
+        finally:
+            for h in handles:
+                h.remove()
+        return self
+
     def scalars(self):
         """fixed_gain / layer_mean_gain: mean gain per 'layer,k' (averaged over bins)."""
         by_layer = {}
