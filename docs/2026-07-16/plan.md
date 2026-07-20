@@ -1,42 +1,31 @@
-# MoE Dynamic-K Research — Plan & Status
+# MoE Dynamic-K Research — Plan & Status (updated 2026-07-20)
 
-Branch: `moe-optimization`. Two orthogonal lines (kept separate on purpose):
-- **系统线 (system)**: does reducing K speed up real kernel/TPOT/E2E? (needs sglang fused — deferred)
-- **行为/机理线 (behavior/mechanism)**: WHY does changing K change generation length? (current focus; does NOT depend on real speedup)
+Repo: MOEresearch. Behavior/mechanism line (why K changes generation length).
 
-## Status
+## Done (2026-07-20 overnight)
+- Unified `moe_research/k_policy.py` (prefill_k/decode_k, cache-state phase, physical
+  skip, 4 weight modes) + tests 8/8 + real-model equivalence (0 err, phase routing OK).
+- v23 phase factorial (decode arm done; prefill/both arms finishing).
+- v24 weight ablation + mode D (calibrated_norm_match): KEY FINDING — length effect is
+  a renorm PER-TOKEN reweighting artifact, not expert count (K4: renorm +28, no_renorm
+  +3.8, calibrated +7.7, fold +144).
+- v25 answer-readiness: t_ready +5 vs t_marker +17 (delayed commitment, not more reasoning).
+- v26 current-step direct effect: small per-step (KL<=0.06, top1 96-98%) -> trajectory-mediated.
+- v28 decode dose (renorm): convex Δlen 2/5/8/13 as K 8->4.
+- v28b decode dose (no_renorm, n=500): running — expected flat (confirms v24).
 
-### ✅ Done & verified
-- **P0 fixes** (`scripts/dynamic_topk_utils.py`): physical expert skip, sync-free GPU counters,
-  3 named policies (top_p_within_topk / min_weight_cutoff / max_dropped_mass), strict `####`
-  parser, prefill/decode K split, 3 renorm modes.
-- **Unit tests** (`tests/test_dynamic_topk.py`): 9/9 pass (toy call-counter proves dropped
-  experts not executed; keep-all equivalence; monotonicity; kmin; no-sync; strict parser).
-- **Real-model equivalence** (`run_v20_dynamic_topk_equivalence.py`): keep-all == native at
-  EXACTLY 0 error (MoE out + logits), greedy generation token-identical; dyn τ=0.7 → avg_k_decode=4.94.
-- **Errata** added to v17 & v18 docs; **validation doc** `docs/2026-07-16/v20_dynamic_topk_validation.md`.
+## Headline reframing
+The "lower K -> longer generation" phenomenon (v21) is largely a **weight-renormalization
+artifact** (renorm's per-token 1/Σw upscaling), NOT intrinsic to reducing experts. Under
+no_renorm / norm-matched the effect nearly vanishes; under fold it explodes. This is the
+"Scale-Preserving Expert Sparsification" branch of the decision tree.
 
-### 🔄 Running
-- **v21 K-vs-length dose** (`run_v20_dynamic_topk_free_generation.py`): full GSM8K 1319,
-  K∈{4,6,8,10,12} (8=native baseline; 10,12 flagged OOD super-native), phase=all, max_new=512.
-  Saves FULL token ids per sample → any metric recomputable offline (no rerun).
-  Out: `results/2026-07-16_v21_k_vs_length/`. ~40min/config, ~3.3h total on GPU6.
+## Next (morning)
+- Merge v23 dirs, run full factorial (prefill vs decode effect + interaction).
+- Finalize overnight_experiments.md synthesis.
+- Consider: no_renorm dose figure vs renorm; tail-restoration probe; sglang real-latency.
 
-### ⏳ Next (ready)
-- **v21 analysis** (`analyze_v21_k_vs_length.py`, ready): dose curve + L_to_answer/L_post_answer
-  decomposition + no_hash trend + repetition + paired Δlen bootstrap CI. Pure log analysis.
-- **v22 teacher-forced** (`run_v22_teacher_forced_eos.py`, ready): separate DIRECT termination
-  effect vs trajectory-mediated effect. Teacher-force same baseline(K=8) seq under each K, read
-  logp(EOS)/margin/KL/ΔNLL in the termination zone (last W tokens before baseline EOS).
-
-## Key question being answered
-Extra length from lower K: is it **L_to_answer↑** (reasoning-compute substitution) or
-**L_post_answer↑ / no-#### ↑** (termination/format mechanism)? Small run (16q) hinted BOTH.
-v21 (dose + decomposition) + v22 (causal teacher-forcing) will resolve it.
-
-## Constraints / notes
-- GPU: **only GPU6** usable (7 forbidden). sglang env: `/home/t-jialianggu/.conda/envs/sglang`.
-- HF cache must be writable: `HF_HOME=$PWD/.hf_cache` (/data/hf/hub read-only).
-- Length study: do NOT reduce max_new (would censor the length being measured).
-- K>8 is OUT-OF-DISTRIBUTION (native top-8); reported separately, not on the natural dose curve.
-- GPT-suggested papers (TERMINATOR/ESTAR, arXiv 2603/2604.*) unverifiable (future-dated) — treat as leads only.
+## Constraints
+- GPUs 4-7 usable. env `/home/t-jialianggu/.conda/envs/sglang`. HF cache
+  `HF_HOME=/home/t-jialianggu/work/EndtoEnd-auto-optimization/.hf_cache`.
+- Length study: never reduce max_new (censoring). K>8 is OOD, report separately.
