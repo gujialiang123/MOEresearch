@@ -1,0 +1,23 @@
+{
+  "config": "8x4",
+  "prefill_k": 8,
+  "decode_k": 4,
+  "weight_mode": "renorm_survivors",
+  "n": 1319,
+  "acc_strict": 0.8127,
+  "acc_tol": 0.8749,
+  "no_marker_frac": 0.1054,
+  "no_eos_frac": 0.116,
+  "hit_max_frac": 0.1168,
+  "len_mean": 282.3,
+  "len_median": 254,
+  "len_p90": 512,
+  "len_p95": 512,
+  "len_p99": 512,
+  "L_to_marker_mean": 241.55,
+  "L_post_marker_mean": 13.74,
+  "rep_4gram_mean": 0.12,
+  "avg_k_decode": 4.0,
+  "avg_k_prefill": 8.0,
+  "gen_wall_ms": 4604560.7
+}

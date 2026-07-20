@@ -24,8 +24,8 @@ v20/v21/v22 已确立：降 K → 输出变长，主因是**轨迹中介的 L_to
 | **v24** weight ablation + mode D | 排除 renorm/scale 假象 | 4 weight modes (含 calibrated_norm_match) | GPU6 | ✅ 完成 |
 | **v26** direct-effect | 真·当前步直接效应（改进 v22） | fixed-K8 KV fork, K∈{8,6,4}, n=60 | GPU7 | ✅ 完成 |
 | **v25** answer-readiness | t_ready vs t_marker vs t_eos | 复用 v23 轨迹, n=80 | GPU4 | ✅ 完成 |
-| **v28b** decode dose (no_renorm) | 对照 renorm 剂量曲线是否压平 | pk=8, dk∈{8,7,6,5,4} no_renorm | GPU4/5 | 🔄 confirmatory（8x5 补跑中）|
-| **full-test 1319** | 主效应 full-test 确认 | 8x8/8x6/8x4 renorm, n=1319 | GPU6/7 | 🔄 confirmatory（运行中）|
+| **v28b** decode dose (no_renorm) | 对照 renorm 剂量曲线是否压平 | pk=8, dk∈{8,7,6,5,4} no_renorm, n=500 | GPU4/5 | ✅ 完成（曲线压平 250-255）|
+| **full-test 1319** | 主效应 full-test 确认 | 8x8/8x6/8x4 renorm, n=1319 | GPU6/7 | ✅ 完成（K6 +6.7, K4 +29.2）|
 
 ---
 
@@ -190,9 +190,16 @@ n=500, renorm_survivors。paired Δlen vs 8x8 (95%CI)：
 
 ---
 
-## Full-test 1319 confirmatory 状态
-- 8x8 baseline (n=1319)：len=253.1, acc=82.7%, noMark=4.55% —— **与 n=500 (251.5/83.4%/5.0%) 高度吻合**，主结果在全测试集上稳健。
-- 8x4 / 8x6 decode 配置（n=1319）：仍在 GPU6/7 上跑（增量保存、可 resume），完成后将把主 decode 效应提升到 full-test n。早上可直接读 `results/2026-07-20_v28_fulltest_k{4,6}/`。
+## Full-test 1319 confirmatory 状态（✅ 完成）
+主 decode 效应在**全 GSM8K test（n=1319）**上确认，与 n=500 高度一致：
+
+| 配置 (n=1319) | len | Δlen vs 8x8 | acc_strict | noMark | vs n=500 Δlen |
+|--|--:|--:|--:|--:|--:|
+| 8x8 | 253.1 | 0 | 82.7% | 4.6% | 0 |
+| 8x6 (decode K6) | 259.8 | **+6.7** | 84.9% | 5.7% | +6.7（完全一致）|
+| 8x4 (decode K4) | 282.3 | **+29.2** | 81.3% | 10.5% | +28.2（稳健）|
+
+→ 主结果（decode-K 缩减在 renorm 下显著增长，K6 安全、K4 过拐点）在**全测试集上稳健复现**。数据见 `results/2026-07-20_v28_fulltest_k{4,6}/`。
 
 ## 产物清单（本夜）
 - 代码：`moe_research/{k_policy,answer_parsing,stats}.py`、`tests/test_k_policy.py`（8/8）、
