@@ -28,7 +28,17 @@ import torch
 import torch.nn.functional as F
 
 WEIGHT_MODES = ("renorm_survivors", "no_renorm", "fold_mass_to_top1", "calibrated_norm_match",
-                "partial_renorm", "clipped_gain", "fixed_gain", "shuffled_gain")
+                "partial_renorm", "clipped_gain", "fixed_gain", "shuffled_gain",
+                "decode_norm_match", "position_bin_gain")
+
+
+def _position_bin(step: int) -> int:
+    # decode-position bins per plan: 1-32 / 33-96 / 97+
+    if step <= 32:
+        return 0
+    if step <= 96:
+        return 1
+    return 2
 
 # thread/async-safe current phase ("prefill" | "decode"); default prefill for a
 # bare forward with no cache.
@@ -189,8 +199,18 @@ def _make_moe_forward(ctx: PolicyContext):
             else:
                 g = inv_r
             weights = base * keep_f * g
-        elif wm == "calibrated_norm_match":
+        elif wm == "calibrated_norm_match" or wm == "decode_norm_match":
+            # frozen per-(layer,k) scalar; decode_norm_match loads DECODE-calibrated
+            # scalars (see decode_norm_calib.py), calibrated_norm_match the old
+            # prefill-calibrated ones. Same math, different frozen dict.
             s = policy.calib_scalars.get(f"{layer_idx},{int(eff_k)}", 1.0)
+            weights = base * keep_f * float(s)
+        elif wm == "position_bin_gain":
+            # frozen per-(layer, decode-position-bin, k) mean gain
+            b = _position_bin(ctx.decode_step) if phase == "decode" else 0
+            s = policy.calib_scalars.get(f"{layer_idx},{b},{int(eff_k)}")
+            if s is None:
+                s = policy.calib_scalars.get(f"{layer_idx},{int(eff_k)}", 1.0)
             weights = base * keep_f * float(s)
         else:  # fold_mass_to_top1
             dropped = (base * (~keep).to(base.dtype)).sum(dim=-1, keepdim=True)
