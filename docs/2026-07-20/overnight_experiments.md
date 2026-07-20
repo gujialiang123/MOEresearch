@@ -19,7 +19,7 @@ v20/v21/v22 已确立：降 K → 输出变长，主因是**轨迹中介的 L_to
 
 | 实验 | 目的 | 配置 | GPU | 状态 |
 |---|---|---|---|---|
-| **v23** phase factorial | 分离 prefill vs decode 对长度的贡献 | 7 configs (pk×dk ∈ 8/6/4), n=500 test | GPU4 | 运行中 |
+| **v23** phase factorial | 分离 prefill vs decode | 7 configs, n=500 | GPU4/7 | ✅ 完成 |
 | **v28** decode dose | decode K 剂量曲线 + 临界点 | pk=8, dk∈{8,7,6,5,4}, n=500 | GPU5 | 运行中 |
 | **v24** weight ablation | 排除 renorm/residual-scale 假象 | (8,8)(8,6)(8,4)(6,8)(4,8) × {no_renorm, fold_top1}, n=200 | GPU6 | 运行中 |
 | **v26** direct-effect | 真·当前步直接效应（改进 v22） | fixed-K8 KV fork, K∈{8,6,4}, n=60 | GPU7 | 运行中 |
@@ -40,14 +40,17 @@ n=500, renorm_survivors。paired Δlen vs 8x8 (95%CI)：
 | 6x6 (both K6) | +11.8 (7.1, 16.6) | 86.0% | 6.0% | 完整 K6 |
 | 4x8 (prefill K4) | +3.4 (−1.2, 8.2) **ns** | 83.4% | 6.8% | 强 prefill 干预 |
 | 8x4 (decode K4) | **+28.2 (22.9, 33.6)** 显著 | 81.8% | 10.0% | 强 decode 干预 |
-| 4x4 (both K4) | （4x4 运行中，早上补） | | | |
+| 4x4 (both K4) | +36.0 (30.2, 41.9), acc 74.6%, noMark 18% | | | 完整 K4（过拐点）|
 
-**因子效应（K=6）**：prefill_effect=**+3.3 (ns)** | decode_effect=**+6.7 (sig)** | interaction=+1.9 (ns，近似可加)。
+**因子效应**：
+- **K=6**：prefill=**+3.3 (ns)** | decode=**+6.7 (sig)** | interaction=+1.9 (ns)
+- **K=4**：prefill=**+3.4 (ns)** | decode=**+28.2 (sig)** | interaction=+4.5 (ns)
 
-**关键结论（强解离）**：
-1. **长度效应几乎完全是 decode 阶段现象**：decode 效应 +6.7(K6)/+28(K4)，均显著；**prefill 效应 ~+3，即使 K4 也不显著**。
-2. → 降低 prompt 编码的 K 几乎不改变生成长度；驱动变长的是**降低 autoregressive decode 的 K**。这与机理一致：prefill 只编码一次 prompt，decode 才是逐步生成、且被 renorm 的 per-token 放大逐步累积的地方。
-3. K6 时 prefill 与 decode 近似可加（interaction ns）；decode 效应约为 prefill 的 2 倍。
+**关键结论（强解离，K6/K4 均成立）**：
+1. **长度效应几乎完全是 decode 阶段现象**：decode 效应 +6.7(K6)/+28(K4) 均显著；**prefill 效应 ~+3，两档都不显著**。
+2. → 降低 prompt 编码的 K 几乎不改变生成长度；驱动变长的是**降低 autoregressive decode 的 K**。机理一致：prefill 只编码一次 prompt，decode 才是逐步生成、被 renorm per-token 放大逐步累积之处。
+3. **两档 interaction 都不显著（可加）**：4x4 观测 +36 ≈ decode(28)+prefill(3.4)+interaction(4.5)。
+4. **交叉验证**：4x4（both K4，+36，acc 74.6%，noMark 18%）与 v21 的 fixed_k4（phase=all，+38，acc 74.8%）**高度吻合** → 新旧 pipeline 自洽。
 
 ### v28 — Decode K 剂量曲线（renorm_survivors, decode-only, n=500）
 

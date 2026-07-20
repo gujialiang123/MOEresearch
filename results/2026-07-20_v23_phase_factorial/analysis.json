@@ -3,6 +3,31 @@
   "baseline": "8x8",
   "mode": "factorial",
   "configs": {
+    "4x4": {
+      "n": 500,
+      "acc_strict": 0.746,
+      "acc_tol": 0.854,
+      "no_marker": 0.18,
+      "no_eos": 0.136,
+      "hit_max": 0.138,
+      "len_mean": 287.5,
+      "len_p90": 512,
+      "L_to_marker": 242.36,
+      "L_post_marker": 12.3,
+      "rep4": 0.12,
+      "avg_k_decode": 4.0,
+      "avg_k_prefill": 4.0,
+      "delta_len_mean": 36.008,
+      "delta_len_ci": [
+        30.208,
+        41.902
+      ],
+      "mcnemar": {
+        "b": 79,
+        "c": 35,
+        "p_value": 4.6e-05
+      }
+    },
     "4x8": {
       "n": 500,
       "acc_strict": 0.834,
@@ -169,6 +194,24 @@
       1.854,
       -3.212,
       6.922
+    ],
+    "n": 500
+  },
+  "phase_effect_K4": {
+    "prefill": [
+      3.386,
+      -1.248,
+      8.158
+    ],
+    "decode": [
+      28.164,
+      22.866,
+      33.568
+    ],
+    "interaction": [
+      4.458,
+      -2.48,
+      11.602
     ],
     "n": 500
   }
