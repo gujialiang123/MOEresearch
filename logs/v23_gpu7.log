@@ -1,0 +1,19 @@
+loading model... configs=['8x8', '6x8', '4x8', '6x6', '4x4']
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:  12%|█▎        | 2/16 [00:00<00:01, 13.85it/s]Loading checkpoint shards:  25%|██▌       | 4/16 [00:00<00:00, 13.07it/s]Loading checkpoint shards:  38%|███▊      | 6/16 [00:00<00:00, 12.93it/s]Loading checkpoint shards:  50%|█████     | 8/16 [00:00<00:00, 12.83it/s]Loading checkpoint shards:  62%|██████▎   | 10/16 [00:00<00:00, 12.70it/s]Loading checkpoint shards:  75%|███████▌  | 12/16 [00:00<00:00, 12.60it/s]Loading checkpoint shards:  88%|████████▊ | 14/16 [00:01<00:00, 12.69it/s]Loading checkpoint shards: 100%|██████████| 16/16 [00:01<00:00, 13.54it/s]
+
+=== 8x8 (pk=8 dk=8 wm=renorm_survivors) ===
+The following generation flags are not valid and may be ignored: ['temperature', 'top_p', 'top_k']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+  [8x8] 64/500 k_dec=8.0 k_pre=8.0
+  [8x8] 128/500 k_dec=8.0 k_pre=8.0
+  [8x8] 192/500 k_dec=8.0 k_pre=8.0
+  [8x8] 256/500 k_dec=8.0 k_pre=8.0
+  [8x8] 320/500 k_dec=8.0 k_pre=8.0
+  [8x8] 384/500 k_dec=8.0 k_pre=8.0
+  [8x8] 448/500 k_dec=8.0 k_pre=8.0
+  [8x8] 500/500 k_dec=8.0 k_pre=8.0
+{"config": "8x8", "prefill_k": 8, "decode_k": 8, "weight_mode": "renorm_survivors", "n": 500, "acc_strict": 0.834, "acc_tol": 0.93, "no_marker_frac": 0.05, "no_eos_frac": 0.052, "hit_max_frac": 0.052, "len_mean": 251.5, "len_median": 228.0, "len_p90": 416, "len_p95": 512, "len_p99": 512, "L_to_marker_mean": 228.64, "L_post_marker_mean": 9.17, "rep_4gram_mean": 0.12, "avg_k_decode": 8.0, "avg_k_prefill": 8.0, "gen_wall_ms": 2268195.2}
+
+=== 6x8 (pk=6 dk=8 wm=renorm_survivors) ===
+  [6x8] 64/500 k_dec=8.0 k_pre=6.0
+  [6x8] 128/500 k_dec=8.0 k_pre=6.0
+  [6x8] 192/500 k_dec=8.0 k_pre=6.0

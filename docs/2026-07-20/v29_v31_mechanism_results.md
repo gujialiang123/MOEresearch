@@ -63,9 +63,38 @@
 **与昨晚 mode-D 的关系(诚实澄清)**:mode-D 的 `calibrated_norm_match` 匹配的是 **branch 输出 norm**(标量≈1.05),给 +7.7;v30 的 `layer_mean_gain` 施加的是**平均 gain E[1/r]**(标量≈1.2-1.6,更大),给 +24.5。二者不矛盾 —— 都指向"平均放大幅度"是主因,只是"匹配 norm 所需的放大"小于"full-renorm 的平均 gain"。综合:**长度效应由 renorm 施加的平均放大幅度驱动,而非 token 级对应、也非极端尾部。** 这比昨晚"per-token 自适应"的表述更准确。
 
 ## v31 — Pulse-and-recovery（自回归放大）
-（待填:Part A prefill recovery,Part B decode pulse,open-loop vs closed-loop）
+
+**问题(kill-test #3)**:decode 阶段的局部 K 扰动为什么能改变最终长度?是**自回归反馈把一个瞬时扰动放大成永久的轨迹偏移**,还是只是逐步的静态偏差累加?判据:如果同一个扰动在 **open-loop(teacher-forced,喂 K8 参考 token)** 下会被系统"遗忘"(KL 迅速衰减),但在 **closed-loop(自由生成,喂自己的 token)** 下却导致轨迹永久翻转,则证明存在自回归放大。
+
+**方法**:沿 K8 baseline 轨迹注入一个有限时长的 K4 "脉冲",脉冲结束后恢复 K8。
+- **Part A(prefill recovery)**:整段 prefill 用 K4,decode 全程 K8 —— 测一个"上游一次性扰动"是否被 decode 消化。
+- **Part B(decode pulse)**:decode 中在 early/late 位置注入 dur∈{1,16} 的 K4 脉冲。
+  - *open-loop*:脉冲后强制喂 K8 参考 token,测脉冲期内 KL(`open_kl_in`)与脉冲后 8 token 的残余 KL(`recovery_first8`)。
+  - *closed-loop*:自由生成,测最终轨迹是否翻转(`closed_flip_frac`)。
+
+**结果**(n=40 problems,Part B 每 duration n=80 pulse 位置):
+
+| | open-loop 脉冲内 KL | open-loop 脉冲后残余(8 tok) | closed-loop 翻转率 |
+|---|---|---|---|
+| **Part B dur=1** | 0.132 | **0.005**(几乎完全恢复) | **46.3%** |
+| **Part B dur=16** | 0.110 | 0.031(部分恢复) | **75.0%** |
+
+Part A(prefill 一次性扰动):open-loop KL 从 first16=0.049 衰减到 last16=0.014(decode 在遗忘上游扰动);但 closed-loop first-divergence 中位数仅 **16.5 token**,97.5% 的样本最终仍然发散。
+
+**结论**:**同一个局部扰动,open-loop 下 8 个 token 内几乎完全恢复(KL→0.005),closed-loop 下却有 46–75% 概率使轨迹永久翻转。** 这是自回归放大的直接证据 —— 是"喂自己生成的 token"这个闭环、而非静态偏差累加,把瞬时 K 扰动放大成长度/终止的永久改变。且脉冲越长(dur 1→16),残余 KL 与翻转率都单调上升(0.005→0.031,46%→75%),符合"扰动越久越难被闭环拉回"。**Kill-test #3 通过。**
 
 ---
 
 ## 综合结论
-（待填）
+
+三个 kill-test 共同锁定了"降低 K → 生成变长"的完整因果链,并逐一排除了主要的替代解释:
+
+1. **v29(因果性)**:长度效应由 renorm 的**强度 β 单调、因果地控制**(K4:Δ 3.7→28.2,β 0→1,4/4 concordant,CI 全 >0)。不是"专家数量"本身,而是"删除专家后如何重整权重"决定了变长幅度。→ 排除"K 越小信息越少所以更啰嗦"的朴素解释。
+
+2. **v30(机制定位)**:效应来自 renorm 施加的**平均放大幅度**(layer_mean_gain 复现 88%,shuffled 反而更大 +43.7,clip 尾部无削减),**不是** token 级 gain 对应、**也不是**极端尾部专家的贡献。→ 排除"被删专家携带特定 token 信息"和"尾部重要专家"两种解释。修正了昨晚 mode-D "per-token 自适应"的表述。
+
+3. **v31(传播机制)**:局部扰动之所以能改变**最终**长度,是因为**自回归闭环放大**:open-loop 8 token 内恢复(KL 0.005),closed-loop 46–75% 永久翻转。→ 排除"逐步静态偏差线性累加"的解释,确立"闭环反馈"为放大通道。
+
+**一句话论文主张**:降低 MoE 活跃专家数通过 renormalization 对 survivor 权重施加一个**平均上放大**,这个 residual-scale 扰动在**自回归解码闭环**中被放大,系统性地推迟终止、延长生成 —— 因此这是一个 **scale-preserving / renorm-mediated 的生成稳定性效应**,而非"专家—token 替代"式的语义信息损失。
+
+**下一步(不阻塞初稿)**:v25 answer-readiness(区分"更晚知道答案" vs "只是更啰嗦")、v26 fixed-KV direct-effect、v28 完整剂量曲线的 confirmatory test-split 运行、以及第二个 MoE 架构(Phi-3.5-MoE / Qwen1.5-MoE)方向复现。这些属于增强项;P0+v29+v30+v31 已构成最小 kill-test 包并全部通过。

@@ -1,0 +1,21 @@
+{
+  "tag": "v31_pulse_recovery",
+  "timestamp": "2026-07-20T22:26:51",
+  "git_commit": "17d44a86f05f37ecef0f2e080290cc7b087b82bc",
+  "model": "/data/hf/models/Qwen3-30B-A3B-Instruct-2507",
+  "config": {
+    "limit": 40,
+    "max_new": 400,
+    "pulse_durs": [
+      1,
+      16
+    ]
+  },
+  "config_hash": "2c8f6eb449461559",
+  "env": {
+    "torch": "2.9.1+cu128",
+    "transformers": "4.57.1",
+    "cuda": "12.8",
+    "gpu": "NVIDIA H200"
+  }
+}

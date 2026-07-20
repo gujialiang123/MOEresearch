@@ -1,0 +1,27 @@
+{
+  "partA": {
+    "n": 40,
+    "open_kl_first16_mean": 0.04919,
+    "open_kl_last16_mean": 0.01415,
+    "closed_first_div_median": 16.5,
+    "closed_no_divergence_frac": 0.025
+  },
+  "partB": {
+    "by_duration": {
+      "1": {
+        "dur": 1,
+        "n": 80,
+        "open_kl_in_mean": 0.13231,
+        "open_kl_recovery_first8": 0.00519,
+        "closed_flip_frac": 0.463
+      },
+      "16": {
+        "dur": 16,
+        "n": 80,
+        "open_kl_in_mean": 0.11048,
+        "open_kl_recovery_first8": 0.03078,
+        "closed_flip_frac": 0.75
+      }
+    }
+  }
+}

@@ -27,7 +27,7 @@ per-token 1/Σw upscaling), NOT intrinsic to reducing experts, and is DECODE-pha
 - Real sglang fused-kernel latency/TPOT (system line, separate).
 
 ## Constraints
-- GPUs 4-7. env /home/t-jialianggu/.conda/envs/sglang. HF cache
+- Future runs: use GPU2/GPU3 (per user 2026-07-20). Current v29/v31 finishing on GPU1/4/6. env /home/t-jialianggu/.conda/envs/sglang. HF cache
   HF_HOME=/home/t-jialianggu/work/EndtoEnd-auto-optimization/.hf_cache.
 - Length study: never reduce max_new. K>8 is OOD, report separately.
 - All raw logs keep full token ids -> any new metric recomputable offline, no rerun.

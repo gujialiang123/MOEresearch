@@ -1,0 +1,32 @@
+loading model... configs=['8x8', '8x6_calibrated_norm_match', '8x4_calibrated_norm_match']
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:  12%|█▎        | 2/16 [00:00<00:01, 13.93it/s]Loading checkpoint shards:  25%|██▌       | 4/16 [00:00<00:00, 13.47it/s]Loading checkpoint shards:  38%|███▊      | 6/16 [00:00<00:00, 13.31it/s]Loading checkpoint shards:  50%|█████     | 8/16 [00:00<00:00, 13.26it/s]Loading checkpoint shards:  62%|██████▎   | 10/16 [00:00<00:00, 13.14it/s]Loading checkpoint shards:  75%|███████▌  | 12/16 [00:00<00:00, 13.14it/s]Loading checkpoint shards:  88%|████████▊ | 14/16 [00:01<00:00, 13.13it/s]Loading checkpoint shards: 100%|██████████| 16/16 [00:01<00:00, 13.97it/s]
+
+=== 8x8 (pk=8 dk=8 wm=renorm_survivors) ===
+The following generation flags are not valid and may be ignored: ['temperature', 'top_p', 'top_k']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+  [8x8] 64/200 k_dec=8.0 k_pre=8.0
+  [8x8] 128/200 k_dec=8.0 k_pre=8.0
+  [8x8] 192/200 k_dec=8.0 k_pre=8.0
+  [8x8] 200/200 k_dec=8.0 k_pre=8.0
+{"config": "8x8", "prefill_k": 8, "decode_k": 8, "weight_mode": "renorm_survivors", "n": 200, "acc_strict": 0.825, "acc_tol": 0.935, "no_marker_frac": 0.045, "no_eos_frac": 0.045, "hit_max_frac": 0.045, "len_mean": 252.0, "len_median": 225.0, "len_p90": 416, "len_p95": 501, "len_p99": 512, "L_to_marker_mean": 228.84, "L_post_marker_mean": 10.9, "rep_4gram_mean": 0.12, "avg_k_decode": 8.0, "avg_k_prefill": 8.0, "gen_wall_ms": 939154.8}
+
+=== 8x6_calibrated_norm_match (pk=8 dk=6 wm=calibrated_norm_match) ===
+  [8x6_calibrated_norm_match] 64/200 k_dec=6.0 k_pre=8.0
+  [8x6_calibrated_norm_match] 128/200 k_dec=6.0 k_pre=8.0
+  [8x6_calibrated_norm_match] 192/200 k_dec=6.0 k_pre=8.0
+  [8x6_calibrated_norm_match] 200/200 k_dec=6.0 k_pre=8.0
+{"config": "8x6_calibrated_norm_match", "prefill_k": 8, "decode_k": 6, "weight_mode": "calibrated_norm_match", "n": 200, "acc_strict": 0.855, "acc_tol": 0.94, "no_marker_frac": 0.045, "no_eos_frac": 0.045, "hit_max_frac": 0.045, "len_mean": 257.3, "len_median": 235.0, "len_p90": 409, "len_p95": 470, "len_p99": 512, "L_to_marker_mean": 233.29, "L_post_marker_mean": 12.05, "rep_4gram_mean": 0.13, "avg_k_decode": 6.0, "avg_k_prefill": 8.0, "gen_wall_ms": 819873.5}
+
+=== 8x4_calibrated_norm_match (pk=8 dk=4 wm=calibrated_norm_match) ===
+  [8x4_calibrated_norm_match] 64/200 k_dec=4.0 k_pre=8.0
+  [8x4_calibrated_norm_match] 128/200 k_dec=4.0 k_pre=8.0
+  [8x4_calibrated_norm_match] 192/200 k_dec=4.0 k_pre=8.0
+  [8x4_calibrated_norm_match] 200/200 k_dec=4.0 k_pre=8.0
+{"config": "8x4_calibrated_norm_match", "prefill_k": 8, "decode_k": 4, "weight_mode": "calibrated_norm_match", "n": 200, "acc_strict": 0.88, "acc_tol": 0.95, "no_marker_frac": 0.03, "no_eos_frac": 0.03, "hit_max_frac": 0.03, "len_mean": 259.7, "len_median": 234.0, "len_p90": 412, "len_p95": 476, "len_p99": 512, "L_to_marker_mean": 236.55, "L_post_marker_mean": 15.31, "rep_4gram_mean": 0.12, "avg_k_decode": 4.0, "avg_k_prefill": 8.0, "gen_wall_ms": 653882.6}
+
+== v24b_calibrated_norm ==
+config           pk dk  acc_s  noMark    len  Lmark  Lpost   rep4
+8x8               8  8  82.5%    4.5%    252 228.84   10.9   0.12
+8x6_calibrated_norm_match  8  6  85.5%    4.5%    257 233.29  12.05   0.13
+8x4_calibrated_norm_match  8  4  88.0%    3.0%    260 236.55  15.31   0.12
+
+wrote /home/t-jialianggu/work/MOEresearch/results/2026-07-20_v24b_calibrated_norm/summary.json

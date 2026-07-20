@@ -1,0 +1,68 @@
+loading model... configs=['8x8', '8x7', '8x6', '8x5', '8x4']
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:  12%|█▎        | 2/16 [00:00<00:00, 14.11it/s]Loading checkpoint shards:  25%|██▌       | 4/16 [00:00<00:00, 13.23it/s]Loading checkpoint shards:  38%|███▊      | 6/16 [00:00<00:00, 13.12it/s]Loading checkpoint shards:  50%|█████     | 8/16 [00:00<00:00, 13.10it/s]Loading checkpoint shards:  62%|██████▎   | 10/16 [00:00<00:00, 13.00it/s]Loading checkpoint shards:  75%|███████▌  | 12/16 [00:00<00:00, 12.99it/s]Loading checkpoint shards:  88%|████████▊ | 14/16 [00:01<00:00, 13.02it/s]Loading checkpoint shards: 100%|██████████| 16/16 [00:01<00:00, 13.78it/s]
+
+=== 8x8 (pk=8 dk=8 wm=renorm_survivors) ===
+The following generation flags are not valid and may be ignored: ['temperature', 'top_p', 'top_k']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+  [8x8] 64/500 k_dec=8.0 k_pre=8.0
+  [8x8] 128/500 k_dec=8.0 k_pre=8.0
+  [8x8] 192/500 k_dec=8.0 k_pre=8.0
+  [8x8] 256/500 k_dec=8.0 k_pre=8.0
+  [8x8] 320/500 k_dec=8.0 k_pre=8.0
+  [8x8] 384/500 k_dec=8.0 k_pre=8.0
+  [8x8] 448/500 k_dec=8.0 k_pre=8.0
+  [8x8] 500/500 k_dec=8.0 k_pre=8.0
+{"config": "8x8", "prefill_k": 8, "decode_k": 8, "weight_mode": "renorm_survivors", "n": 500, "acc_strict": 0.834, "acc_tol": 0.93, "no_marker_frac": 0.05, "no_eos_frac": 0.052, "hit_max_frac": 0.052, "len_mean": 251.5, "len_median": 228.0, "len_p90": 416, "len_p95": 512, "len_p99": 512, "L_to_marker_mean": 228.64, "L_post_marker_mean": 9.17, "rep_4gram_mean": 0.12, "avg_k_decode": 8.0, "avg_k_prefill": 8.0, "gen_wall_ms": 2193957.9}
+
+=== 8x7 (pk=8 dk=7 wm=renorm_survivors) ===
+  [8x7] 64/500 k_dec=7.0 k_pre=8.0
+  [8x7] 128/500 k_dec=7.0 k_pre=8.0
+  [8x7] 192/500 k_dec=7.0 k_pre=8.0
+  [8x7] 256/500 k_dec=7.0 k_pre=8.0
+  [8x7] 320/500 k_dec=7.0 k_pre=8.0
+  [8x7] 384/500 k_dec=7.0 k_pre=8.0
+  [8x7] 448/500 k_dec=7.0 k_pre=8.0
+  [8x7] 500/500 k_dec=7.0 k_pre=8.0
+{"config": "8x7", "prefill_k": 8, "decode_k": 7, "weight_mode": "renorm_survivors", "n": 500, "acc_strict": 0.848, "acc_tol": 0.94, "no_marker_frac": 0.052, "no_eos_frac": 0.054, "hit_max_frac": 0.054, "len_mean": 253.6, "len_median": 233.0, "len_p90": 411, "len_p95": 512, "len_p99": 512, "L_to_marker_mean": 229.39, "L_post_marker_mean": 10.04, "rep_4gram_mean": 0.12, "avg_k_decode": 7.0, "avg_k_prefill": 8.0, "gen_wall_ms": 2060889.9}
+
+=== 8x6 (pk=8 dk=6 wm=renorm_survivors) ===
+  [8x6] 64/500 k_dec=6.0 k_pre=8.0
+  [8x6] 128/500 k_dec=6.0 k_pre=8.0
+  [8x6] 192/500 k_dec=6.0 k_pre=8.0
+  [8x6] 256/500 k_dec=6.0 k_pre=8.0
+  [8x6] 320/500 k_dec=6.0 k_pre=8.0
+  [8x6] 384/500 k_dec=6.0 k_pre=8.0
+  [8x6] 448/500 k_dec=6.0 k_pre=8.0
+  [8x6] 500/500 k_dec=6.0 k_pre=8.0
+{"config": "8x6", "prefill_k": 8, "decode_k": 6, "weight_mode": "renorm_survivors", "n": 500, "acc_strict": 0.85, "acc_tol": 0.928, "no_marker_frac": 0.062, "no_eos_frac": 0.066, "hit_max_frac": 0.066, "len_mean": 258.2, "len_median": 234.0, "len_p90": 430, "len_p95": 512, "len_p99": 512, "L_to_marker_mean": 230.05, "L_post_marker_mean": 11.35, "rep_4gram_mean": 0.12, "avg_k_decode": 6.0, "avg_k_prefill": 8.0, "gen_wall_ms": 1969730.9}
+
+=== 8x5 (pk=8 dk=5 wm=renorm_survivors) ===
+  [8x5] 64/500 k_dec=5.0 k_pre=8.0
+  [8x5] 128/500 k_dec=5.0 k_pre=8.0
+  [8x5] 192/500 k_dec=5.0 k_pre=8.0
+  [8x5] 256/500 k_dec=5.0 k_pre=8.0
+  [8x5] 320/500 k_dec=5.0 k_pre=8.0
+  [8x5] 384/500 k_dec=5.0 k_pre=8.0
+  [8x5] 448/500 k_dec=5.0 k_pre=8.0
+  [8x5] 500/500 k_dec=5.0 k_pre=8.0
+{"config": "8x5", "prefill_k": 8, "decode_k": 5, "weight_mode": "renorm_survivors", "n": 500, "acc_strict": 0.844, "acc_tol": 0.92, "no_marker_frac": 0.074, "no_eos_frac": 0.078, "hit_max_frac": 0.078, "len_mean": 266.5, "len_median": 239.0, "len_p90": 464, "len_p95": 512, "len_p99": 512, "L_to_marker_mean": 235.73, "L_post_marker_mean": 11.14, "rep_4gram_mean": 0.12, "avg_k_decode": 5.0, "avg_k_prefill": 8.0, "gen_wall_ms": 1843558.6}
+
+=== 8x4 (pk=8 dk=4 wm=renorm_survivors) ===
+  [8x4] 64/500 k_dec=4.0 k_pre=8.0
+  [8x4] 128/500 k_dec=4.0 k_pre=8.0
+  [8x4] 192/500 k_dec=4.0 k_pre=8.0
+  [8x4] 256/500 k_dec=4.0 k_pre=8.0
+  [8x4] 320/500 k_dec=4.0 k_pre=8.0
+  [8x4] 384/500 k_dec=4.0 k_pre=8.0
+  [8x4] 448/500 k_dec=4.0 k_pre=8.0
+  [8x4] 500/500 k_dec=4.0 k_pre=8.0
+{"config": "8x4", "prefill_k": 8, "decode_k": 4, "weight_mode": "renorm_survivors", "n": 500, "acc_strict": 0.818, "acc_tol": 0.876, "no_marker_frac": 0.1, "no_eos_frac": 0.116, "hit_max_frac": 0.116, "len_mean": 279.7, "len_median": 252.0, "len_p90": 512, "len_p95": 512, "len_p99": 512, "L_to_marker_mean": 240.43, "L_post_marker_mean": 13.44, "rep_4gram_mean": 0.12, "avg_k_decode": 4.0, "avg_k_prefill": 8.0, "gen_wall_ms": 1729348.8}
+
+== v28_dose_response ==
+config           pk dk  acc_s  noMark    len  Lmark  Lpost   rep4
+8x8               8  8  83.4%    5.0%    252 228.64   9.17   0.12
+8x7               8  7  84.8%    5.2%    254 229.39  10.04   0.12
+8x6               8  6  85.0%    6.2%    258 230.05  11.35   0.12
+8x5               8  5  84.4%    7.4%    266 235.73  11.14   0.12
+8x4               8  4  81.8%   10.0%    280 240.43  13.44   0.12
+
+wrote /home/t-jialianggu/work/MOEresearch/results/2026-07-20_v28_dose_response/summary.json

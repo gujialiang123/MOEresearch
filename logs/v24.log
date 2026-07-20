@@ -1,0 +1,80 @@
+loading model... configs=['8x8', '8x6_no_renorm', '8x4_no_renorm', '6x8_no_renorm', '4x8_no_renorm', '8x6_fold_mass_to_top1', '8x4_fold_mass_to_top1', '6x8_fold_mass_to_top1', '4x8_fold_mass_to_top1']
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:  12%|█▎        | 2/16 [00:00<00:01, 13.90it/s]Loading checkpoint shards:  25%|██▌       | 4/16 [00:00<00:00, 13.06it/s]Loading checkpoint shards:  38%|███▊      | 6/16 [00:00<00:00, 12.86it/s]Loading checkpoint shards:  50%|█████     | 8/16 [00:00<00:00, 12.81it/s]Loading checkpoint shards:  62%|██████▎   | 10/16 [00:00<00:00, 12.73it/s]Loading checkpoint shards:  75%|███████▌  | 12/16 [00:00<00:00, 12.73it/s]Loading checkpoint shards:  88%|████████▊ | 14/16 [00:01<00:00, 12.73it/s]Loading checkpoint shards: 100%|██████████| 16/16 [00:01<00:00, 13.53it/s]
+
+=== 8x8 (pk=8 dk=8 wm=renorm_survivors) ===
+The following generation flags are not valid and may be ignored: ['temperature', 'top_p', 'top_k']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+  [8x8] 64/200 k_dec=8.0 k_pre=8.0
+  [8x8] 128/200 k_dec=8.0 k_pre=8.0
+  [8x8] 192/200 k_dec=8.0 k_pre=8.0
+  [8x8] 200/200 k_dec=8.0 k_pre=8.0
+{"config": "8x8", "prefill_k": 8, "decode_k": 8, "weight_mode": "renorm_survivors", "n": 200, "acc_strict": 0.825, "acc_tol": 0.935, "no_marker_frac": 0.045, "no_eos_frac": 0.045, "hit_max_frac": 0.045, "len_mean": 252.0, "len_median": 225.0, "len_p90": 416, "len_p95": 501, "len_p99": 512, "L_to_marker_mean": 228.84, "L_post_marker_mean": 10.9, "rep_4gram_mean": 0.12, "avg_k_decode": 8.0, "avg_k_prefill": 8.0, "gen_wall_ms": 954335.1}
+
+=== 8x6_no_renorm (pk=8 dk=6 wm=no_renorm) ===
+  [8x6_no_renorm] 64/200 k_dec=6.0 k_pre=8.0
+  [8x6_no_renorm] 128/200 k_dec=6.0 k_pre=8.0
+  [8x6_no_renorm] 192/200 k_dec=6.0 k_pre=8.0
+  [8x6_no_renorm] 200/200 k_dec=6.0 k_pre=8.0
+{"config": "8x6_no_renorm", "prefill_k": 8, "decode_k": 6, "weight_mode": "no_renorm", "n": 200, "acc_strict": 0.85, "acc_tol": 0.935, "no_marker_frac": 0.04, "no_eos_frac": 0.045, "hit_max_frac": 0.045, "len_mean": 256.0, "len_median": 231.0, "len_p90": 406, "len_p95": 501, "len_p99": 512, "L_to_marker_mean": 233.7, "L_post_marker_mean": 11.64, "rep_4gram_mean": 0.13, "avg_k_decode": 6.0, "avg_k_prefill": 8.0, "gen_wall_ms": 823219.4}
+
+=== 8x4_no_renorm (pk=8 dk=4 wm=no_renorm) ===
+  [8x4_no_renorm] 64/200 k_dec=4.0 k_pre=8.0
+  [8x4_no_renorm] 128/200 k_dec=4.0 k_pre=8.0
+  [8x4_no_renorm] 192/200 k_dec=4.0 k_pre=8.0
+  [8x4_no_renorm] 200/200 k_dec=4.0 k_pre=8.0
+{"config": "8x4_no_renorm", "prefill_k": 8, "decode_k": 4, "weight_mode": "no_renorm", "n": 200, "acc_strict": 0.87, "acc_tol": 0.955, "no_marker_frac": 0.03, "no_eos_frac": 0.035, "hit_max_frac": 0.035, "len_mean": 255.8, "len_median": 232.5, "len_p90": 413, "len_p95": 478, "len_p99": 512, "L_to_marker_mean": 234.95, "L_post_marker_mean": 12.95, "rep_4gram_mean": 0.12, "avg_k_decode": 4.0, "avg_k_prefill": 8.0, "gen_wall_ms": 661691.0}
+
+=== 6x8_no_renorm (pk=6 dk=8 wm=no_renorm) ===
+  [6x8_no_renorm] 64/200 k_dec=8.0 k_pre=6.0
+  [6x8_no_renorm] 128/200 k_dec=8.0 k_pre=6.0
+  [6x8_no_renorm] 192/200 k_dec=8.0 k_pre=6.0
+  [6x8_no_renorm] 200/200 k_dec=8.0 k_pre=6.0
+{"config": "6x8_no_renorm", "prefill_k": 6, "decode_k": 8, "weight_mode": "no_renorm", "n": 200, "acc_strict": 0.845, "acc_tol": 0.94, "no_marker_frac": 0.05, "no_eos_frac": 0.05, "hit_max_frac": 0.05, "len_mean": 249.1, "len_median": 222.5, "len_p90": 410, "len_p95": 512, "len_p99": 512, "L_to_marker_mean": 223.91, "L_post_marker_mean": 11.39, "rep_4gram_mean": 0.12, "avg_k_decode": 8.0, "avg_k_prefill": 6.0, "gen_wall_ms": 930359.8}
+
+=== 4x8_no_renorm (pk=4 dk=8 wm=no_renorm) ===
+  [4x8_no_renorm] 64/200 k_dec=8.0 k_pre=4.0
+  [4x8_no_renorm] 128/200 k_dec=8.0 k_pre=4.0
+  [4x8_no_renorm] 192/200 k_dec=8.0 k_pre=4.0
+  [4x8_no_renorm] 200/200 k_dec=8.0 k_pre=4.0
+{"config": "4x8_no_renorm", "prefill_k": 4, "decode_k": 8, "weight_mode": "no_renorm", "n": 200, "acc_strict": 0.83, "acc_tol": 0.96, "no_marker_frac": 0.025, "no_eos_frac": 0.025, "hit_max_frac": 0.025, "len_mean": 245.5, "len_median": 227.0, "len_p90": 393, "len_p95": 446, "len_p99": 512, "L_to_marker_mean": 226.88, "L_post_marker_mean": 11.78, "rep_4gram_mean": 0.12, "avg_k_decode": 8.0, "avg_k_prefill": 4.0, "gen_wall_ms": 905191.2}
+
+=== 8x6_fold_mass_to_top1 (pk=8 dk=6 wm=fold_mass_to_top1) ===
+  [8x6_fold_mass_to_top1] 64/200 k_dec=6.0 k_pre=8.0
+  [8x6_fold_mass_to_top1] 128/200 k_dec=6.0 k_pre=8.0
+  [8x6_fold_mass_to_top1] 192/200 k_dec=6.0 k_pre=8.0
+  [8x6_fold_mass_to_top1] 200/200 k_dec=6.0 k_pre=8.0
+{"config": "8x6_fold_mass_to_top1", "prefill_k": 8, "decode_k": 6, "weight_mode": "fold_mass_to_top1", "n": 200, "acc_strict": 0.815, "acc_tol": 0.915, "no_marker_frac": 0.075, "no_eos_frac": 0.09, "hit_max_frac": 0.09, "len_mean": 272.1, "len_median": 246.5, "len_p90": 491, "len_p95": 512, "len_p99": 512, "L_to_marker_mean": 235.85, "L_post_marker_mean": 16.77, "rep_4gram_mean": 0.12, "avg_k_decode": 6.0, "avg_k_prefill": 8.0, "gen_wall_ms": 886058.2}
+
+=== 8x4_fold_mass_to_top1 (pk=8 dk=4 wm=fold_mass_to_top1) ===
+  [8x4_fold_mass_to_top1] 64/200 k_dec=4.0 k_pre=8.0
+  [8x4_fold_mass_to_top1] 128/200 k_dec=4.0 k_pre=8.0
+  [8x4_fold_mass_to_top1] 192/200 k_dec=4.0 k_pre=8.0
+  [8x4_fold_mass_to_top1] 200/200 k_dec=4.0 k_pre=8.0
+{"config": "8x4_fold_mass_to_top1", "prefill_k": 8, "decode_k": 4, "weight_mode": "fold_mass_to_top1", "n": 200, "acc_strict": 0.34, "acc_tol": 0.42, "no_marker_frac": 0.545, "no_eos_frac": 0.57, "hit_max_frac": 0.57, "len_mean": 395.7, "len_median": 512.0, "len_p90": 512, "len_p95": 512, "len_p99": 512, "L_to_marker_mean": 229.96, "L_post_marker_mean": 28.95, "rep_4gram_mean": 0.15, "avg_k_decode": 4.0, "avg_k_prefill": 8.0, "gen_wall_ms": 894833.5}
+
+=== 6x8_fold_mass_to_top1 (pk=6 dk=8 wm=fold_mass_to_top1) ===
+  [6x8_fold_mass_to_top1] 64/200 k_dec=8.0 k_pre=6.0
+  [6x8_fold_mass_to_top1] 128/200 k_dec=8.0 k_pre=6.0
+  [6x8_fold_mass_to_top1] 192/200 k_dec=8.0 k_pre=6.0
+  [6x8_fold_mass_to_top1] 200/200 k_dec=8.0 k_pre=6.0
+{"config": "6x8_fold_mass_to_top1", "prefill_k": 6, "decode_k": 8, "weight_mode": "fold_mass_to_top1", "n": 200, "acc_strict": 0.825, "acc_tol": 0.94, "no_marker_frac": 0.065, "no_eos_frac": 0.04, "hit_max_frac": 0.04, "len_mean": 261.8, "len_median": 235.0, "len_p90": 438, "len_p95": 503, "len_p99": 512, "L_to_marker_mean": 237.53, "L_post_marker_mean": 11.42, "rep_4gram_mean": 0.13, "avg_k_decode": 8.0, "avg_k_prefill": 6.0, "gen_wall_ms": 963634.9}
+
+=== 4x8_fold_mass_to_top1 (pk=4 dk=8 wm=fold_mass_to_top1) ===
+  [4x8_fold_mass_to_top1] 64/200 k_dec=8.0 k_pre=4.0
+  [4x8_fold_mass_to_top1] 128/200 k_dec=8.0 k_pre=4.0
+  [4x8_fold_mass_to_top1] 192/200 k_dec=8.0 k_pre=4.0
+  [4x8_fold_mass_to_top1] 200/200 k_dec=8.0 k_pre=4.0
+{"config": "4x8_fold_mass_to_top1", "prefill_k": 4, "decode_k": 8, "weight_mode": "fold_mass_to_top1", "n": 200, "acc_strict": 0.605, "acc_tol": 0.89, "no_marker_frac": 0.33, "no_eos_frac": 0.11, "hit_max_frac": 0.115, "len_mean": 284.3, "len_median": 260.0, "len_p90": 512, "len_p95": 512, "len_p99": 512, "L_to_marker_mean": 238.19, "L_post_marker_mean": 14.19, "rep_4gram_mean": 0.12, "avg_k_decode": 8.0, "avg_k_prefill": 4.0, "gen_wall_ms": 1027720.1}
+
+== v24_weight_ablation ==
+config           pk dk  acc_s  noMark    len  Lmark  Lpost   rep4
+8x8               8  8  82.5%    4.5%    252 228.84   10.9   0.12
+8x6_no_renorm     8  6  85.0%    4.0%    256  233.7  11.64   0.13
+8x4_no_renorm     8  4  87.0%    3.0%    256 234.95  12.95   0.12
+6x8_no_renorm     6  8  84.5%    5.0%    249 223.91  11.39   0.12
+4x8_no_renorm     4  8  83.0%    2.5%    246 226.88  11.78   0.12
+8x6_fold_mass_to_top1  8  6  81.5%    7.5%    272 235.85  16.77   0.12
+8x4_fold_mass_to_top1  8  4  34.0%   54.5%    396 229.96  28.95   0.15
+6x8_fold_mass_to_top1  6  8  82.5%    6.5%    262 237.53  11.42   0.13
+4x8_fold_mass_to_top1  4  8  60.5%   33.0%    284 238.19  14.19   0.12
+
+wrote /home/t-jialianggu/work/MOEresearch/results/2026-07-20_v24_weight_ablation/summary.json

@@ -1,0 +1,29 @@
+loading model...
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:  12%|█▎        | 2/16 [00:00<00:01, 13.61it/s]Loading checkpoint shards:  25%|██▌       | 4/16 [00:00<00:00, 13.03it/s]Loading checkpoint shards:  38%|███▊      | 6/16 [00:00<00:00, 12.70it/s]Loading checkpoint shards:  50%|█████     | 8/16 [00:00<00:00, 12.65it/s]Loading checkpoint shards:  62%|██████▎   | 10/16 [00:00<00:00, 12.52it/s]Loading checkpoint shards:  75%|███████▌  | 12/16 [00:00<00:00, 12.41it/s]Loading checkpoint shards:  88%|████████▊ | 14/16 [00:01<00:00, 12.44it/s]Loading checkpoint shards: 100%|██████████| 16/16 [00:01<00:00, 13.29it/s]
+The following generation flags are not valid and may be ignored: ['temperature', 'top_p', 'top_k']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+The attention mask is not set and cannot be inferred from input because pad token is same as eos token. As a consequence, you may observe unexpected behavior. Please pass your input's `attention_mask` to obtain reliable results.
+  done 5/60 (positions this q=40, total recs=600)
+  done 10/60 (positions this q=40, total recs=1200)
+  done 15/60 (positions this q=40, total recs=1800)
+  done 20/60 (positions this q=40, total recs=2400)
+  done 25/60 (positions this q=40, total recs=3000)
+  done 30/60 (positions this q=40, total recs=3600)
+  done 35/60 (positions this q=40, total recs=4200)
+  done 40/60 (positions this q=40, total recs=4800)
+  done 45/60 (positions this q=40, total recs=5400)
+  done 50/60 (positions this q=40, total recs=6000)
+  done 55/60 (positions this q=40, total recs=6600)
+  done 60/60 (positions this q=40, total recs=7200)
+
+== v26 current-step direct effect (identical K8 history) ==
+  K   KL(p8||pk)   EOS dlogp   margin d  gold dlogp  top1agree
+-- overall --
+  4      0.06004      3.9435     3.9324     -0.0692     0.9613
+  6      0.01124      1.4375     1.4432     -0.0141     0.9842
+  8          0.0         0.0        0.0         0.0        1.0
+-- near-EOS(<=8) --
+  4      0.06082      3.1008     2.9947     -0.0646     0.9583
+  6      0.02099      1.0856     1.1106      -0.025     0.9744
+  8          0.0         0.0        0.0         0.0        1.0
+
+wrote /home/t-jialianggu/work/MOEresearch/results/2026-07-20_v26_direct_effect/summary.json

@@ -1,0 +1,57 @@
+loading model... 6 configs
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:  12%|█▎        | 2/16 [00:00<00:01, 13.32it/s]Loading checkpoint shards:  25%|██▌       | 4/16 [00:00<00:00, 12.64it/s]Loading checkpoint shards:  38%|███▊      | 6/16 [00:00<00:00, 12.26it/s]Loading checkpoint shards:  50%|█████     | 8/16 [00:00<00:00, 12.13it/s]Loading checkpoint shards:  62%|██████▎   | 10/16 [00:00<00:00, 12.05it/s]Loading checkpoint shards:  75%|███████▌  | 12/16 [00:00<00:00, 12.20it/s]Loading checkpoint shards:  88%|████████▊ | 14/16 [00:01<00:00, 12.20it/s]Loading checkpoint shards: 100%|██████████| 16/16 [00:01<00:00, 12.95it/s]
+
+=== k8_native (dk=8 beta=1.0) ===
+{"config": "k8_native", "decode_k": 8, "beta": 1.0, "n": 500, "acc_strict": 0.834, "acc_tol": 0.93, "no_marker": 0.05, "no_eos": 0.052, "hit_max": 0.052, "len_mean": 251.5, "len_median": 228.0, "len_p90": 416, "len_p95": 512, "L_to_marker_mean": 228.6, "rep_4gram": 0.1203, "avg_k_decode": 8.0}
+
+=== k6_b0.0 (dk=6 beta=0.0) ===
+{"config": "k6_b0.0", "decode_k": 6, "beta": 0.0, "n": 500, "acc_strict": 0.858, "acc_tol": 0.93, "no_marker": 0.048, "no_eos": 0.05, "hit_max": 0.05, "len_mean": 252.7, "len_median": 231.5, "len_p90": 402, "len_p95": 512, "L_to_marker_mean": 230.7, "rep_4gram": 0.1203, "avg_k_decode": 6.0}
+
+=== k6_b0.25 (dk=6 beta=0.25) ===
+The following generation flags are not valid and may be ignored: ['temperature', 'top_p', 'top_k']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+  [k6_b0.25] 64/116 k_dec=6.0
+  [k6_b0.25] 116/116 k_dec=6.0
+{"config": "k6_b0.25", "decode_k": 6, "beta": 0.25, "n": 500, "acc_strict": 0.87, "acc_tol": 0.95, "no_marker": 0.036, "no_eos": 0.036, "hit_max": 0.036, "len_mean": 252.6, "len_median": 235.0, "len_p90": 397, "len_p95": 473, "L_to_marker_mean": 231.9, "rep_4gram": 0.121, "avg_k_decode": 6.0}
+
+=== k6_b0.5 (dk=6 beta=0.5) ===
+  [k6_b0.5] 64/500 k_dec=6.0
+  [k6_b0.5] 128/500 k_dec=6.0
+  [k6_b0.5] 192/500 k_dec=6.0
+  [k6_b0.5] 256/500 k_dec=6.0
+  [k6_b0.5] 320/500 k_dec=6.0
+  [k6_b0.5] 384/500 k_dec=6.0
+  [k6_b0.5] 448/500 k_dec=6.0
+  [k6_b0.5] 500/500 k_dec=6.0
+{"config": "k6_b0.5", "decode_k": 6, "beta": 0.5, "n": 500, "acc_strict": 0.864, "acc_tol": 0.93, "no_marker": 0.052, "no_eos": 0.056, "hit_max": 0.056, "len_mean": 255.9, "len_median": 232.0, "len_p90": 409, "len_p95": 512, "L_to_marker_mean": 232.6, "rep_4gram": 0.1232, "avg_k_decode": 6.0}
+
+=== k6_b0.75 (dk=6 beta=0.75) ===
+  [k6_b0.75] 64/500 k_dec=6.0
+  [k6_b0.75] 128/500 k_dec=6.0
+  [k6_b0.75] 192/500 k_dec=6.0
+  [k6_b0.75] 256/500 k_dec=6.0
+  [k6_b0.75] 320/500 k_dec=6.0
+  [k6_b0.75] 384/500 k_dec=6.0
+  [k6_b0.75] 448/500 k_dec=6.0
+  [k6_b0.75] 500/500 k_dec=6.0
+{"config": "k6_b0.75", "decode_k": 6, "beta": 0.75, "n": 500, "acc_strict": 0.846, "acc_tol": 0.928, "no_marker": 0.062, "no_eos": 0.064, "hit_max": 0.064, "len_mean": 259.9, "len_median": 235.0, "len_p90": 430, "len_p95": 512, "L_to_marker_mean": 232.9, "rep_4gram": 0.122, "avg_k_decode": 6.0}
+
+=== k6_b1.0 (dk=6 beta=1.0) ===
+  [k6_b1.0] 64/500 k_dec=6.0
+  [k6_b1.0] 128/500 k_dec=6.0
+  [k6_b1.0] 192/500 k_dec=6.0
+  [k6_b1.0] 256/500 k_dec=6.0
+  [k6_b1.0] 320/500 k_dec=6.0
+  [k6_b1.0] 384/500 k_dec=6.0
+  [k6_b1.0] 448/500 k_dec=6.0
+  [k6_b1.0] 500/500 k_dec=6.0
+{"config": "k6_b1.0", "decode_k": 6, "beta": 1.0, "n": 500, "acc_strict": 0.85, "acc_tol": 0.928, "no_marker": 0.062, "no_eos": 0.066, "hit_max": 0.066, "len_mean": 258.2, "len_median": 234.0, "len_p90": 430, "len_p95": 512, "L_to_marker_mean": 230.0, "rep_4gram": 0.1191, "avg_k_decode": 6.0}
+
+== v29 partial-renorm dose: config | dk | beta | len | acc | noMark ==
+k8_native    dk=8 b=1.00 len=252 acc=83.4% noMark=5.0%
+k6_b0.0      dk=6 b=0.00 len=253 acc=85.8% noMark=4.8%
+k6_b0.25     dk=6 b=0.25 len=253 acc=87.0% noMark=3.6%
+k6_b0.5      dk=6 b=0.50 len=256 acc=86.4% noMark=5.2%
+k6_b0.75     dk=6 b=0.75 len=260 acc=84.6% noMark=6.2%
+k6_b1.0      dk=6 b=1.00 len=258 acc=85.0% noMark=6.2%
+
+wrote /home/t-jialianggu/work/MOEresearch/results/2026-07-20_v29_partial_renorm/summary.json

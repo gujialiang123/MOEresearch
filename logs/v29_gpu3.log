@@ -1,0 +1,47 @@
+loading model... 4 configs
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:  12%|█▎        | 2/16 [00:00<00:01, 13.66it/s]Loading checkpoint shards:  25%|██▌       | 4/16 [00:00<00:00, 13.03it/s]Loading checkpoint shards:  38%|███▊      | 6/16 [00:00<00:00, 12.77it/s]Loading checkpoint shards:  50%|█████     | 8/16 [00:00<00:00, 12.64it/s]Loading checkpoint shards:  62%|██████▎   | 10/16 [00:00<00:00, 12.57it/s]Loading checkpoint shards:  75%|███████▌  | 12/16 [00:00<00:00, 12.54it/s]Loading checkpoint shards:  88%|████████▊ | 14/16 [00:01<00:00, 12.67it/s]Loading checkpoint shards: 100%|██████████| 16/16 [00:01<00:00, 13.46it/s]
+
+=== k8_native (dk=8 beta=1.0) ===
+{"config": "k8_native", "decode_k": 8, "beta": 1.0, "n": 500, "acc_strict": 0.834, "acc_tol": 0.93, "no_marker": 0.05, "no_eos": 0.052, "hit_max": 0.052, "len_mean": 251.5, "len_median": 228.0, "len_p90": 416, "len_p95": 512, "L_to_marker_mean": 228.6, "rep_4gram": 0.1203, "avg_k_decode": 8.0}
+
+=== k4_b0.5 (dk=4 beta=0.5) ===
+The following generation flags are not valid and may be ignored: ['temperature', 'top_p', 'top_k']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+  [k4_b0.5] 64/500 k_dec=4.0
+  [k4_b0.5] 128/500 k_dec=4.0
+  [k4_b0.5] 192/500 k_dec=4.0
+  [k4_b0.5] 256/500 k_dec=4.0
+  [k4_b0.5] 320/500 k_dec=4.0
+  [k4_b0.5] 384/500 k_dec=4.0
+  [k4_b0.5] 448/500 k_dec=4.0
+  [k4_b0.5] 500/500 k_dec=4.0
+{"config": "k4_b0.5", "decode_k": 4, "beta": 0.5, "n": 500, "acc_strict": 0.868, "acc_tol": 0.934, "no_marker": 0.052, "no_eos": 0.056, "hit_max": 0.056, "len_mean": 261.3, "len_median": 238.0, "len_p90": 429, "len_p95": 512, "L_to_marker_mean": 234.1, "rep_4gram": 0.1209, "avg_k_decode": 4.0}
+
+=== k4_b0.75 (dk=4 beta=0.75) ===
+  [k4_b0.75] 64/500 k_dec=4.0
+  [k4_b0.75] 128/500 k_dec=4.0
+  [k4_b0.75] 192/500 k_dec=4.0
+  [k4_b0.75] 256/500 k_dec=4.0
+  [k4_b0.75] 320/500 k_dec=4.0
+  [k4_b0.75] 384/500 k_dec=4.0
+  [k4_b0.75] 448/500 k_dec=4.0
+  [k4_b0.75] 500/500 k_dec=4.0
+{"config": "k4_b0.75", "decode_k": 4, "beta": 0.75, "n": 500, "acc_strict": 0.836, "acc_tol": 0.91, "no_marker": 0.08, "no_eos": 0.084, "hit_max": 0.084, "len_mean": 270.9, "len_median": 247.5, "len_p90": 474, "len_p95": 512, "L_to_marker_mean": 238.1, "rep_4gram": 0.1237, "avg_k_decode": 4.0}
+
+=== k4_b1.0 (dk=4 beta=1.0) ===
+  [k4_b1.0] 64/500 k_dec=4.0
+  [k4_b1.0] 128/500 k_dec=4.0
+  [k4_b1.0] 192/500 k_dec=4.0
+  [k4_b1.0] 256/500 k_dec=4.0
+  [k4_b1.0] 320/500 k_dec=4.0
+  [k4_b1.0] 384/500 k_dec=4.0
+  [k4_b1.0] 448/500 k_dec=4.0
+  [k4_b1.0] 500/500 k_dec=4.0
+{"config": "k4_b1.0", "decode_k": 4, "beta": 1.0, "n": 500, "acc_strict": 0.818, "acc_tol": 0.876, "no_marker": 0.1, "no_eos": 0.116, "hit_max": 0.116, "len_mean": 279.7, "len_median": 252.0, "len_p90": 512, "len_p95": 512, "L_to_marker_mean": 240.4, "rep_4gram": 0.1223, "avg_k_decode": 4.0}
+
+== v29 partial-renorm dose: config | dk | beta | len | acc | noMark ==
+k8_native    dk=8 b=1.00 len=252 acc=83.4% noMark=5.0%
+k4_b0.5      dk=4 b=0.50 len=261 acc=86.8% noMark=5.2%
+k4_b0.75     dk=4 b=0.75 len=271 acc=83.6% noMark=8.0%
+k4_b1.0      dk=4 b=1.00 len=280 acc=81.8% noMark=10.0%
+
+wrote /home/t-jialianggu/work/MOEresearch/results/2026-07-20_v29_partial_renorm/summary.json

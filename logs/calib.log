@@ -1,0 +1,9 @@
+loading model...
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:  12%|█▎        | 2/16 [00:00<00:00, 14.32it/s]Loading checkpoint shards:  25%|██▌       | 4/16 [00:00<00:00, 13.57it/s]Loading checkpoint shards:  38%|███▊      | 6/16 [00:00<00:00, 13.31it/s]Loading checkpoint shards:  50%|█████     | 8/16 [00:00<00:00, 13.17it/s]Loading checkpoint shards:  62%|██████▎   | 10/16 [00:00<00:00, 13.00it/s]Loading checkpoint shards:  75%|███████▌  | 12/16 [00:00<00:00, 12.85it/s]Loading checkpoint shards:  88%|████████▊ | 14/16 [00:01<00:00, 12.92it/s]Loading checkpoint shards: 100%|██████████| 16/16 [00:01<00:00, 13.84it/s]
+  calib 16/64
+  calib 32/64
+  calib 48/64
+  calib 64/64
+wrote 96 scalars to /home/t-jialianggu/work/MOEresearch/results/2026-07-20_v24_weight_ablation/norm_match_scalars.json
+K=6: mean s=1.008 range [0.985,1.105]
+K=4: mean s=1.045 range [0.987,1.257]

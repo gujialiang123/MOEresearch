@@ -1,0 +1,7 @@
+loading model... configs=['8x8', '4x4']
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:  12%|█▎        | 2/16 [00:00<00:00, 14.26it/s]Loading checkpoint shards:  25%|██▌       | 4/16 [00:00<00:00, 13.60it/s]Loading checkpoint shards:  38%|███▊      | 6/16 [00:00<00:00, 13.38it/s]Loading checkpoint shards:  50%|█████     | 8/16 [00:00<00:00, 13.26it/s]Loading checkpoint shards:  62%|██████▎   | 10/16 [00:00<00:00, 13.13it/s]Loading checkpoint shards:  75%|███████▌  | 12/16 [00:00<00:00, 13.12it/s]Loading checkpoint shards:  88%|████████▊ | 14/16 [00:01<00:00, 13.16it/s]Loading checkpoint shards: 100%|██████████| 16/16 [00:01<00:00, 14.02it/s]
+
+=== 8x8 (pk=8 dk=8 wm=renorm_survivors) ===
+The following generation flags are not valid and may be ignored: ['temperature', 'top_p', 'top_k']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+  [8x8] 64/500 k_dec=8.0 k_pre=8.0
+  [8x8] 128/500 k_dec=8.0 k_pre=8.0

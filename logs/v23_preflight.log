@@ -1,0 +1,11 @@
+loading model...
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:  12%|█▎        | 2/16 [00:00<00:01, 13.83it/s]Loading checkpoint shards:  25%|██▌       | 4/16 [00:00<00:00, 13.20it/s]Loading checkpoint shards:  38%|███▊      | 6/16 [00:00<00:00, 12.75it/s]Loading checkpoint shards:  50%|█████     | 8/16 [00:00<00:00, 12.17it/s]Loading checkpoint shards:  62%|██████▎   | 10/16 [00:00<00:00, 12.34it/s]Loading checkpoint shards:  75%|███████▌  | 12/16 [00:00<00:00, 12.41it/s]Loading checkpoint shards:  88%|████████▊ | 14/16 [00:01<00:00, 12.52it/s]Loading checkpoint shards: 100%|██████████| 16/16 [00:01<00:00, 13.29it/s]
+[eq] (8,8) next-token logits max_abs_err = 0.000e+00
+The following generation flags are not valid and may be ignored: ['temperature', 'top_p', 'top_k']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+[eq] (8,8) greedy token-for-token match: [True, True]
+[phase] (8,4): avg_k_prefill=8.0 avg_k_decode=4.0
+[phase] (4,8): avg_k_prefill=4.0 avg_k_decode=8.0
+[kv] native stable after policy runs: True
+
+ACCEPTANCE_PASS = True
+wrote /home/t-jialianggu/work/MOEresearch/results/2026-07-20_v23_preflight/preflight_report.json

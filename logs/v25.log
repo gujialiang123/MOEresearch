@@ -1,0 +1,22 @@
+loading model + v23 trajectories...
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:  12%|█▎        | 2/16 [00:00<00:00, 14.19it/s]Loading checkpoint shards:  25%|██▌       | 4/16 [00:00<00:00, 13.51it/s]Loading checkpoint shards:  38%|███▊      | 6/16 [00:00<00:00, 13.28it/s]Loading checkpoint shards:  50%|█████     | 8/16 [00:00<00:00, 13.14it/s]Loading checkpoint shards:  62%|██████▎   | 10/16 [00:00<00:00, 12.95it/s]Loading checkpoint shards:  75%|███████▌  | 12/16 [00:00<00:00, 12.93it/s]Loading checkpoint shards:  88%|████████▊ | 14/16 [00:01<00:00, 12.95it/s]Loading checkpoint shards: 100%|██████████| 16/16 [00:01<00:00, 13.83it/s]
+probing 80 problems x 3 configs
+calibrated readiness threshold (mean gold logprob) = -0.500 (from 64 K8-correct)
+  probed 10/80
+  probed 20/80
+  probed 30/80
+  probed 40/80
+  probed 50/80
+  probed 60/80
+  probed 70/80
+  probed 80/80
+
+== v25 answer-readiness ==
+config    t_ready  t_marker   t_eos  mark-ready  eos-mark
+8x8          99.3     225.5   238.7       133.3      13.1
+8x6         103.3     234.3   242.9       140.5       8.6
+8x4         104.6     242.8   251.8       143.2      10.5
+
+Interpretation: t_ready delayed at low K -> real answer-formation delay;
+t_ready flat but t_marker/t_eos later -> verbosity/termination, not reasoning.
+wrote /home/t-jialianggu/work/MOEresearch/results/2026-07-20_v25_answer_readiness/summary.json

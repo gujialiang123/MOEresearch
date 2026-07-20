@@ -1,0 +1,58 @@
+loading model... configs=['8x8', '8x4']
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:  12%|█▎        | 2/16 [00:00<00:00, 14.14it/s]Loading checkpoint shards:  25%|██▌       | 4/16 [00:00<00:00, 13.48it/s]Loading checkpoint shards:  38%|███▊      | 6/16 [00:00<00:00, 13.21it/s]Loading checkpoint shards:  50%|█████     | 8/16 [00:00<00:00, 13.13it/s]Loading checkpoint shards:  62%|██████▎   | 10/16 [00:00<00:00, 13.03it/s]Loading checkpoint shards:  75%|███████▌  | 12/16 [00:00<00:00, 13.03it/s]Loading checkpoint shards:  88%|████████▊ | 14/16 [00:01<00:00, 13.08it/s]Loading checkpoint shards: 100%|██████████| 16/16 [00:01<00:00, 13.91it/s]
+
+=== 8x8 (pk=8 dk=8 wm=renorm_survivors) ===
+The following generation flags are not valid and may be ignored: ['temperature', 'top_p', 'top_k']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+  [8x8] 64/1319 k_dec=8.0 k_pre=8.0
+  [8x8] 128/1319 k_dec=8.0 k_pre=8.0
+  [8x8] 192/1319 k_dec=8.0 k_pre=8.0
+  [8x8] 256/1319 k_dec=8.0 k_pre=8.0
+  [8x8] 320/1319 k_dec=8.0 k_pre=8.0
+  [8x8] 384/1319 k_dec=8.0 k_pre=8.0
+  [8x8] 448/1319 k_dec=8.0 k_pre=8.0
+  [8x8] 512/1319 k_dec=8.0 k_pre=8.0
+  [8x8] 576/1319 k_dec=8.0 k_pre=8.0
+  [8x8] 640/1319 k_dec=8.0 k_pre=8.0
+  [8x8] 704/1319 k_dec=8.0 k_pre=8.0
+  [8x8] 768/1319 k_dec=8.0 k_pre=8.0
+  [8x8] 832/1319 k_dec=8.0 k_pre=8.0
+  [8x8] 896/1319 k_dec=8.0 k_pre=8.0
+  [8x8] 960/1319 k_dec=8.0 k_pre=8.0
+  [8x8] 1024/1319 k_dec=8.0 k_pre=8.0
+  [8x8] 1088/1319 k_dec=8.0 k_pre=8.0
+  [8x8] 1152/1319 k_dec=8.0 k_pre=8.0
+  [8x8] 1216/1319 k_dec=8.0 k_pre=8.0
+  [8x8] 1280/1319 k_dec=8.0 k_pre=8.0
+  [8x8] 1319/1319 k_dec=8.0 k_pre=8.0
+{"config": "8x8", "prefill_k": 8, "decode_k": 8, "weight_mode": "renorm_survivors", "n": 1319, "acc_strict": 0.8271, "acc_tol": 0.9333, "no_marker_frac": 0.0455, "no_eos_frac": 0.0485, "hit_max_frac": 0.0493, "len_mean": 253.1, "len_median": 229, "len_p90": 407, "len_p95": 501, "len_p99": 512, "L_to_marker_mean": 230.09, "L_post_marker_mean": 10.65, "rep_4gram_mean": 0.12, "avg_k_decode": 8.0, "avg_k_prefill": 8.0, "gen_wall_ms": 5758604.4}
+
+=== 8x4 (pk=8 dk=4 wm=renorm_survivors) ===
+  [8x4] 64/1319 k_dec=4.0 k_pre=8.0
+  [8x4] 128/1319 k_dec=4.0 k_pre=8.0
+  [8x4] 192/1319 k_dec=4.0 k_pre=8.0
+  [8x4] 256/1319 k_dec=4.0 k_pre=8.0
+  [8x4] 320/1319 k_dec=4.0 k_pre=8.0
+  [8x4] 384/1319 k_dec=4.0 k_pre=8.0
+  [8x4] 448/1319 k_dec=4.0 k_pre=8.0
+  [8x4] 512/1319 k_dec=4.0 k_pre=8.0
+  [8x4] 576/1319 k_dec=4.0 k_pre=8.0
+  [8x4] 640/1319 k_dec=4.0 k_pre=8.0
+  [8x4] 704/1319 k_dec=4.0 k_pre=8.0
+  [8x4] 768/1319 k_dec=4.0 k_pre=8.0
+  [8x4] 832/1319 k_dec=4.0 k_pre=8.0
+  [8x4] 896/1319 k_dec=4.0 k_pre=8.0
+  [8x4] 960/1319 k_dec=4.0 k_pre=8.0
+  [8x4] 1024/1319 k_dec=4.0 k_pre=8.0
+  [8x4] 1088/1319 k_dec=4.0 k_pre=8.0
+  [8x4] 1152/1319 k_dec=4.0 k_pre=8.0
+  [8x4] 1216/1319 k_dec=4.0 k_pre=8.0
+  [8x4] 1280/1319 k_dec=4.0 k_pre=8.0
+  [8x4] 1319/1319 k_dec=4.0 k_pre=8.0
+{"config": "8x4", "prefill_k": 8, "decode_k": 4, "weight_mode": "renorm_survivors", "n": 1319, "acc_strict": 0.8127, "acc_tol": 0.8749, "no_marker_frac": 0.1054, "no_eos_frac": 0.116, "hit_max_frac": 0.1168, "len_mean": 282.3, "len_median": 254, "len_p90": 512, "len_p95": 512, "len_p99": 512, "L_to_marker_mean": 241.55, "L_post_marker_mean": 13.74, "rep_4gram_mean": 0.12, "avg_k_decode": 4.0, "avg_k_prefill": 8.0, "gen_wall_ms": 4604560.7}
+
+== v28_fulltest_k4 ==
+config           pk dk  acc_s  noMark    len  Lmark  Lpost   rep4
+8x8               8  8  82.7%    4.5%    253 230.09  10.65   0.12
+8x4               8  4  81.3%   10.5%    282 241.55  13.74   0.12
+
+wrote /home/t-jialianggu/work/MOEresearch/results/2026-07-20_v28_fulltest_k4/summary.json

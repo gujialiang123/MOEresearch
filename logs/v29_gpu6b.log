@@ -1,0 +1,30 @@
+loading model... 3 configs
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:  12%|█▎        | 2/16 [00:00<00:01, 13.59it/s]Loading checkpoint shards:  25%|██▌       | 4/16 [00:00<00:00, 12.90it/s]Loading checkpoint shards:  38%|███▊      | 6/16 [00:00<00:00, 12.65it/s]Loading checkpoint shards:  50%|█████     | 8/16 [00:00<00:00, 12.33it/s]Loading checkpoint shards:  62%|██████▎   | 10/16 [00:00<00:00, 12.28it/s]Loading checkpoint shards:  75%|███████▌  | 12/16 [00:00<00:00, 12.35it/s]Loading checkpoint shards:  88%|████████▊ | 14/16 [00:01<00:00, 12.55it/s]Loading checkpoint shards: 100%|██████████| 16/16 [00:01<00:00, 13.24it/s]
+
+=== k8_native (dk=8 beta=1.0) ===
+{"config": "k8_native", "decode_k": 8, "beta": 1.0, "n": 500, "acc_strict": 0.834, "acc_tol": 0.93, "no_marker": 0.05, "no_eos": 0.052, "hit_max": 0.052, "len_mean": 251.5, "len_median": 228.0, "len_p90": 416, "len_p95": 512, "L_to_marker_mean": 228.6, "rep_4gram": 0.1203, "avg_k_decode": 8.0}
+
+=== k4_b0.0 (dk=4 beta=0.0) ===
+The following generation flags are not valid and may be ignored: ['temperature', 'top_p', 'top_k']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+  [k4_b0.0] 64/180 k_dec=4.0
+  [k4_b0.0] 128/180 k_dec=4.0
+  [k4_b0.0] 180/180 k_dec=4.0
+{"config": "k4_b0.0", "decode_k": 4, "beta": 0.0, "n": 500, "acc_strict": 0.86, "acc_tol": 0.938, "no_marker": 0.048, "no_eos": 0.052, "hit_max": 0.052, "len_mean": 255.3, "len_median": 233.0, "len_p90": 403, "len_p95": 512, "L_to_marker_mean": 231.8, "rep_4gram": 0.1202, "avg_k_decode": 4.0}
+
+=== k4_b0.25 (dk=4 beta=0.25) ===
+  [k4_b0.25] 64/500 k_dec=4.0
+  [k4_b0.25] 128/500 k_dec=4.0
+  [k4_b0.25] 192/500 k_dec=4.0
+  [k4_b0.25] 256/500 k_dec=4.0
+  [k4_b0.25] 320/500 k_dec=4.0
+  [k4_b0.25] 384/500 k_dec=4.0
+  [k4_b0.25] 448/500 k_dec=4.0
+  [k4_b0.25] 500/500 k_dec=4.0
+{"config": "k4_b0.25", "decode_k": 4, "beta": 0.25, "n": 500, "acc_strict": 0.862, "acc_tol": 0.934, "no_marker": 0.056, "no_eos": 0.056, "hit_max": 0.056, "len_mean": 259.4, "len_median": 239.0, "len_p90": 412, "len_p95": 512, "L_to_marker_mean": 233.7, "rep_4gram": 0.1212, "avg_k_decode": 4.0}
+
+== v29 partial-renorm dose: config | dk | beta | len | acc | noMark ==
+k8_native    dk=8 b=1.00 len=252 acc=83.4% noMark=5.0%
+k4_b0.0      dk=4 b=0.00 len=255 acc=86.0% noMark=4.8%
+k4_b0.25     dk=4 b=0.25 len=259 acc=86.2% noMark=5.6%
+
+wrote /home/t-jialianggu/work/MOEresearch/results/2026-07-20_v29_partial_renorm/summary.json

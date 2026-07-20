@@ -1,0 +1,66 @@
+loading model...
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:  12%|█▎        | 2/16 [00:00<00:00, 14.49it/s]Loading checkpoint shards:  25%|██▌       | 4/16 [00:00<00:00, 13.74it/s]Loading checkpoint shards:  38%|███▊      | 6/16 [00:00<00:00, 13.59it/s]Loading checkpoint shards:  50%|█████     | 8/16 [00:00<00:00, 13.38it/s]Loading checkpoint shards:  62%|██████▎   | 10/16 [00:00<00:00, 13.41it/s]Loading checkpoint shards:  75%|███████▌  | 12/16 [00:00<00:00, 13.21it/s]Loading checkpoint shards:  88%|████████▊ | 14/16 [00:01<00:00, 13.23it/s]Loading checkpoint shards: 100%|██████████| 16/16 [00:01<00:00, 14.14it/s]
+calibrating gains on 64 TRAIN prompts (low_k=4)...
+  calibrated: 48 layers, q90=1.61505 q95=1.66502
+
+=== k8_native ===
+The following generation flags are not valid and may be ignored: ['temperature', 'top_p', 'top_k']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+  [k8_native] 64/200 k=8.0
+  [k8_native] 128/200 k=8.0
+  [k8_native] 192/200 k=8.0
+  [k8_native] 200/200 k=8.0
+{"mode": "k8_native", "n": 200, "acc_strict": 0.825, "acc_tol": 0.935, "no_marker": 0.045, "hit_max": 0.045, "len_mean": 252.0, "L_to_marker_mean": 228.8, "rep_4gram": 0.1225}
+
+=== no_renorm ===
+  [no_renorm] 64/200 k=4.0
+  [no_renorm] 128/200 k=4.0
+  [no_renorm] 192/200 k=4.0
+  [no_renorm] 200/200 k=4.0
+{"mode": "no_renorm", "n": 200, "acc_strict": 0.87, "acc_tol": 0.955, "no_marker": 0.03, "hit_max": 0.035, "len_mean": 255.8, "L_to_marker_mean": 234.9, "rep_4gram": 0.1235}
+
+=== true_token_gain ===
+  [true_token_gain] 64/200 k=4.0
+  [true_token_gain] 128/200 k=4.0
+  [true_token_gain] 192/200 k=4.0
+  [true_token_gain] 200/200 k=4.0
+{"mode": "true_token_gain", "n": 200, "acc_strict": 0.81, "acc_tol": 0.88, "no_marker": 0.09, "hit_max": 0.11, "len_mean": 279.7, "L_to_marker_mean": 239.1, "rep_4gram": 0.1219}
+
+=== layer_mean_gain ===
+  [layer_mean_gain] 64/200 k=4.0
+  [layer_mean_gain] 128/200 k=4.0
+  [layer_mean_gain] 192/200 k=4.0
+  [layer_mean_gain] 200/200 k=4.0
+{"mode": "layer_mean_gain", "n": 200, "acc_strict": 0.855, "acc_tol": 0.915, "no_marker": 0.07, "hit_max": 0.08, "len_mean": 276.5, "L_to_marker_mean": 241.9, "rep_4gram": 0.1224}
+
+=== shuffled_gain ===
+  [shuffled_gain] 64/200 k=4.0
+  [shuffled_gain] 128/200 k=4.0
+  [shuffled_gain] 192/200 k=4.0
+  [shuffled_gain] 200/200 k=4.0
+{"mode": "shuffled_gain", "n": 200, "acc_strict": 0.765, "acc_tol": 0.85, "no_marker": 0.155, "hit_max": 0.135, "len_mean": 295.7, "L_to_marker_mean": 244.0, "rep_4gram": 0.1246}
+
+=== clipped_gain_q90 ===
+  [clipped_gain_q90] 64/200 k=4.0
+  [clipped_gain_q90] 128/200 k=4.0
+  [clipped_gain_q90] 192/200 k=4.0
+  [clipped_gain_q90] 200/200 k=4.0
+{"mode": "clipped_gain_q90", "n": 200, "acc_strict": 0.825, "acc_tol": 0.87, "no_marker": 0.105, "hit_max": 0.125, "len_mean": 280.6, "L_to_marker_mean": 237.6, "rep_4gram": 0.1219}
+
+=== clipped_gain_q95 ===
+  [clipped_gain_q95] 64/200 k=4.0
+  [clipped_gain_q95] 128/200 k=4.0
+  [clipped_gain_q95] 192/200 k=4.0
+  [clipped_gain_q95] 200/200 k=4.0
+{"mode": "clipped_gain_q95", "n": 200, "acc_strict": 0.795, "acc_tol": 0.85, "no_marker": 0.105, "hit_max": 0.135, "len_mean": 280.9, "L_to_marker_mean": 233.8, "rep_4gram": 0.1226}
+
+== v30 gain controls (decode K4) ==
+mode                    len  Δvs_k8    acc  noMark
+k8_native               252     0.0  82.5%    4.5%
+no_renorm               256     3.8  87.0%    3.0%
+true_token_gain         280    27.7  81.0%    9.0%
+layer_mean_gain         276    24.5  85.5%    7.0%
+shuffled_gain           296    43.7  76.5%   15.5%
+clipped_gain_q90        281    28.6  82.5%   10.5%
+clipped_gain_q95        281    28.9  79.5%   10.5%
+
+wrote /home/t-jialianggu/work/MOEresearch/results/2026-07-20_v30_gain_controls/summary.json

@@ -130,16 +130,16 @@
     "k6_b1.0": {
       "decode_k": 6,
       "beta": 1.0,
-      "n": 320,
-      "len_mean": 260.9,
-      "delta_len": 5.981,
+      "n": 500,
+      "len_mean": 258.2,
+      "delta_len": 6.658,
       "ci": [
-        0.841,
-        11.106
+        2.652,
+        10.686
       ],
-      "acc_strict": 0.8562,
-      "no_marker": 0.0656,
-      "hit_max": 0.0688
+      "acc_strict": 0.85,
+      "no_marker": 0.062,
+      "hit_max": 0.066
     },
     "k8_native": {
       "decode_k": 8,
@@ -188,10 +188,10 @@
         252.6,
         255.9,
         259.9,
-        260.9
+        258.2
       ],
       "strictly_monotone_inc": false,
-      "concordant_pairs": "3/4"
+      "concordant_pairs": "2/4"
     }
   }
 }

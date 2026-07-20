@@ -1,0 +1,13 @@
+loading model... 6 configs
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:  12%|█▎        | 2/16 [00:00<00:01, 11.88it/s]Loading checkpoint shards:  25%|██▌       | 4/16 [00:00<00:01, 11.50it/s]Loading checkpoint shards:  38%|███▊      | 6/16 [00:00<00:00, 11.33it/s]Loading checkpoint shards:  50%|█████     | 8/16 [00:00<00:00, 11.26it/s]Loading checkpoint shards:  62%|██████▎   | 10/16 [00:00<00:00, 11.19it/s]Loading checkpoint shards:  75%|███████▌  | 12/16 [00:01<00:00, 11.24it/s]Loading checkpoint shards:  88%|████████▊ | 14/16 [00:01<00:00, 11.32it/s]Loading checkpoint shards: 100%|██████████| 16/16 [00:01<00:00, 12.01it/s]
+
+=== k8_native (dk=8 beta=1.0) ===
+{"config": "k8_native", "decode_k": 8, "beta": 1.0, "n": 500, "acc_strict": 0.834, "acc_tol": 0.93, "no_marker": 0.05, "no_eos": 0.052, "hit_max": 0.052, "len_mean": 251.5, "len_median": 228.0, "len_p90": 416, "len_p95": 512, "L_to_marker_mean": 228.6, "rep_4gram": 0.1203, "avg_k_decode": 8.0}
+
+=== k4_b0.0 (dk=4 beta=0.0) ===
+The following generation flags are not valid and may be ignored: ['temperature', 'top_p', 'top_k']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+  [k4_b0.0] 64/500 k_dec=4.0
+  [k4_b0.0] 128/500 k_dec=4.0
+  [k4_b0.0] 192/500 k_dec=4.0
+  [k4_b0.0] 256/500 k_dec=4.0
+  [k4_b0.0] 320/500 k_dec=4.0

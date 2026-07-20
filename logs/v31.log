@@ -1,0 +1,22 @@
+loading model...
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:  12%|█▎        | 2/16 [00:00<00:01, 13.39it/s]Loading checkpoint shards:  25%|██▌       | 4/16 [00:00<00:00, 12.90it/s]Loading checkpoint shards:  38%|███▊      | 6/16 [00:00<00:00, 12.55it/s]Loading checkpoint shards:  50%|█████     | 8/16 [00:00<00:00, 12.45it/s]Loading checkpoint shards:  62%|██████▎   | 10/16 [00:00<00:00, 12.37it/s]Loading checkpoint shards:  75%|███████▌  | 12/16 [00:00<00:00, 12.39it/s]Loading checkpoint shards:  88%|████████▊ | 14/16 [00:01<00:00, 12.48it/s]Loading checkpoint shards: 100%|██████████| 16/16 [00:01<00:00, 13.22it/s]
+The following generation flags are not valid and may be ignored: ['temperature', 'top_p', 'top_k']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+The attention mask is not set and cannot be inferred from input because pad token is same as eos token. As a consequence, you may observe unexpected behavior. Please pass your input's `attention_mask` to obtain reliable results.
+  done 5/40
+  done 10/40
+  done 15/40
+  done 20/40
+  done 25/40
+  done 30/40
+  done 35/40
+  done 40/40
+
+== v31 Part A: prefill recovery ==
+open-loop KL first16=0.04919 -> last16=0.01415 (decay?)
+closed-loop first-div median=16.5 no-div frac=0.025
+
+== v31 Part B: decode pulse (open KL vs closed flip) ==
+dur=1: open_kl_in=0.13231 recovery8=0.00519 closed_flip_frac=0.463
+dur=16: open_kl_in=0.11048 recovery8=0.03078 closed_flip_frac=0.75
+
+wrote /home/t-jialianggu/work/MOEresearch/results/2026-07-20_v31_pulse_recovery/summary.json
