@@ -1,0 +1,23 @@
+{
+  "config": "6x8_fold_mass_to_top1",
+  "prefill_k": 6,
+  "decode_k": 8,
+  "weight_mode": "fold_mass_to_top1",
+  "n": 200,
+  "acc_strict": 0.825,
+  "acc_tol": 0.94,
+  "no_marker_frac": 0.065,
+  "no_eos_frac": 0.04,
+  "hit_max_frac": 0.04,
+  "len_mean": 261.8,
+  "len_median": 235.0,
+  "len_p90": 438,
+  "len_p95": 503,
+  "len_p99": 512,
+  "L_to_marker_mean": 237.53,
+  "L_post_marker_mean": 11.42,
+  "rep_4gram_mean": 0.13,
+  "avg_k_decode": 8.0,
+  "avg_k_prefill": 6.0,
+  "gen_wall_ms": 963634.9
+}

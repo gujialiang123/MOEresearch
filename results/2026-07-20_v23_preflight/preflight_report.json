@@ -1,0 +1,22 @@
+{
+  "nexttoken_logit_max_abs_err_88": 0.0,
+  "greedy_gen_match_88": [
+    true,
+    true
+  ],
+  "greedy_gen_all_match_88": true,
+  "phase84_stats": {
+    "avg_k_prefill": 8.0,
+    "avg_k_decode": 4.0,
+    "tok_prefill": 2544,
+    "tok_decode": 2352
+  },
+  "phase48_stats": {
+    "avg_k_prefill": 4.0,
+    "avg_k_decode": 8.0,
+    "tok_prefill": 2544,
+    "tok_decode": 2352
+  },
+  "kv_integrity_native_stable": true,
+  "ACCEPTANCE_PASS": true
+}
