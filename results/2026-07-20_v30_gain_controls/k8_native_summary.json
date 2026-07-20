@@ -1,0 +1,11 @@
+{
+  "mode": "k8_native",
+  "n": 200,
+  "acc_strict": 0.825,
+  "acc_tol": 0.935,
+  "no_marker": 0.045,
+  "hit_max": 0.045,
+  "len_mean": 252.0,
+  "L_to_marker_mean": 228.8,
+  "rep_4gram": 0.1225
+}

@@ -1,0 +1,11 @@
+{
+  "mode": "layer_mean_gain",
+  "n": 200,
+  "acc_strict": 0.855,
+  "acc_tol": 0.915,
+  "no_marker": 0.07,
+  "hit_max": 0.08,
+  "len_mean": 276.5,
+  "L_to_marker_mean": 241.9,
+  "rep_4gram": 0.1224
+}

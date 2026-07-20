@@ -1,0 +1,11 @@
+{
+  "mode": "clipped_gain_q95",
+  "n": 200,
+  "acc_strict": 0.795,
+  "acc_tol": 0.85,
+  "no_marker": 0.105,
+  "hit_max": 0.135,
+  "len_mean": 280.9,
+  "L_to_marker_mean": 233.8,
+  "rep_4gram": 0.1226
+}

@@ -1,0 +1,87 @@
+{
+  "tag": "v30_gain_controls",
+  "summaries": {
+    "k8_native": {
+      "mode": "k8_native",
+      "n": 200,
+      "acc_strict": 0.825,
+      "acc_tol": 0.935,
+      "no_marker": 0.045,
+      "hit_max": 0.045,
+      "len_mean": 252.0,
+      "L_to_marker_mean": 228.8,
+      "rep_4gram": 0.1225
+    },
+    "no_renorm": {
+      "mode": "no_renorm",
+      "n": 200,
+      "acc_strict": 0.87,
+      "acc_tol": 0.955,
+      "no_marker": 0.03,
+      "hit_max": 0.035,
+      "len_mean": 255.8,
+      "L_to_marker_mean": 234.9,
+      "rep_4gram": 0.1235
+    },
+    "true_token_gain": {
+      "mode": "true_token_gain",
+      "n": 200,
+      "acc_strict": 0.81,
+      "acc_tol": 0.88,
+      "no_marker": 0.09,
+      "hit_max": 0.11,
+      "len_mean": 279.7,
+      "L_to_marker_mean": 239.1,
+      "rep_4gram": 0.1219
+    },
+    "layer_mean_gain": {
+      "mode": "layer_mean_gain",
+      "n": 200,
+      "acc_strict": 0.855,
+      "acc_tol": 0.915,
+      "no_marker": 0.07,
+      "hit_max": 0.08,
+      "len_mean": 276.5,
+      "L_to_marker_mean": 241.9,
+      "rep_4gram": 0.1224
+    },
+    "shuffled_gain": {
+      "mode": "shuffled_gain",
+      "n": 200,
+      "acc_strict": 0.765,
+      "acc_tol": 0.85,
+      "no_marker": 0.155,
+      "hit_max": 0.135,
+      "len_mean": 295.7,
+      "L_to_marker_mean": 244.0,
+      "rep_4gram": 0.1246
+    },
+    "clipped_gain_q90": {
+      "mode": "clipped_gain_q90",
+      "n": 200,
+      "acc_strict": 0.825,
+      "acc_tol": 0.87,
+      "no_marker": 0.105,
+      "hit_max": 0.125,
+      "len_mean": 280.6,
+      "L_to_marker_mean": 237.6,
+      "rep_4gram": 0.1219
+    },
+    "clipped_gain_q95": {
+      "mode": "clipped_gain_q95",
+      "n": 200,
+      "acc_strict": 0.795,
+      "acc_tol": 0.85,
+      "no_marker": 0.105,
+      "hit_max": 0.135,
+      "len_mean": 280.9,
+      "L_to_marker_mean": 233.8,
+      "rep_4gram": 0.1226
+    }
+  },
+  "quantiles": {
+    "0.9": 1.61505,
+    "0.95": 1.66502,
+    "0.99": 1.74993
+  }
+}

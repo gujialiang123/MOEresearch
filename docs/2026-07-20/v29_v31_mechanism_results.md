@@ -18,7 +18,27 @@
 （待填:decode K∈{6,4} × β∈{0,.25,.5,.75,1},n=500）
 
 ## v30 — Gain controls（平均 scale vs token-conditioned gain）
-（待填:decode K4,7 种 gain 模式,calibration 只用 train）
+**固定 decode K4,prefill 8,greedy,n=200。gain 校准只用 GSM8K train(64 题)。Δlen vs k8_native(=252)。**
+
+| 模式 | 定义 | len | Δ | acc | noMark |
+|--|--|--:|--:|--:|--:|
+| k8_native | 基线 | 252 | 0 | 82.5% | 4.5% |
+| no_renorm | g=1(不放大) | 256 | **+3.8** | 87.0% | 3.0% |
+| true_token_gain | g=1/r 每 token(=full renorm) | 280 | **+27.7** | 81.0% | 9.0% |
+| layer_mean_gain | 冻结每层平均 gain(纯平均 scale) | 276 | **+24.5** | 85.5% | 7.0% |
+| shuffled_gain | 从匹配池抽 gain(破坏 token 对应) | 296 | **+43.7** | 76.5% | 15.5% |
+| clipped_gain_q90 | g=min(1/r, q90) | 281 | +28.6 | 82.5% | 10.5% |
+| clipped_gain_q95 | g=min(1/r, q95) | 281 | +28.9 | 79.5% | 10.5% |
+
+**结论(对昨晚 mode-D 框架的重要修正)**：
+1. **gain 因果控制长度**:no_renorm(g=1)只有 +3.8,一旦施加放大就 +25~44。→ 放大(gain)是长度效应的**直接原因**。
+2. **主要是平均 scale,不是 token 对应关系**:
+   - `layer_mean_gain`(纯每层平均标量,无任何 token 条件)已复现 **+24.5**,占 true(+27.7)的 **88%**。
+   - `shuffled_gain`(保留 gain 分布、**打破**与当前 token 的对应)不但没削弱,反而 **+43.7 更大**(且 noMark 15.5% 最高、acc 最低)。→ **token 级对应关系不是关键**;把大 gain 随机砸到"不需要"的 token 上反而更不稳定。
+   - 对应计划的"结果 B/C":gain 的**幅度/分布**比其与 router state 的语义对应更重要。
+3. **不是极端尾部**:`clipped_gain_q90/q95`(裁掉最大的 gain)几乎不降(+28.6/+28.9≈true)。→ 效应来自 gain 的**主体幅度**,不是少数极大 gain。
+
+**与昨晚 mode-D 的关系(诚实澄清)**:mode-D 的 `calibrated_norm_match` 匹配的是 **branch 输出 norm**(标量≈1.05),给 +7.7;v30 的 `layer_mean_gain` 施加的是**平均 gain E[1/r]**(标量≈1.2-1.6,更大),给 +24.5。二者不矛盾 —— 都指向"平均放大幅度"是主因,只是"匹配 norm 所需的放大"小于"full-renorm 的平均 gain"。综合:**长度效应由 renorm 施加的平均放大幅度驱动,而非 token 级对应、也非极端尾部。** 这比昨晚"per-token 自适应"的表述更准确。
 
 ## v31 — Pulse-and-recovery（自回归放大）
 （待填:Part A prefill recovery,Part B decode pulse,open-loop vs closed-loop）

@@ -1,0 +1,11 @@
+{
+  "mode": "true_token_gain",
+  "n": 200,
+  "acc_strict": 0.81,
+  "acc_tol": 0.88,
+  "no_marker": 0.09,
+  "hit_max": 0.11,
+  "len_mean": 279.7,
+  "L_to_marker_mean": 239.1,
+  "rep_4gram": 0.1219
+}

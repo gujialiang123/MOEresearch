@@ -1,0 +1,11 @@
+{
+  "mode": "shuffled_gain",
+  "n": 200,
+  "acc_strict": 0.765,
+  "acc_tol": 0.85,
+  "no_marker": 0.155,
+  "hit_max": 0.135,
+  "len_mean": 295.7,
+  "L_to_marker_mean": 244.0,
+  "rep_4gram": 0.1246
+}

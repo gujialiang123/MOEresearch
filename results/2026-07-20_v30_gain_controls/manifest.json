@@ -1,0 +1,27 @@
+{
+  "tag": "v30_gain_controls",
+  "timestamp": "2026-07-20T18:51:45",
+  "git_commit": "76e817faf6a38fc9f5dcbaf57b88c68ca516a428",
+  "model": "/data/hf/models/Qwen3-30B-A3B-Instruct-2507",
+  "config": {
+    "decode_k": 4,
+    "calib_n": 64,
+    "limit": 200,
+    "modes": [
+      "k8_native",
+      "no_renorm",
+      "true_token_gain",
+      "layer_mean_gain",
+      "shuffled_gain",
+      "clipped_gain_q90",
+      "clipped_gain_q95"
+    ]
+  },
+  "config_hash": "d4162a5624bed43e",
+  "env": {
+    "torch": "2.9.1+cu128",
+    "transformers": "4.57.1",
+    "cuda": "12.8",
+    "gpu": "NVIDIA H200"
+  }
+}

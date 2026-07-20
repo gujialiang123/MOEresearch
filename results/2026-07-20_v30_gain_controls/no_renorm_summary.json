@@ -1,0 +1,11 @@
+{
+  "mode": "no_renorm",
+  "n": 200,
+  "acc_strict": 0.87,
+  "acc_tol": 0.955,
+  "no_marker": 0.03,
+  "hit_max": 0.035,
+  "len_mean": 255.8,
+  "L_to_marker_mean": 234.9,
+  "rep_4gram": 0.1235
+}
