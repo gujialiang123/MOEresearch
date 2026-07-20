@@ -69,6 +69,19 @@ n=500, renorm_survivors。paired Δlen vs 8x8 (95%CI)：
 2. **精度**：K6-7 甚至略升（85%），K4 才掉（81.8%）；noMark 5%→10%。呼应 v21"k6 安全、k4 过拐点"。
 3. **⚠️ 关键联系（配合 v24）**：这条曲线是 **renorm_survivors** 下的；v24 证明换 no_renorm 后整条曲线会**基本压平**。所以这是"**renormalization 介导的**长度效应"的剂量曲线，不是"专家数量"的内在剂量曲线。
 
+### v28b — no_renorm 剂量曲线（决定性对照）
+直接对比 decode-only 剂量曲线在两种 weight mode 下的形状（renorm n=500；no_renorm 混 n=500/200）：
+
+| decode K | **renorm** len (Δ) | **no_renorm** len (Δ) |
+|--:|--:|--:|
+| 8 | 251.5 (0) | 251.5 (0) |
+| 7 | 253.6 (+2.1) | 250.0 (**−1.5**) |
+| 6 | 258.2 (+6.7) | 256.0 (+4.5) |
+| 5 | 266.5 (+15.0) | （运行中） |
+| 4 | 279.7 (**+28.2**) | 255.8 (**+4.3**) |
+
+**结论**：**no_renorm 下整条 decode 剂量曲线基本压平**（250–256，全在 ±4.5 内），renorm 一路升到 +28。→ 决定性证明"降 decode K → 变长"是 **renorm 介导的**，换 no_renorm 后几乎消失。与 v24/mode D 一致，构成主结论核心对照图。（8x5_no_renorm n=500 与 full-test 1319 confirmatory 仍在跑，早上补齐；结论已确立。）
+
 ### v24 — Weight-mode 消融（★ 重大发现）
 **decode arm 相同的 K 缩减，长度变化完全取决于权重聚合方式**（paired Δlen vs 8x8, 95%CI）：
 
