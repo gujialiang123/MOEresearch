@@ -36,6 +36,8 @@ ap.add_argument("--n", type=int, default=64)
 ap.add_argument("--max_new", type=int, default=512)
 ap.add_argument("--open_steps", type=int, default=128)
 ap.add_argument("--recov_window", type=int, default=32)
+ap.add_argument("--durs", default="1,4,16,64")
+ap.add_argument("--starts", default="early,middle,late")
 ap.add_argument("--out_root", default="/home/t-jialianggu/work/MOEresearch/results")
 args = ap.parse_args()
 
@@ -44,8 +46,8 @@ LO = H.DEV_RANGE[0]
 HI = LO + args.n
 OUT = os.path.join(args.out_root, f"2026-07-20_{args.tag}_{args.stage}")
 os.makedirs(OUT, exist_ok=True)
-PULSE_DURS = [1, 4, 16, 64]
-PULSE_STARTS = ("early", "middle", "late")
+PULSE_DURS = [int(x) for x in args.durs.split(",")]
+PULSE_STARTS = tuple(args.starts.split(","))
 
 print(f"[{args.stage}] v32 on train[{LO}:{HI}]", flush=True)
 model, tok = H.load_model()
