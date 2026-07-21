@@ -1,0 +1,16 @@
+{
+  "config": "shuffled_gain",
+  "n": 32,
+  "acc_strict": 0.8125,
+  "acc_tol": 0.9688,
+  "no_marker": 0.1562,
+  "no_eos": 0.0312,
+  "hit_max": 0.0312,
+  "len_mean": 268.9,
+  "len_median": 244.0,
+  "len_p90": 416,
+  "len_p95": 428,
+  "rmst_512": 268.938,
+  "marker_pos_mean": 247.6,
+  "rep_4gram": 0.1045
+}

@@ -1,0 +1,16 @@
+{
+  "config": "position_bin_gain",
+  "n": 32,
+  "acc_strict": 0.9062,
+  "acc_tol": 0.9375,
+  "no_marker": 0.0312,
+  "no_eos": 0.0312,
+  "hit_max": 0.0312,
+  "len_mean": 245.3,
+  "len_median": 234.0,
+  "len_p90": 348,
+  "len_p95": 393,
+  "rmst_512": 245.312,
+  "marker_pos_mean": 231.5,
+  "rep_4gram": 0.1014
+}

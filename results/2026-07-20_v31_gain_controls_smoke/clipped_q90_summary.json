@@ -1,0 +1,16 @@
+{
+  "config": "clipped_q90",
+  "n": 32,
+  "acc_strict": 0.9375,
+  "acc_tol": 0.9688,
+  "no_marker": 0.0312,
+  "no_eos": 0.0312,
+  "hit_max": 0.0312,
+  "len_mean": 256.8,
+  "len_median": 235.0,
+  "len_p90": 391,
+  "len_p95": 497,
+  "rmst_512": 256.844,
+  "marker_pos_mean": 243.5,
+  "rep_4gram": 0.1048
+}

@@ -1,0 +1,73 @@
+{
+  "tag": "v31_gain_controls",
+  "timestamp": "2026-07-21T01:32:53",
+  "git_commit": "a7df026bd1ab75fb5e2862f2b13ebcda443622f3",
+  "model": "/data/hf/models/Qwen3-30B-A3B-Instruct-2507",
+  "config": {
+    "stage": "smoke",
+    "split": "train",
+    "range": [
+      128,
+      160
+    ],
+    "decode_k": 4,
+    "calib_n": 64,
+    "max_new": 512,
+    "quantiles": {
+      "0.9": 1.73478,
+      "0.95": 1.78147
+    }
+  },
+  "config_hash": "3a69cc695359c769",
+  "env": {
+    "torch": "2.9.1+cu128",
+    "transformers": "4.57.1",
+    "cuda": "12.8",
+    "gpu": "NVIDIA H200"
+  },
+  "configs": [
+    "k8_native",
+    "no_renorm",
+    "full_renorm",
+    "decode_normmatch",
+    "fixed_layer_gain",
+    "position_bin_gain",
+    "shuffled_gain",
+    "clipped_q90",
+    "clipped_q95"
+  ],
+  "sample_ids": [
+    128,
+    129,
+    130,
+    131,
+    132,
+    133,
+    134,
+    135,
+    136,
+    137,
+    138,
+    139,
+    140,
+    141,
+    142,
+    143,
+    144,
+    145,
+    146,
+    147,
+    148,
+    149,
+    150,
+    151,
+    152,
+    153,
+    154,
+    155,
+    156,
+    157,
+    158,
+    159
+  ]
+}
