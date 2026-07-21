@@ -1,0 +1,19 @@
+[smoke] v32 on train[128:140]
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:  12%|█▎        | 2/16 [00:00<00:01, 13.64it/s]Loading checkpoint shards:  25%|██▌       | 4/16 [00:00<00:00, 12.51it/s]Loading checkpoint shards:  38%|███▊      | 6/16 [00:00<00:00, 12.35it/s]Loading checkpoint shards:  50%|█████     | 8/16 [00:00<00:00, 12.52it/s]Loading checkpoint shards:  62%|██████▎   | 10/16 [00:00<00:00, 12.59it/s]Loading checkpoint shards:  75%|███████▌  | 12/16 [00:00<00:00, 12.58it/s]Loading checkpoint shards:  88%|████████▊ | 14/16 [00:01<00:00, 12.75it/s]Loading checkpoint shards: 100%|██████████| 16/16 [00:01<00:00, 13.42it/s]
+The following generation flags are not valid and may be ignored: ['temperature', 'top_p', 'top_k']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+The attention mask is not set and cannot be inferred from input because pad token is same as eos token. As a consequence, you may observe unexpected behavior. Please pass your input's `attention_mask` to obtain reliable results.
+  done 4/12
+  done 8/12
+  done 12/12
+
+== v32 Part A: prefill recovery ==
+open KL first16=0.08987 -> last16=0.02447 half_life_med=0.0
+closed first-div median=15.0 len_delta_mean=-1.75
+
+== v32 Part B: decode pulse (open recovery vs closed flip) ==
+dur= 1: open_kl_in=0.16739 recov8=0.00214 flip=0.417 len_delta=-1.5 reconv=0.0
+dur= 4: open_kl_in=0.13632 recov8=0.00397 flip=0.639 len_delta=0.08333 reconv=0.028
+dur=16: open_kl_in=0.11298 recov8=0.01668 flip=0.806 len_delta=2.05556 reconv=0.028
+dur=64: open_kl_in=0.12867 recov8=0.03401 flip=1.0 len_delta=3.91667 reconv=0.0
+
+wrote /home/t-jialianggu/work/MOEresearch/results/2026-07-20_v32_pulse_recovery_smoke/summary.json

@@ -1,0 +1,47 @@
+{
+  "tag": "v32_pulse_recovery",
+  "timestamp": "2026-07-21T03:18:05",
+  "git_commit": "5be7b19b51b3e3c1dde85dae5609bcd5d054d4ef",
+  "model": "/data/hf/models/Qwen3-30B-A3B-Instruct-2507",
+  "config": {
+    "stage": "smoke",
+    "n": 12,
+    "max_new": 384,
+    "pulse_durs": [
+      1,
+      4,
+      16,
+      64
+    ],
+    "pulse_starts": [
+      "early",
+      "middle",
+      "late"
+    ],
+    "range": [
+      128,
+      140
+    ]
+  },
+  "config_hash": "d7557424099d52a5",
+  "env": {
+    "torch": "2.9.1+cu128",
+    "transformers": "4.57.1",
+    "cuda": "12.8",
+    "gpu": "NVIDIA H200"
+  },
+  "sample_ids": [
+    128,
+    129,
+    130,
+    131,
+    132,
+    133,
+    134,
+    135,
+    136,
+    137,
+    138,
+    139
+  ]
+}
