@@ -2,7 +2,7 @@
 
 Repo: MOEresearch. Behavior/mechanism line (why K changes generation length).
 
-## 2026-07-20 batch 2 — v29–v32 rigorous kill-tests (IN PROGRESS)
+## 2026-07-20 batch 2 — v29–v32 rigorous kill-tests (PILOTS COMPLETE)
 Report: docs/2026-07-20/v29_v32_experiment_report.md ; audit: v29_v32_preflight_audit.md
 - P0: KPolicy +decode_norm_match/+position_bin_gain; decode_norm_calib.py (same-hidden
   dual-branch DECODE norm); interventions.py; stats KM/RMST/cluster-bootstrap; 21/21 tests.
