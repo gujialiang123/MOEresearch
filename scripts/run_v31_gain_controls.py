@@ -126,8 +126,7 @@ def run(name, wm, kwargs, baseline_seqs):
                                    baseline_seq=base,
                                    extra={"config": name, "decode_k": dk, "weight_mode": wm,
                                           "avg_k_decode": st["avg_k_decode"],
-                                          "wall_time_ms": round(dt/len(idxs), 1),
-                                          "gen_token_ids": gen})
+                                          "wall_time_ms": round(dt/len(idxs), 1),})
             fout.write(json.dumps(row) + "\n")
         fout.flush()
         print(f"  [{name}] {min(bs+args.batch,len(todo))}/{len(todo)} k_dec={st['avg_k_decode']}", flush=True)

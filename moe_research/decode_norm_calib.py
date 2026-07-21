@@ -70,16 +70,27 @@ class DecodeNormCalibrator:
                         finalK[k].index_add_(0, top_x[m], (out[m] * w[m]).to(hs.dtype))
 
             n8 = final.float().norm(dim=-1)  # [T]
-            for pos in range(T):
-                phase = "prefill" if pos < cal["_prompt_len"] else "decode"
-                nb = _position_bin(pos - cal["_prompt_len"]) if phase == "decode" else -1
-                for k in k_targets:
-                    nk = finalK[k][pos].float().norm().item()
-                    a = self.acc_ref.setdefault((layer_idx, phase, k), [0.0, 0.0, 0])
-                    a[0] += n8[pos].item(); a[1] += nk; a[2] += 1
-                    if phase == "decode":
-                        d = self.accd_ref.setdefault((layer_idx, nb, k), [0.0, 0.0, 0])
-                        d[0] += n8[pos].item(); d[1] += nk; d[2] += 1
+            plen = cal["_prompt_len"]
+            pos = torch.arange(T, device=hs.device)
+            dec = pos >= plen
+            pre = ~dec
+            dstep = (pos - plen).clamp_min(0)
+            binid = torch.where(dstep <= 32, 0, torch.where(dstep <= 96, 1, 2))  # [T]
+            for k in k_targets:
+                nk = finalK[k].float().norm(dim=-1)  # [T]
+                for ph, mask in (("prefill", pre), ("decode", dec)):
+                    if mask.any():
+                        a = self.acc_ref.setdefault((layer_idx, ph, k), [0.0, 0.0, 0])
+                        a[0] += n8[mask].sum().item()
+                        a[1] += nk[mask].sum().item()
+                        a[2] += int(mask.sum().item())
+                for b in (0, 1, 2):
+                    m = dec & (binid == b)
+                    if m.any():
+                        d = self.accd_ref.setdefault((layer_idx, b, k), [0.0, 0.0, 0])
+                        d[0] += n8[m].sum().item()
+                        d[1] += nk[m].sum().item()
+                        d[2] += int(m.sum().item())
             return final.reshape(bsz, seqlen, hdim), router_logits
         return forward
 

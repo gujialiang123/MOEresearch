@@ -90,6 +90,7 @@ def build_row(gi, seq, gold, eos_set, hash_ids, max_new, baseline_seq=None, extr
            "rep_4gram": rep_frac(gen, 4), "first_divergence_pos": fdiv}
     if extra:
         row.update(extra)
+    row["gen_token_ids"] = gen
     return row, gen
 
 
