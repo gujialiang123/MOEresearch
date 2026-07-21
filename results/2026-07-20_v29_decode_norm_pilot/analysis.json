@@ -1,0 +1,174 @@
+{
+  "result_dir": "results/2026-07-20_v29_decode_norm_pilot",
+  "baseline": "k8_native",
+  "configs": {
+    "k4_decode_normmatch": {
+      "n_paired": 200,
+      "len_delta_mean": 9.155,
+      "len_delta_ci95": [
+        3.565,
+        14.915
+      ],
+      "rmst_delta": 9.15,
+      "no_eos_delta": 0.0,
+      "hit_max_delta": 0.0,
+      "acc_strict": 0.895,
+      "acc_strict_base": 0.835,
+      "mcnemar_b": 3,
+      "mcnemar_c": 15,
+      "mcnemar_p": 0.007538,
+      "mcnemar_holm": {
+        "p": 0.007538,
+        "holm_thresh": 0.00625,
+        "reject": false
+      }
+    },
+    "k4_full_renorm": {
+      "n_paired": 200,
+      "len_delta_mean": 22.725,
+      "len_delta_ci95": [
+        16.315,
+        29.475
+      ],
+      "rmst_delta": 22.73,
+      "no_eos_delta": 0.03,
+      "hit_max_delta": 0.03,
+      "acc_strict": 0.87,
+      "acc_strict_base": 0.835,
+      "mcnemar_b": 8,
+      "mcnemar_c": 15,
+      "mcnemar_p": 0.21004,
+      "mcnemar_holm": {
+        "p": 0.21004,
+        "holm_thresh": 0.05,
+        "reject": false
+      }
+    },
+    "k4_no_renorm": {
+      "n_paired": 200,
+      "len_delta_mean": 4.28,
+      "len_delta_ci95": [
+        -2.575,
+        10.96
+      ],
+      "rmst_delta": 4.28,
+      "no_eos_delta": 0.005,
+      "hit_max_delta": 0.005,
+      "acc_strict": 0.875,
+      "acc_strict_base": 0.835,
+      "mcnemar_b": 5,
+      "mcnemar_c": 13,
+      "mcnemar_p": 0.096252,
+      "mcnemar_holm": {
+        "p": 0.096252,
+        "holm_thresh": 0.0125,
+        "reject": false
+      }
+    },
+    "k4_prefill_normmatch": {
+      "n_paired": 200,
+      "len_delta_mean": 8.835,
+      "len_delta_ci95": [
+        2.4,
+        15.42
+      ],
+      "rmst_delta": 8.83,
+      "no_eos_delta": -0.005,
+      "hit_max_delta": -0.005,
+      "acc_strict": 0.89,
+      "acc_strict_base": 0.835,
+      "mcnemar_b": 4,
+      "mcnemar_c": 15,
+      "mcnemar_p": 0.019211,
+      "mcnemar_holm": {
+        "p": 0.019211,
+        "holm_thresh": 0.007143,
+        "reject": false
+      }
+    },
+    "k6_decode_normmatch": {
+      "n_paired": 200,
+      "len_delta_mean": 2.755,
+      "len_delta_ci95": [
+        -2.28,
+        7.32
+      ],
+      "rmst_delta": 2.75,
+      "no_eos_delta": -0.005,
+      "hit_max_delta": -0.005,
+      "acc_strict": 0.86,
+      "acc_strict_base": 0.835,
+      "mcnemar_b": 2,
+      "mcnemar_c": 7,
+      "mcnemar_p": 0.179688,
+      "mcnemar_holm": {
+        "p": 0.179688,
+        "holm_thresh": 0.025,
+        "reject": false
+      }
+    },
+    "k6_full_renorm": {
+      "n_paired": 200,
+      "len_delta_mean": 5.615,
+      "len_delta_ci95": [
+        1.47,
+        10.015
+      ],
+      "rmst_delta": 5.62,
+      "no_eos_delta": 0.015,
+      "hit_max_delta": 0.015,
+      "acc_strict": 0.875,
+      "acc_strict_base": 0.835,
+      "mcnemar_b": 4,
+      "mcnemar_c": 12,
+      "mcnemar_p": 0.076813,
+      "mcnemar_holm": {
+        "p": 0.076813,
+        "holm_thresh": 0.01,
+        "reject": false
+      }
+    },
+    "k6_no_renorm": {
+      "n_paired": 200,
+      "len_delta_mean": -1.225,
+      "len_delta_ci95": [
+        -6.41,
+        3.51
+      ],
+      "rmst_delta": -1.22,
+      "no_eos_delta": -0.005,
+      "hit_max_delta": -0.005,
+      "acc_strict": 0.87,
+      "acc_strict_base": 0.835,
+      "mcnemar_b": 2,
+      "mcnemar_c": 9,
+      "mcnemar_p": 0.06543,
+      "mcnemar_holm": {
+        "p": 0.06543,
+        "holm_thresh": 0.008333,
+        "reject": false
+      }
+    },
+    "k6_prefill_normmatch": {
+      "n_paired": 200,
+      "len_delta_mean": 3.575,
+      "len_delta_ci95": [
+        -1.56,
+        8.615
+      ],
+      "rmst_delta": 3.57,
+      "no_eos_delta": 0.0,
+      "hit_max_delta": 0.0,
+      "acc_strict": 0.865,
+      "acc_strict_base": 0.835,
+      "mcnemar_b": 2,
+      "mcnemar_c": 8,
+      "mcnemar_p": 0.109375,
+      "mcnemar_holm": {
+        "p": 0.109375,
+        "holm_thresh": 0.016667,
+        "reject": false
+      }
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "config": "k6_prefill_normmatch",
+  "n": 200,
+  "acc_strict": 0.865,
+  "acc_tol": 0.93,
+  "no_marker": 0.025,
+  "no_eos": 0.04,
+  "hit_max": 0.04,
+  "len_mean": 258.3,
+  "len_median": 238.0,
+  "len_p90": 401,
+  "len_p95": 501,
+  "rmst_512": 258.32,
+  "marker_pos_mean": 237.5,
+  "rep_4gram": 0.1271
+}

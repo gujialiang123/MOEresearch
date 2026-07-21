@@ -1,0 +1,16 @@
+{
+  "config": "k4_full_renorm",
+  "n": 200,
+  "acc_strict": 0.87,
+  "acc_tol": 0.895,
+  "no_marker": 0.065,
+  "no_eos": 0.07,
+  "hit_max": 0.07,
+  "len_mean": 277.5,
+  "len_median": 261.5,
+  "len_p90": 448,
+  "len_p95": 512,
+  "rmst_512": 277.47,
+  "marker_pos_mean": 251.0,
+  "rep_4gram": 0.1286
+}
