@@ -2,6 +2,22 @@
 
 Repo: MOEresearch. Behavior/mechanism line (why K changes generation length).
 
+## 2026-07-20 batch 2 — v29–v32 rigorous kill-tests (IN PROGRESS)
+Report: docs/2026-07-20/v29_v32_experiment_report.md ; audit: v29_v32_preflight_audit.md
+- P0: KPolicy +decode_norm_match/+position_bin_gain; decode_norm_calib.py (same-hidden
+  dual-branch DECODE norm); interventions.py; stats KM/RMST/cluster-bootstrap; 21/21 tests.
+- v29 decode-norm control: calib n=128 (decode s K4=1.116 > prefill 1.082); realized ratio
+  decode 0.998 / prefill 0.96 (prefill under-corrects). Smoke: full_renorm +20.5 ->
+  decode_normmatch +8.1 (~60% removed). PILOT n=200 running (GPU3).
+- v30 partial-renorm dose: smoke K4 monotone in beta (235->252). PILOT running (GPU4).
+- v31 gain controls: smoke fixed_layer_gain +27 ~ full +20.5; shuffled +37.8 (larger);
+  clip no reduction => AVERAGE magnitude, not correspondence/tail. PILOT running (GPU6).
+- v32 pulse-recovery: full-grid smoke running (GPU2, ~25min/prompt). analyze_v32 handles partial.
+Next: finalize report §5-8 with pilot CIs; optional test[0:500] confirmatory for cleanest v29 arm.
+
+---
+(previous batch below)
+
 ## COMPLETE — all experiments done, committed, pushed to origin/main
 Full log: docs/2026-07-20/overnight_experiments.md
 
