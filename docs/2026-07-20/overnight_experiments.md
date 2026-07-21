@@ -121,7 +121,7 @@ n=500, renorm_survivors。paired Δlen vs 8x8 (95%CI)：
 （注：per-token 自适应的精确因果仍可在 raw log 上进一步验证；但"calibrated≈no_renorm≪renorm"这一点已足以排除"norm 大小"和"专家数量"作为主因。）
 
 ### v26 — 当前步直接效应
-**n=60 题, ~6600 采样位置/K. 在完全相同的 K8 历史上，只改当前一步的 K。**
+**n=60 题, 2400 采样位置/K（7200 records ÷ {K4,K6,K8}；原文"~6600"有误，见 2026-07-20/v29_v32_preflight_audit.md §5 更正）. 在完全相同的 K8 历史上，只改当前一步的 K。**
 
 | K | KL(p8‖pk) | EOS Δlogp | margin Δ | gold Δlogp | top1 一致率 |
 |--:|--:|--:|--:|--:|--:|
