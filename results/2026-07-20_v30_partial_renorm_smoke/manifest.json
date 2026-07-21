@@ -1,0 +1,67 @@
+{
+  "tag": "v30_partial_renorm",
+  "timestamp": "2026-07-21T00:01:17",
+  "git_commit": "1308f7cc442a6affb6f6bf7b3bfb1c9e0a9a8362",
+  "model": "/data/hf/models/Qwen3-30B-A3B-Instruct-2507",
+  "config": {
+    "stage": "smoke",
+    "split": "train",
+    "range": [
+      128,
+      160
+    ],
+    "decode_ks": [
+      6,
+      4
+    ],
+    "betas": [
+      0.0,
+      0.25,
+      0.5,
+      0.75,
+      1.0
+    ],
+    "max_new": 512
+  },
+  "config_hash": "32e6c0911a9e2de8",
+  "env": {
+    "torch": "2.9.1+cu128",
+    "transformers": "4.57.1",
+    "cuda": "12.8",
+    "gpu": "NVIDIA H200"
+  },
+  "sample_ids": [
+    128,
+    129,
+    130,
+    131,
+    132,
+    133,
+    134,
+    135,
+    136,
+    137,
+    138,
+    139,
+    140,
+    141,
+    142,
+    143,
+    144,
+    145,
+    146,
+    147,
+    148,
+    149,
+    150,
+    151,
+    152,
+    153,
+    154,
+    155,
+    156,
+    157,
+    158,
+    159
+  ]
+}

@@ -1,0 +1,62 @@
+[smoke] train[128:160], 11 configs
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:  12%|█▎        | 2/16 [00:00<00:01, 11.29it/s]Loading checkpoint shards:  25%|██▌       | 4/16 [00:00<00:01, 11.56it/s]Loading checkpoint shards:  38%|███▊      | 6/16 [00:00<00:00, 11.78it/s]Loading checkpoint shards:  50%|█████     | 8/16 [00:00<00:00, 11.88it/s]Loading checkpoint shards:  62%|██████▎   | 10/16 [00:00<00:00, 11.99it/s]Loading checkpoint shards:  75%|███████▌  | 12/16 [00:01<00:00, 11.84it/s]Loading checkpoint shards:  88%|████████▊ | 14/16 [00:01<00:00, 12.05it/s]Loading checkpoint shards: 100%|██████████| 16/16 [00:01<00:00, 13.69it/s]Loading checkpoint shards: 100%|██████████| 16/16 [00:01<00:00, 12.50it/s]
+
+=== k8_native (dk=8 beta=1.0) ===
+The following generation flags are not valid and may be ignored: ['temperature', 'top_p', 'top_k']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+  [k8_native] 32/32 k_dec=8.0
+{"config": "k8_native", "n": 32, "acc_strict": 0.9375, "acc_tol": 1.0, "no_marker": 0.0, "no_eos": 0.0, "hit_max": 0.0, "len_mean": 231.1, "len_median": 224.0, "len_p90": 347, "len_p95": 367, "rmst_512": 231.125, "marker_pos_mean": 226, "rep_4gram": 0.1117, "decode_k": 8, "beta": 1.0}
+
+=== k6_b0.0 (dk=6 beta=0.0) ===
+  [k6_b0.0] 32/32 k_dec=6.0
+{"config": "k6_b0.0", "n": 32, "acc_strict": 0.9688, "acc_tol": 0.9688, "no_marker": 0.0312, "no_eos": 0.0312, "hit_max": 0.0312, "len_mean": 239.2, "len_median": 219.5, "len_p90": 343, "len_p95": 408, "rmst_512": 239.156, "marker_pos_mean": 225.3, "rep_4gram": 0.1102, "decode_k": 6, "beta": 0.0}
+
+=== k6_b0.25 (dk=6 beta=0.25) ===
+  [k6_b0.25] 32/32 k_dec=6.0
+{"config": "k6_b0.25", "n": 32, "acc_strict": 0.9375, "acc_tol": 1.0, "no_marker": 0.0, "no_eos": 0.0, "hit_max": 0.0, "len_mean": 232.6, "len_median": 214.5, "len_p90": 343, "len_p95": 378, "rmst_512": 232.625, "marker_pos_mean": 227.6, "rep_4gram": 0.1113, "decode_k": 6, "beta": 0.25}
+
+=== k6_b0.5 (dk=6 beta=0.5) ===
+  [k6_b0.5] 32/32 k_dec=6.0
+{"config": "k6_b0.5", "n": 32, "acc_strict": 0.9375, "acc_tol": 1.0, "no_marker": 0.0, "no_eos": 0.0, "hit_max": 0.0, "len_mean": 234.7, "len_median": 216.0, "len_p90": 351, "len_p95": 381, "rmst_512": 234.719, "marker_pos_mean": 229.7, "rep_4gram": 0.1117, "decode_k": 6, "beta": 0.5}
+
+=== k6_b0.75 (dk=6 beta=0.75) ===
+  [k6_b0.75] 32/32 k_dec=6.0
+{"config": "k6_b0.75", "n": 32, "acc_strict": 0.9062, "acc_tol": 0.9688, "no_marker": 0.0625, "no_eos": 0.0625, "hit_max": 0.0625, "len_mean": 240.9, "len_median": 213.5, "len_p90": 351, "len_p95": 512, "rmst_512": 240.906, "marker_pos_mean": 217.7, "rep_4gram": 0.1155, "decode_k": 6, "beta": 0.75}
+
+=== k6_b1.0 (dk=6 beta=1.0) ===
+  [k6_b1.0] 32/32 k_dec=6.0
+{"config": "k6_b1.0", "n": 32, "acc_strict": 0.9062, "acc_tol": 0.9375, "no_marker": 0.0625, "no_eos": 0.0625, "hit_max": 0.0625, "len_mean": 243.3, "len_median": 216.0, "len_p90": 352, "len_p95": 512, "rmst_512": 243.281, "marker_pos_mean": 220.3, "rep_4gram": 0.1172, "decode_k": 6, "beta": 1.0}
+
+=== k4_b0.0 (dk=4 beta=0.0) ===
+  [k4_b0.0] 32/32 k_dec=4.0
+{"config": "k4_b0.0", "n": 32, "acc_strict": 0.9375, "acc_tol": 0.9688, "no_marker": 0.0312, "no_eos": 0.0312, "hit_max": 0.0312, "len_mean": 235.1, "len_median": 221.0, "len_p90": 334, "len_p95": 377, "rmst_512": 235.125, "marker_pos_mean": 221.2, "rep_4gram": 0.1139, "decode_k": 4, "beta": 0.0}
+
+=== k4_b0.25 (dk=4 beta=0.25) ===
+  [k4_b0.25] 32/32 k_dec=4.0
+{"config": "k4_b0.25", "n": 32, "acc_strict": 0.9375, "acc_tol": 0.9688, "no_marker": 0.0312, "no_eos": 0.0312, "hit_max": 0.0312, "len_mean": 238.2, "len_median": 214.5, "len_p90": 332, "len_p95": 374, "rmst_512": 238.25, "marker_pos_mean": 224.4, "rep_4gram": 0.1148, "decode_k": 4, "beta": 0.25}
+
+=== k4_b0.5 (dk=4 beta=0.5) ===
+  [k4_b0.5] 32/32 k_dec=4.0
+{"config": "k4_b0.5", "n": 32, "acc_strict": 0.9688, "acc_tol": 0.9688, "no_marker": 0.0312, "no_eos": 0.0312, "hit_max": 0.0312, "len_mean": 238.6, "len_median": 229.0, "len_p90": 345, "len_p95": 380, "rmst_512": 238.562, "marker_pos_mean": 224.7, "rep_4gram": 0.1106, "decode_k": 4, "beta": 0.5}
+
+=== k4_b0.75 (dk=4 beta=0.75) ===
+  [k4_b0.75] 32/32 k_dec=4.0
+{"config": "k4_b0.75", "n": 32, "acc_strict": 1.0, "acc_tol": 1.0, "no_marker": 0.0, "no_eos": 0.0, "hit_max": 0.0, "len_mean": 249.6, "len_median": 223.0, "len_p90": 373, "len_p95": 384, "rmst_512": 249.594, "marker_pos_mean": 244.5, "rep_4gram": 0.1162, "decode_k": 4, "beta": 0.75}
+
+=== k4_b1.0 (dk=4 beta=1.0) ===
+  [k4_b1.0] 32/32 k_dec=4.0
+{"config": "k4_b1.0", "n": 32, "acc_strict": 0.9688, "acc_tol": 0.9688, "no_marker": 0.0312, "no_eos": 0.0312, "hit_max": 0.0312, "len_mean": 251.7, "len_median": 227.5, "len_p90": 361, "len_p95": 423, "rmst_512": 251.656, "marker_pos_mean": 238.2, "rep_4gram": 0.1084, "decode_k": 4, "beta": 1.0}
+
+== v30 partial-renorm dose ==
+k8_native    dk=8 b=1.00 len= 231.1 rmst= 231.1 acc= 93.8% hitmax=0.0%
+k6_b0.0      dk=6 b=0.00 len= 239.2 rmst= 239.2 acc= 96.9% hitmax=3.1%
+k6_b0.25     dk=6 b=0.25 len= 232.6 rmst= 232.6 acc= 93.8% hitmax=0.0%
+k6_b0.5      dk=6 b=0.50 len= 234.7 rmst= 234.7 acc= 93.8% hitmax=0.0%
+k6_b0.75     dk=6 b=0.75 len= 240.9 rmst= 240.9 acc= 90.6% hitmax=6.2%
+k6_b1.0      dk=6 b=1.00 len= 243.3 rmst= 243.3 acc= 90.6% hitmax=6.2%
+k4_b0.0      dk=4 b=0.00 len= 235.1 rmst= 235.1 acc= 93.8% hitmax=3.1%
+k4_b0.25     dk=4 b=0.25 len= 238.2 rmst= 238.2 acc= 93.8% hitmax=3.1%
+k4_b0.5      dk=4 b=0.50 len= 238.6 rmst= 238.6 acc= 96.9% hitmax=3.1%
+k4_b0.75     dk=4 b=0.75 len= 249.6 rmst= 249.6 acc=100.0% hitmax=0.0%
+k4_b1.0      dk=4 b=1.00 len= 251.7 rmst= 251.7 acc= 96.9% hitmax=3.1%
+
+wrote /home/t-jialianggu/work/MOEresearch/results/2026-07-20_v30_partial_renorm_smoke/summary.json

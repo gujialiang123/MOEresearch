@@ -1,0 +1,9 @@
+loading model...
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:  12%|█▎        | 2/16 [00:00<00:01, 11.67it/s]Loading checkpoint shards:  25%|██▌       | 4/16 [00:00<00:01, 11.45it/s]Loading checkpoint shards:  38%|███▊      | 6/16 [00:00<00:00, 11.31it/s]Loading checkpoint shards:  50%|█████     | 8/16 [00:00<00:00, 11.38it/s]Loading checkpoint shards:  62%|██████▎   | 10/16 [00:00<00:00, 11.54it/s]Loading checkpoint shards:  75%|███████▌  | 12/16 [00:01<00:00, 11.45it/s]Loading checkpoint shards:  88%|████████▊ | 14/16 [00:01<00:00, 11.45it/s]Loading checkpoint shards: 100%|██████████| 16/16 [00:01<00:00, 12.13it/s]
+calibrating on train[0:128] (128 prompts), K=[6, 4]
+The following generation flags are not valid and may be ignored: ['temperature', 'top_p', 'top_k']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+decode realized mean ratio (should be ~1.0): {4: 1.0, 6: 1.0}
+K=6: decode s mean=1.0402 [min 1.024, max 1.133]; prefill s mean=1.0263
+K=4: decode s mean=1.1157 [min 1.067, max 1.393]; prefill s mean=1.0822
+
+wrote /home/t-jialianggu/work/MOEresearch/results/2026-07-20_v29_decode_norm/calibration/norm_match_scalars.json

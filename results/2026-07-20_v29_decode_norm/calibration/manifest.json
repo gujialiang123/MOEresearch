@@ -1,0 +1,29 @@
+{
+  "tag": "v29_decode_norm_calib",
+  "timestamp": "2026-07-21T00:36:34",
+  "git_commit": "92d6d571efde8ade388d89f0b4ac8e3208951be8",
+  "model": "/data/hf/models/Qwen3-30B-A3B-Instruct-2507",
+  "config": {
+    "ks": [
+      6,
+      4
+    ],
+    "n": 128,
+    "max_new": 512,
+    "calib_range": [
+      0,
+      128
+    ]
+  },
+  "config_hash": "6385d404cabdab98",
+  "env": {
+    "torch": "2.9.1+cu128",
+    "transformers": "4.57.1",
+    "cuda": "12.8",
+    "gpu": "NVIDIA H200"
+  },
+  "realized_ratio_calib": {
+    "4": 1.0,
+    "6": 1.0
+  }
+}
