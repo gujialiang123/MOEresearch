@@ -1,0 +1,18 @@
+{
+  "config": "k6_b0.5",
+  "n": 200,
+  "acc_strict": 0.87,
+  "acc_tol": 0.93,
+  "no_marker": 0.03,
+  "no_eos": 0.04,
+  "hit_max": 0.04,
+  "len_mean": 257.4,
+  "len_median": 236.5,
+  "len_p90": 391,
+  "len_p95": 479,
+  "rmst_512": 257.37,
+  "marker_pos_mean": 237.6,
+  "rep_4gram": 0.1291,
+  "decode_k": 6,
+  "beta": 0.5
+}
