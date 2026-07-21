@@ -1,0 +1,16 @@
+{
+  "config": "k8_native",
+  "n": 200,
+  "acc_strict": 0.835,
+  "acc_tol": 0.935,
+  "no_marker": 0.02,
+  "no_eos": 0.04,
+  "hit_max": 0.04,
+  "len_mean": 254.7,
+  "len_median": 231.0,
+  "len_p90": 385,
+  "len_p95": 497,
+  "rmst_512": 254.745,
+  "marker_pos_mean": 237.1,
+  "rep_4gram": 0.1278
+}

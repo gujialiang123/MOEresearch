@@ -1,0 +1,90 @@
+[pilot] train[128:328] decode_k=4
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:  12%|█▎        | 2/16 [00:00<00:00, 14.11it/s]Loading checkpoint shards:  25%|██▌       | 4/16 [00:00<00:00, 13.26it/s]Loading checkpoint shards:  38%|███▊      | 6/16 [00:00<00:00, 13.11it/s]Loading checkpoint shards:  50%|█████     | 8/16 [00:00<00:00, 13.10it/s]Loading checkpoint shards:  62%|██████▎   | 10/16 [00:00<00:00, 13.08it/s]Loading checkpoint shards:  75%|███████▌  | 12/16 [00:00<00:00, 13.02it/s]Loading checkpoint shards:  88%|████████▊ | 14/16 [00:01<00:00, 13.05it/s]Loading checkpoint shards: 100%|██████████| 16/16 [00:01<00:00, 13.87it/s]
+gain calibration on train[0:128] decode tokens...
+The following generation flags are not valid and may be ignored: ['temperature', 'top_p', 'top_k']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+gain q90=1.73504 q95=1.78182; layer_mean keys=48
+
+=== k8_native (renorm_survivors) ===
+  [k8_native] 40/200 k_dec=8.0
+  [k8_native] 80/200 k_dec=8.0
+  [k8_native] 120/200 k_dec=8.0
+  [k8_native] 160/200 k_dec=8.0
+  [k8_native] 200/200 k_dec=8.0
+{"config": "k8_native", "n": 200, "acc_strict": 0.835, "acc_tol": 0.935, "no_marker": 0.02, "no_eos": 0.04, "hit_max": 0.04, "len_mean": 254.7, "len_median": 231.0, "len_p90": 385, "len_p95": 497, "rmst_512": 254.745, "marker_pos_mean": 237.1, "rep_4gram": 0.1278}
+
+=== no_renorm (no_renorm) ===
+  [no_renorm] 40/200 k_dec=4.0
+  [no_renorm] 80/200 k_dec=4.0
+  [no_renorm] 120/200 k_dec=4.0
+  [no_renorm] 160/200 k_dec=4.0
+  [no_renorm] 200/200 k_dec=4.0
+{"config": "no_renorm", "n": 200, "acc_strict": 0.875, "acc_tol": 0.92, "no_marker": 0.025, "no_eos": 0.045, "hit_max": 0.045, "len_mean": 259.0, "len_median": 242.5, "len_p90": 381, "len_p95": 472, "rmst_512": 259.025, "marker_pos_mean": 235.6, "rep_4gram": 0.1316}
+
+=== full_renorm (renorm_survivors) ===
+  [full_renorm] 40/200 k_dec=4.0
+  [full_renorm] 80/200 k_dec=4.0
+  [full_renorm] 120/200 k_dec=4.0
+  [full_renorm] 160/200 k_dec=4.0
+  [full_renorm] 200/200 k_dec=4.0
+{"config": "full_renorm", "n": 200, "acc_strict": 0.87, "acc_tol": 0.895, "no_marker": 0.065, "no_eos": 0.07, "hit_max": 0.07, "len_mean": 277.5, "len_median": 261.5, "len_p90": 448, "len_p95": 512, "rmst_512": 277.47, "marker_pos_mean": 251.0, "rep_4gram": 0.1286}
+
+=== decode_normmatch (decode_norm_match) ===
+  [decode_normmatch] 40/200 k_dec=4.0
+  [decode_normmatch] 80/200 k_dec=4.0
+  [decode_normmatch] 120/200 k_dec=4.0
+  [decode_normmatch] 160/200 k_dec=4.0
+  [decode_normmatch] 200/200 k_dec=4.0
+{"config": "decode_normmatch", "n": 200, "acc_strict": 0.895, "acc_tol": 0.93, "no_marker": 0.03, "no_eos": 0.04, "hit_max": 0.04, "len_mean": 263.9, "len_median": 243.0, "len_p90": 405, "len_p95": 494, "rmst_512": 263.9, "marker_pos_mean": 241.1, "rep_4gram": 0.1249}
+
+=== fixed_layer_gain (fixed_gain) ===
+  [fixed_layer_gain] 40/200 k_dec=4.0
+  [fixed_layer_gain] 80/200 k_dec=4.0
+  [fixed_layer_gain] 120/200 k_dec=4.0
+  [fixed_layer_gain] 160/200 k_dec=4.0
+  [fixed_layer_gain] 200/200 k_dec=4.0
+{"config": "fixed_layer_gain", "n": 200, "acc_strict": 0.84, "acc_tol": 0.875, "no_marker": 0.09, "no_eos": 0.1, "hit_max": 0.1, "len_mean": 284.2, "len_median": 260.0, "len_p90": 512, "len_p95": 512, "rmst_512": 284.205, "marker_pos_mean": 250.8, "rep_4gram": 0.1262}
+
+=== position_bin_gain (position_bin_gain) ===
+  [position_bin_gain] 40/200 k_dec=4.0
+  [position_bin_gain] 80/200 k_dec=4.0
+  [position_bin_gain] 120/200 k_dec=4.0
+  [position_bin_gain] 160/200 k_dec=4.0
+  [position_bin_gain] 200/200 k_dec=4.0
+{"config": "position_bin_gain", "n": 200, "acc_strict": 0.83, "acc_tol": 0.855, "no_marker": 0.085, "no_eos": 0.095, "hit_max": 0.095, "len_mean": 283.1, "len_median": 263.0, "len_p90": 509, "len_p95": 512, "rmst_512": 283.08, "marker_pos_mean": 248.7, "rep_4gram": 0.1301}
+
+=== shuffled_gain (shuffled_gain) ===
+  [shuffled_gain] 40/200 k_dec=4.0
+  [shuffled_gain] 80/200 k_dec=4.0
+  [shuffled_gain] 120/200 k_dec=4.0
+  [shuffled_gain] 160/200 k_dec=4.0
+  [shuffled_gain] 200/200 k_dec=4.0
+{"config": "shuffled_gain", "n": 200, "acc_strict": 0.71, "acc_tol": 0.86, "no_marker": 0.22, "no_eos": 0.105, "hit_max": 0.105, "len_mean": 299.4, "len_median": 266.5, "len_p90": 512, "len_p95": 512, "rmst_512": 299.37, "marker_pos_mean": 258.8, "rep_4gram": 0.1279}
+
+=== clipped_q90 (clipped_gain) ===
+  [clipped_q90] 40/200 k_dec=4.0
+  [clipped_q90] 80/200 k_dec=4.0
+  [clipped_q90] 120/200 k_dec=4.0
+  [clipped_q90] 160/200 k_dec=4.0
+  [clipped_q90] 200/200 k_dec=4.0
+{"config": "clipped_q90", "n": 200, "acc_strict": 0.865, "acc_tol": 0.89, "no_marker": 0.06, "no_eos": 0.065, "hit_max": 0.065, "len_mean": 279.2, "len_median": 259.5, "len_p90": 455, "len_p95": 512, "rmst_512": 279.16, "marker_pos_mean": 252.2, "rep_4gram": 0.1266}
+
+=== clipped_q95 (clipped_gain) ===
+  [clipped_q95] 40/200 k_dec=4.0
+  [clipped_q95] 80/200 k_dec=4.0
+  [clipped_q95] 120/200 k_dec=4.0
+  [clipped_q95] 160/200 k_dec=4.0
+  [clipped_q95] 200/200 k_dec=4.0
+{"config": "clipped_q95", "n": 200, "acc_strict": 0.855, "acc_tol": 0.88, "no_marker": 0.07, "no_eos": 0.08, "hit_max": 0.08, "len_mean": 281.1, "len_median": 267.0, "len_p90": 466, "len_p95": 512, "rmst_512": 281.15, "marker_pos_mean": 254.2, "rep_4gram": 0.1284}
+
+== v31 gain controls (decode K4) ==
+k8_native            len= 254.7 rmst= 254.7 acc= 83.5% hitmax=4.0%
+no_renorm            len= 259.0 rmst= 259.0 acc= 87.5% hitmax=4.5%
+full_renorm          len= 277.5 rmst= 277.5 acc= 87.0% hitmax=7.0%
+decode_normmatch     len= 263.9 rmst= 263.9 acc= 89.5% hitmax=4.0%
+fixed_layer_gain     len= 284.2 rmst= 284.2 acc= 84.0% hitmax=10.0%
+position_bin_gain    len= 283.1 rmst= 283.1 acc= 83.0% hitmax=9.5%
+shuffled_gain        len= 299.4 rmst= 299.4 acc= 71.0% hitmax=10.5%
+clipped_q90          len= 279.2 rmst= 279.2 acc= 86.5% hitmax=6.5%
+clipped_q95          len= 281.1 rmst= 281.1 acc= 85.5% hitmax=8.0%
+
+wrote /home/t-jialianggu/work/MOEresearch/results/2026-07-20_v31_gain_controls_pilot/summary.json

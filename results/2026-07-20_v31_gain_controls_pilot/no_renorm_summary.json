@@ -1,0 +1,16 @@
+{
+  "config": "no_renorm",
+  "n": 200,
+  "acc_strict": 0.875,
+  "acc_tol": 0.92,
+  "no_marker": 0.025,
+  "no_eos": 0.045,
+  "hit_max": 0.045,
+  "len_mean": 259.0,
+  "len_median": 242.5,
+  "len_p90": 381,
+  "len_p95": 472,
+  "rmst_512": 259.025,
+  "marker_pos_mean": 235.6,
+  "rep_4gram": 0.1316
+}

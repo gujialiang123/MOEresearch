@@ -1,0 +1,16 @@
+{
+  "config": "fixed_layer_gain",
+  "n": 200,
+  "acc_strict": 0.84,
+  "acc_tol": 0.875,
+  "no_marker": 0.09,
+  "no_eos": 0.1,
+  "hit_max": 0.1,
+  "len_mean": 284.2,
+  "len_median": 260.0,
+  "len_p90": 512,
+  "len_p95": 512,
+  "rmst_512": 284.205,
+  "marker_pos_mean": 250.8,
+  "rep_4gram": 0.1262
+}
