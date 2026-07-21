@@ -1,0 +1,54 @@
+[smoke] train[128:160], 9 configs
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:  12%|█▎        | 2/16 [00:00<00:01, 13.46it/s]Loading checkpoint shards:  25%|██▌       | 4/16 [00:00<00:00, 12.98it/s]Loading checkpoint shards:  38%|███▊      | 6/16 [00:00<00:00, 12.82it/s]Loading checkpoint shards:  50%|█████     | 8/16 [00:00<00:00, 12.70it/s]Loading checkpoint shards:  62%|██████▎   | 10/16 [00:00<00:00, 12.66it/s]Loading checkpoint shards:  75%|███████▌  | 12/16 [00:00<00:00, 12.52it/s]Loading checkpoint shards:  88%|████████▊ | 14/16 [00:01<00:00, 12.53it/s]Loading checkpoint shards: 100%|██████████| 16/16 [00:01<00:00, 13.39it/s]
+
+=== k8_native (dk=8 renorm_survivors) ===
+The following generation flags are not valid and may be ignored: ['temperature', 'top_p', 'top_k']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+  [k8_native] 32/32 k_dec=8.0
+{"config": "k8_native", "n": 32, "acc_strict": 0.9375, "acc_tol": 1.0, "no_marker": 0.0, "no_eos": 0.0, "hit_max": 0.0, "len_mean": 231.1, "len_median": 224.0, "len_p90": 347, "len_p95": 367, "rmst_512": 231.125, "marker_pos_mean": 226, "rep_4gram": 0.1117}
+
+=== k6_no_renorm (dk=6 no_renorm) ===
+  [k6_no_renorm] 32/32 k_dec=6.0
+{"config": "k6_no_renorm", "n": 32, "acc_strict": 0.9688, "acc_tol": 0.9688, "no_marker": 0.0312, "no_eos": 0.0312, "hit_max": 0.0312, "len_mean": 239.2, "len_median": 219.5, "len_p90": 343, "len_p95": 408, "rmst_512": 239.156, "marker_pos_mean": 225.3, "rep_4gram": 0.1102}
+
+=== k6_full_renorm (dk=6 renorm_survivors) ===
+  [k6_full_renorm] 32/32 k_dec=6.0
+{"config": "k6_full_renorm", "n": 32, "acc_strict": 0.9062, "acc_tol": 0.9375, "no_marker": 0.0625, "no_eos": 0.0625, "hit_max": 0.0625, "len_mean": 243.3, "len_median": 216.0, "len_p90": 352, "len_p95": 512, "rmst_512": 243.281, "marker_pos_mean": 220.3, "rep_4gram": 0.1172}
+
+=== k6_prefill_normmatch (dk=6 calibrated_norm_match) ===
+  [k6_prefill_normmatch] 32/32 k_dec=6.0
+{"config": "k6_prefill_normmatch", "n": 32, "acc_strict": 1.0, "acc_tol": 1.0, "no_marker": 0.0, "no_eos": 0.0, "hit_max": 0.0, "len_mean": 236.2, "len_median": 215.5, "len_p90": 343, "len_p95": 408, "rmst_512": 236.156, "marker_pos_mean": 231.1, "rep_4gram": 0.1078}
+
+=== k6_decode_normmatch (dk=6 decode_norm_match) ===
+  [k6_decode_normmatch] 32/32 k_dec=6.0
+{"config": "k6_decode_normmatch", "n": 32, "acc_strict": 0.9062, "acc_tol": 1.0, "no_marker": 0.0, "no_eos": 0.0, "hit_max": 0.0, "len_mean": 239.7, "len_median": 221.5, "len_p90": 343, "len_p95": 381, "rmst_512": 239.688, "marker_pos_mean": 234.7, "rep_4gram": 0.1129}
+
+=== k4_no_renorm (dk=4 no_renorm) ===
+  [k4_no_renorm] 32/32 k_dec=4.0
+{"config": "k4_no_renorm", "n": 32, "acc_strict": 0.9375, "acc_tol": 0.9688, "no_marker": 0.0312, "no_eos": 0.0312, "hit_max": 0.0312, "len_mean": 235.1, "len_median": 221.0, "len_p90": 334, "len_p95": 377, "rmst_512": 235.125, "marker_pos_mean": 221.2, "rep_4gram": 0.1139}
+
+=== k4_full_renorm (dk=4 renorm_survivors) ===
+  [k4_full_renorm] 32/32 k_dec=4.0
+{"config": "k4_full_renorm", "n": 32, "acc_strict": 0.9688, "acc_tol": 0.9688, "no_marker": 0.0312, "no_eos": 0.0312, "hit_max": 0.0312, "len_mean": 251.7, "len_median": 227.5, "len_p90": 361, "len_p95": 423, "rmst_512": 251.656, "marker_pos_mean": 238.2, "rep_4gram": 0.1084}
+
+=== k4_prefill_normmatch (dk=4 calibrated_norm_match) ===
+  [k4_prefill_normmatch] 32/32 k_dec=4.0
+{"config": "k4_prefill_normmatch", "n": 32, "acc_strict": 0.9688, "acc_tol": 0.9688, "no_marker": 0.0312, "no_eos": 0.0312, "hit_max": 0.0312, "len_mean": 238.2, "len_median": 211.5, "len_p90": 342, "len_p95": 402, "rmst_512": 238.25, "marker_pos_mean": 224.4, "rep_4gram": 0.116}
+
+=== k4_decode_normmatch (dk=4 decode_norm_match) ===
+  [k4_decode_normmatch] 32/32 k_dec=4.0
+{"config": "k4_decode_normmatch", "n": 32, "acc_strict": 1.0, "acc_tol": 1.0, "no_marker": 0.0, "no_eos": 0.0, "hit_max": 0.0, "len_mean": 239.2, "len_median": 217.0, "len_p90": 369, "len_p95": 404, "rmst_512": 239.25, "marker_pos_mean": 234.2, "rep_4gram": 0.1064}
+
+realized ratio on held-out dev (target 0.95-1.05): {'decode_calibrated': {4: 0.9982, 6: 0.9996}, 'prefill_calibrated': {4: 0.96, 6: 0.9798}}
+
+== v29 decode-norm control ==
+k8_native                len= 231.1 rmst= 231.1 acc= 93.8% noEOS=0.0% hitmax=0.0%
+k6_no_renorm             len= 239.2 rmst= 239.2 acc= 96.9% noEOS=3.1% hitmax=3.1%
+k6_full_renorm           len= 243.3 rmst= 243.3 acc= 90.6% noEOS=6.2% hitmax=6.2%
+k6_prefill_normmatch     len= 236.2 rmst= 236.2 acc=100.0% noEOS=0.0% hitmax=0.0%
+k6_decode_normmatch      len= 239.7 rmst= 239.7 acc= 90.6% noEOS=0.0% hitmax=0.0%
+k4_no_renorm             len= 235.1 rmst= 235.1 acc= 93.8% noEOS=3.1% hitmax=3.1%
+k4_full_renorm           len= 251.7 rmst= 251.7 acc= 96.9% noEOS=3.1% hitmax=3.1%
+k4_prefill_normmatch     len= 238.2 rmst= 238.2 acc= 96.9% noEOS=3.1% hitmax=3.1%
+k4_decode_normmatch      len= 239.2 rmst= 239.2 acc=100.0% noEOS=0.0% hitmax=0.0%
+
+wrote /home/t-jialianggu/work/MOEresearch/results/2026-07-20_v29_decode_norm_smoke/summary.json

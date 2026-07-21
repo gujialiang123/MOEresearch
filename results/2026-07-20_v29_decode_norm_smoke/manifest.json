@@ -1,0 +1,72 @@
+{
+  "tag": "v29_decode_norm",
+  "timestamp": "2026-07-21T00:43:14",
+  "git_commit": "0e592433d5d63a032539c03b16994b321f68eb01",
+  "model": "/data/hf/models/Qwen3-30B-A3B-Instruct-2507",
+  "config": {
+    "stage": "smoke",
+    "split": "train",
+    "range": [
+      128,
+      160
+    ],
+    "decode_ks": [
+      6,
+      4
+    ],
+    "max_new": 512,
+    "scalars_src": "results/2026-07-20_v29_decode_norm/calibration/norm_match_scalars.json"
+  },
+  "config_hash": "fdbef14580f543ea",
+  "env": {
+    "torch": "2.9.1+cu128",
+    "transformers": "4.57.1",
+    "cuda": "12.8",
+    "gpu": "NVIDIA H200"
+  },
+  "configs": [
+    "k8_native",
+    "k6_no_renorm",
+    "k6_full_renorm",
+    "k6_prefill_normmatch",
+    "k6_decode_normmatch",
+    "k4_no_renorm",
+    "k4_full_renorm",
+    "k4_prefill_normmatch",
+    "k4_decode_normmatch"
+  ],
+  "sample_ids": [
+    128,
+    129,
+    130,
+    131,
+    132,
+    133,
+    134,
+    135,
+    136,
+    137,
+    138,
+    139,
+    140,
+    141,
+    142,
+    143,
+    144,
+    145,
+    146,
+    147,
+    148,
+    149,
+    150,
+    151,
+    152,
+    153,
+    154,
+    155,
+    156,
+    157,
+    158,
+    159
+  ]
+}

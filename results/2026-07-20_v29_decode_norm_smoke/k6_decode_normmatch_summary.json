@@ -1,0 +1,16 @@
+{
+  "config": "k6_decode_normmatch",
+  "n": 32,
+  "acc_strict": 0.9062,
+  "acc_tol": 1.0,
+  "no_marker": 0.0,
+  "no_eos": 0.0,
+  "hit_max": 0.0,
+  "len_mean": 239.7,
+  "len_median": 221.5,
+  "len_p90": 343,
+  "len_p95": 381,
+  "rmst_512": 239.688,
+  "marker_pos_mean": 234.7,
+  "rep_4gram": 0.1129
+}
