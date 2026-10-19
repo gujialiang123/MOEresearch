@@ -1,6 +1,6 @@
 {
   "schema_version": "state_study_github_progress.v1",
-  "generated_at_utc": "2026-10-19T17:59:06.885541+00:00",
+  "generated_at_utc": "2026-10-19T20:38:38.353964+00:00",
   "run_dir": "/scratch/jgu7/moe-state-study/runs/20261019_bf16_eager_v4",
   "run_id": "20261019_bf16_eager_v4",
   "disposition": "INCONCLUSIVE_PENDING_FORMAL_RESULTS",
@@ -39,48 +39,48 @@
     "D_validate": 512
   },
   "formal_select_counts": {
-    "N": 67,
-    "F": 64,
-    "R8": 64,
-    "R16": 64,
-    "M_N": 64,
-    "L_N": 64
+    "N": 131,
+    "F": 128,
+    "R8": 128,
+    "R16": 128,
+    "M_N": 128,
+    "L_N": 128
   },
   "formal_select_observed_prefixes": {
     "N": {
-      "complete_rows": 67,
-      "prefix_bytes": 353713,
-      "prefix_sha256": "218668a440b1b782c504a2ab8d5ff8d1ab8935b493902087f69c6ab14a6e9748",
+      "complete_rows": 131,
+      "prefix_bytes": 680264,
+      "prefix_sha256": "e9b3da649dccb1212218d10fae8ff19d3100ee5e5cc3ebde4eddcbe07a2173ac",
       "unterminated_tail_observed": false
     },
     "F": {
-      "complete_rows": 64,
-      "prefix_bytes": 357303,
-      "prefix_sha256": "3439610d785b2e428ed36e33400189b1737cc19c51f4883627211e49dacabeff",
+      "complete_rows": 128,
+      "prefix_bytes": 764774,
+      "prefix_sha256": "4312e855f05760068b45eef682688e32707a90aec5183a8458f6948795320091",
       "unterminated_tail_observed": false
     },
     "R8": {
-      "complete_rows": 64,
-      "prefix_bytes": 340487,
-      "prefix_sha256": "8f82f9c1353f42a81c8aac87f70cd9fba6614a04b052aba6d93684419e7ec6d1",
+      "complete_rows": 128,
+      "prefix_bytes": 676060,
+      "prefix_sha256": "222210cf3ab82c762f8a29afa1e051a7d6696773487d1de72e44dd47a8fcec2f",
       "unterminated_tail_observed": false
     },
     "R16": {
-      "complete_rows": 64,
-      "prefix_bytes": 318697,
-      "prefix_sha256": "4bb7ac8d5b8330ad20955cb3ffa7bc5f9fda10ec356de7359f1262527fa8e57a",
+      "complete_rows": 128,
+      "prefix_bytes": 654053,
+      "prefix_sha256": "6065e4956398c46168e76582ef11ef859456d5b1ef5c83b9aa5c8f5064228905",
       "unterminated_tail_observed": false
     },
     "M_N": {
-      "complete_rows": 64,
-      "prefix_bytes": 334500,
-      "prefix_sha256": "cc15d0e75d62fd2952dc23e3fb9ae8f09d21c1db6eedca0cc9683474ab9120fc",
+      "complete_rows": 128,
+      "prefix_bytes": 672605,
+      "prefix_sha256": "2778741bc393a029296f0e322ee453025ad60409697aa75cf509502ae0fd43eb",
       "unterminated_tail_observed": false
     },
     "L_N": {
-      "complete_rows": 64,
-      "prefix_bytes": 336514,
-      "prefix_sha256": "3fb63b8103e2797cba20063b81c44c70f04072023d519523792ecdbed69093e8",
+      "complete_rows": 128,
+      "prefix_bytes": 677661,
+      "prefix_sha256": "f3066c4a02babe18a525f152708c623517447ab10664a968016903b9b2cbb3e6",
       "unterminated_tail_observed": false
     }
   },
@@ -112,14 +112,14 @@
     "formal/select": {
       "status": "running",
       "detail": {
-        "N": 64,
-        "F": 64,
-        "R8": 64,
-        "R16": 64,
-        "M_N": 64,
-        "L_N": 64
+        "N": 128,
+        "F": 128,
+        "R8": 128,
+        "R16": 128,
+        "M_N": 128,
+        "L_N": 128
       },
-      "utc": "2026-10-19T17:57:54.535522+00:00"
+      "utc": "2026-10-19T20:37:27.211966+00:00"
     }
   },
   "pilot_baselines": {
