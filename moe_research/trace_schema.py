@@ -16,7 +16,7 @@ def config_hash(cfg: dict) -> str:
 
 def write_manifest(out_dir, *, tag, config, model, env, extra=None):
     os.makedirs(out_dir, exist_ok=True)
-    repo = "/home/t-jialianggu/work/MOEresearch"
+    repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     manifest = {
         "tag": tag,
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),

@@ -160,6 +160,10 @@ class GainCalibrator:
         rng = random.Random(seed)
         pools = {k: v for k, v in self.pools.items() if v}
         def provider(layer_idx, phase, decode_step, n, device):
+            # Native prefill must remain unit gain, and must not consume RNG
+            # draws that would shift the later decode samples.
+            if phase != "decode":
+                return torch.ones((n, 1), device=device, dtype=torch.float)
             key = (layer_idx, position_bin(decode_step))
             pool = pools.get(key) or pools.get((layer_idx, 0)) or [1.0]
             vals = [pool[rng.randrange(len(pool))] for _ in range(n)]

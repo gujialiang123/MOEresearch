@@ -1,0 +1,157 @@
+{
+  "schema_version": "state_observer_cost.plan.v1",
+  "status": "FROZEN_ENGINEERING_RESOURCE_SUBSET",
+  "created_at_utc": "2026-10-19T12:36:18.998814+00:00",
+  "run_dir": "/scratch/jgu7/moe-state-study/runs/20261019_bf16_eager_v4",
+  "protocol_hash": "9f91034da8a586becdba351a9303e957588eb24e9f5218e7d327ea96bf64de8c",
+  "source": {
+    "frozen_source_hash": "7bc7eeeb9493e165fe430080026bf71384c9ce467e76948949494d726b3bc835",
+    "analysis_source_hashes": {
+      "scripts/freeze_state_study_quality_plan.py": "fcda984de0db3cd6c38ec9557665b395e2e8bd5bc2d18c647e122f8f6711e370",
+      "scripts/state_study_positive_gate.py": "fcf2f26d80c416394557e2926758a5f9a31dc75ff917742a00b6bcd5bfe658fe",
+      "scripts/state_study_positive_evidence.py": "106ced402b441c3e8dfd39ef461ccccb112661280032424da3ea07b8185f44e7",
+      "scripts/summarize_state_study_results.py": "78b4e8ff156ea583f76993a0f538dd24a98038455d9d4526305b3fd2d19b1c21",
+      "docs/2026-10-19/state_quality_plan.md": "e15a23ff5bae594b091f1513ffa8a270438b969831418ea7fe00df84f7a7f140"
+    },
+    "analysis_source_hash": "3a56bc06b69d788d7b6dbed6730744d1fccf6778b3e4273d6066d51cd211e889",
+    "analysis_archive_relative_dir": "quality_analysis_sources/3a56bc06b69d788d7b6dbed6730744d1fccf6778b3e4273d6066d51cd211e889"
+  },
+  "validation512_plan": {
+    "path": "/scratch/jgu7/moe-state-study/reports/20261019_bf16_eager_v4/validation512/plan.json",
+    "sha256": "ca90bceba14ac723be1e343701eaeeb171762d2784dd23535a31860b9e584c5c",
+    "plan_hash": "c49f4f18696e032ca3b75960cfbbf4787137c8da513af49b10c50c7791bb9685"
+  },
+  "spec": {
+    "sample_ids": [
+      128,
+      129,
+      130,
+      131
+    ],
+    "base_scenarios": [
+      "A",
+      "B",
+      "C",
+      "D"
+    ],
+    "updated_scenarios_if_P4_triggered": [
+      "M_NT",
+      "M_ST"
+    ],
+    "measured_pairs_per_unit": 1,
+    "full_saved_trace": true,
+    "decode_positions": "trace[:-1]; T-1; emitted EOS never consumed",
+    "layer_ids": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47
+    ],
+    "hidden_size": 2048,
+    "position_bins": [
+      [
+        1,
+        32
+      ],
+      [
+        33,
+        128
+      ],
+      [
+        129,
+        256
+      ],
+      [
+        257,
+        512
+      ],
+      [
+        513,
+        1024
+      ],
+      [
+        1025,
+        2047
+      ]
+    ],
+    "warmup": "one real observer-on replay of trace[:min(8,T)] per scenario/prompt before either measured mode; excluded",
+    "order": "on first iff (sample_id+scenario_index)%2==0; otherwise off first",
+    "mode_preparation": [
+      "gc.collect",
+      "CUDA empty_cache",
+      "CUDA synchronize",
+      "reset_peak_memory_stats",
+      "read allocated/reserved baseline"
+    ],
+    "timing": "perf_counter around complete replay plus final CUDA synchronize; capture_logits=False; shared finite-logit guard unchanged",
+    "observer_callback_time": "host callback wall time including its implicit synchronizations; no inserted per-callback synchronization",
+    "memory_unit": "bytes; absolute baseline/peak and peak-minus-baseline; signed on-minus-off differences retained",
+    "archive_io_outside_online_measurement": true,
+    "pair_commit_only_after_both_modes": true,
+    "bootstrap": false,
+    "no_fitting_or_free_generation": true,
+    "no_subset_extrapolation_or_serving_speedup": true,
+    "requires_core_and_validation512_delivery": true
+  },
+  "observer_cost_source": {
+    "analysis_source_hashes": {
+      "scripts/state_study_observer_cost.py": "13d58dde15c235a79856fd292cca4623276a4a7f3b819f20b65f5bbc3664aff0",
+      "scripts/state_study_observer_cost_report.py": "43121561759d0d4e2a100cdfc5ef4b5af0e3b7ae345673e715d598440b1d9ee9",
+      "docs/2026-10-19/state_observer_cost.md": "b61e9260c3393656c4d90378aeb40280524cdd11c12828a9ad1fa6e1e8f94ef1",
+      "docs/2026-10-19/state_observer_cost_reporting.md": "ee0391e313cd26956999b45fb97d644394ebdf49b5568d9a3d7ebca3fca096f8"
+    },
+    "analysis_source_hash": "ee01b0223492973151bad247bebc707381f1f3d340841a6dbfd4636f5af94740",
+    "analysis_archive_relative_dir": "source_archives/ee01b0223492973151bad247bebc707381f1f3d340841a6dbfd4636f5af94740"
+  },
+  "observer_cost_source_archive": {
+    "directory": "/scratch/jgu7/moe-state-study/reports/20261019_bf16_eager_v4/observer_cost/source_archives/ee01b0223492973151bad247bebc707381f1f3d340841a6dbfd4636f5af94740",
+    "manifest_sha256": "13ab6062e2162413ddd9068f6026dad62ddeff4df142feeac06fa3408e1dbbe3"
+  },
+  "scope": "Original section8.4 observer resource accounting; fixed subset marginal paired engineering benchmark only",
+  "P6_authorized": false,
+  "plan_hash": "0972cc06a767c2ef74b4db590ba0eb8acf128624b99bd7b02c8a33eb3faa1fbb"
+}

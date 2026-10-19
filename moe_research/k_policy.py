@@ -1,48 +1,32 @@
-"""Unified K-policy for MoE dynamic-K mechanism experiments (v23+).
+"""Cache-aware physical top-k policy with one shared MoE execution primitive.
 
-Design goals (from the v23-v28 plan, section 三):
-  - One KPolicy applied to all MoE blocks (no per-experiment monkeypatch copies).
-  - Separate prefill_k and decode_k.
-  - PHASE decided by CACHE STATE at the top-level forward (NOT seq_len==1 guess):
-    empty/None past_key_values -> prefill; non-empty -> decode. Robust to chunked
-    prefill and multi-token decode.
-  - PHYSICAL skip of dropped experts (they never run their FFN).
-  - Sync-free hot path (no .item()/.cpu()/.tolist() inside MoE forward).
-  - weight_mode in {renorm_survivors, no_renorm, fold_mass_to_top1, calibrated_norm_match}.
-  - Optional layer_selector / decode_step_selector (for v27 localization).
-
-Usage:
-    policy = KPolicy(prefill_k=8, decode_k=6, weight_mode="renorm_survivors")
-    ctx = attach_policy(model, policy)          # patches MoE blocks + top-level hook
-    ...                                          # run model.generate(...)
-    stats = ctx.stats()                          # single sync read of counters
-    detach_policy(model, ctx)                    # restore native forward
+Reference-k is independent of computed-k. New scalar/LDA calibration operates
+AFTER native-dtype expert aggregation in FP32, then casts back. Historical weight
+modes remain available, but prefill/native identity and unselected windows never
+apply a non-unit calibration or invoke a shuffled provider.
 """
 from __future__ import annotations
+
 import contextvars
 import types
 from dataclasses import dataclass, field
 from typing import Optional, Callable
 
 import torch
-import torch.nn.functional as F
 
-WEIGHT_MODES = ("renorm_survivors", "no_renorm", "fold_mass_to_top1", "calibrated_norm_match",
-                "partial_renorm", "clipped_gain", "fixed_gain", "shuffled_gain",
-                "decode_norm_match", "position_bin_gain")
+from .state_adapter import apply_post_calibration, route_and_aggregate, validate_block_layout
+
+WEIGHT_MODES = (
+    "renorm_survivors", "no_renorm", "fold_mass_to_top1", "calibrated_norm_match",
+    "partial_renorm", "clipped_gain", "fixed_gain", "shuffled_gain",
+    "decode_norm_match", "position_bin_gain", "reference_k",
+)
+_PHASE: contextvars.ContextVar[str] = contextvars.ContextVar("moe_phase", default="prefill")
+_MISSING = object()
 
 
 def _position_bin(step: int) -> int:
-    # decode-position bins per plan: 1-32 / 33-96 / 97+
-    if step <= 32:
-        return 0
-    if step <= 96:
-        return 1
-    return 2
-
-# thread/async-safe current phase ("prefill" | "decode"); default prefill for a
-# bare forward with no cache.
-_PHASE: contextvars.ContextVar[str] = contextvars.ContextVar("moe_phase", default="prefill")
+    return 0 if step <= 32 else (1 if step <= 96 else 2)
 
 
 @dataclass
@@ -50,57 +34,66 @@ class KPolicy:
     prefill_k: int = 8
     decode_k: int = 8
     weight_mode: str = "renorm_survivors"
-    # partial_renorm: y = M_K^{-beta} * sum_{kept} w_j E_j ; beta=0 => no_renorm,
-    #   beta=1 => full renorm_survivors. M_K = retained (native-normalized) mass.
     renorm_beta: float = 1.0
-    # clipped_gain: g = min(1/M_K, gain_clip)
     gain_clip: Optional[float] = None
-    # optional selectors for localization (v27/v32b). Return True => APPLY policy K
-    # at this (layer_idx)/(decode_step). When None => apply everywhere.
     layer_selector: Optional[Callable[[int], bool]] = None
     decode_step_selector: Optional[Callable[[int], bool]] = None
-    # frozen per-(layer,k) scalars for calibrated_norm_match / fixed_gain: dict["l,k"]->float
     calib_scalars: dict = field(default_factory=dict)
-    # gain provider for shuffled_gain: fn(layer_idx, phase, decode_step, n_tokens, device)-> [n,1] tensor
     gain_provider: Optional[Callable] = None
+    # Explicit decode-only overrides. Reference mass never requires extra FFNs.
+    k_compute: Optional[int] = None
+    k_reference: Optional[int] = None
+    # Native identity normally uses the checkpoint's original implementation.
+    # P0 MUST also test this flag to actually exercise the shared executor at K8.
+    force_native_execution: bool = False
+    # fn(layer_idx, phase, decode_step, native_dtype_aggregated_output) -> Tensor
+    output_transform: Optional[Callable] = None
+    # fn(block, h, transformed_output, phase, layer_idx, decode_step, route_info)
+    observer: Optional[Callable] = None
 
     def __post_init__(self):
         if self.weight_mode not in WEIGHT_MODES:
             raise ValueError(f"weight_mode {self.weight_mode!r} not in {WEIGHT_MODES}")
-        for name, k in (("prefill_k", self.prefill_k), ("decode_k", self.decode_k)):
-            if not (1 <= k):
-                raise ValueError(f"{name}={k} must be >= 1")
+        for name in ("prefill_k", "decode_k", "k_compute", "k_reference"):
+            value = getattr(self, name)
+            if value is not None and (not isinstance(value, int) or value < 1):
+                raise ValueError(f"{name}={value} must be a positive integer")
+        if self.k_compute is not None and self.k_reference is not None \
+                and self.k_reference < self.k_compute:
+            raise ValueError("k_reference must be >= k_compute")
+        if self.weight_mode == "clipped_gain" and (self.gain_clip is None or self.gain_clip < 1):
+            raise ValueError("clipped_gain requires gain_clip >= 1")
 
     def k_for_phase(self, phase: str) -> int:
-        return self.prefill_k if phase == "prefill" else self.decode_k
+        if phase == "prefill":
+            return self.prefill_k
+        return self.decode_k if self.k_compute is None else self.k_compute
 
 
 class PolicyContext:
-    """Holds runtime state: the policy, per-block sync-free counters, the top-level
-    pre-hook handle, and the decode-step counter."""
-
     def __init__(self, policy: KPolicy, blocks, block_cls, orig_forward):
         self.policy = policy
         self.blocks = list(blocks)
         self.block_cls = block_cls
         self.orig_forward = orig_forward
+        self.original_forwards = {id(b): b.forward for b in self.blocks}
+        self.original_instance_forwards = {id(b): b.__dict__.get("forward", _MISSING) for b in self.blocks}
         self.hook_handle = None
-        self.decode_step = 0  # advanced by the top-level hook on each decode call
+        self.decode_step = 0
 
     def reset_counters(self):
-        for i, b in enumerate(self.blocks):
-            dev = next(b.parameters()).device
-            b._kp_ksum_prefill = torch.zeros((), device=dev, dtype=torch.long)
-            b._kp_ksum_decode = torch.zeros((), device=dev, dtype=torch.long)
-            b._kp_tok_prefill = 0
-            b._kp_tok_decode = 0
-            b._kp_layer_idx = i
+        for i, block in enumerate(self.blocks):
+            device = next(block.parameters()).device
+            block._kp_ksum_prefill = torch.zeros((), device=device, dtype=torch.long)
+            block._kp_ksum_decode = torch.zeros((), device=device, dtype=torch.long)
+            block._kp_tok_prefill = 0
+            block._kp_tok_decode = 0
+            block._kp_layer_idx = i
         self.decode_step = 0
 
     def stats(self):
-        """Single-sync read of realized average K per phase."""
-        kp = torch.stack([b._kp_ksum_prefill for b in self.blocks]).sum().item()
-        kd = torch.stack([b._kp_ksum_decode for b in self.blocks]).sum().item()
+        kp = sum(b._kp_ksum_prefill.item() for b in self.blocks)
+        kd = sum(b._kp_ksum_decode.item() for b in self.blocks)
         tp = sum(b._kp_tok_prefill for b in self.blocks)
         td = sum(b._kp_tok_decode for b in self.blocks)
         return {
@@ -111,136 +104,123 @@ class PolicyContext:
 
 
 def _phase_from_cache(kwargs) -> str:
-    """Decide phase from CACHE STATE, not sequence length.
-    prefill := no usable past_key_values (None or length 0).
-    decode  := past cache already present.
-    Also honors cache_position[0] == 0 as prefill for the first step.
-    """
-    pkv = kwargs.get("past_key_values", None)
-    if pkv is None:
-        # could still be a cached call passing cache via positional; fall back to
-        # cache_position if available.
-        cp = kwargs.get("cache_position", None)
-        if cp is not None and cp.numel() > 0:
-            return "prefill" if int(cp[0]) == 0 else "decode"
+    """Infer phase from actual cache state, never from sequence length."""
+    past = kwargs.get("past_key_values")
+    if past is None:
+        position = kwargs.get("cache_position")
+        if position is not None and position.numel():
+            return "prefill" if int(position[0]) == 0 else "decode"
         return "prefill"
-    # HF Cache object: get_seq_length()==0 means empty
-    try:
-        seqlen = pkv.get_seq_length()
-        return "prefill" if seqlen == 0 else "decode"
-    except Exception:
-        # legacy tuple cache
-        try:
-            if len(pkv) == 0 or pkv[0] is None:
-                return "prefill"
-            return "decode"
-        except Exception:
+    if hasattr(past, "get_seq_length"):
+        return "prefill" if past.get_seq_length() == 0 else "decode"
+    if isinstance(past, (list, tuple)):
+        if not past or past[0] is None:
             return "prefill"
+        first_layer = past[0]
+        if isinstance(first_layer, (list, tuple)) and first_layer:
+            key = first_layer[0]
+            if isinstance(key, torch.Tensor) and key.shape[-2] == 0:
+                return "prefill"
+        return "decode"
+    raise TypeError(f"Unsupported cache type {type(past).__name__}")
 
 
 def _make_moe_forward(ctx: PolicyContext):
     policy = ctx.policy
 
     def forward(self, hidden_states):
-        bsz, seqlen, hdim = hidden_states.shape
-        hidden_states = hidden_states.view(-1, hdim)
-        router_logits = self.gate(hidden_states)
-        routing_weights = F.softmax(router_logits, dim=1, dtype=torch.float)  # [T, E]
-
         phase = _PHASE.get()
-        E = routing_weights.shape[-1]
-        k = min(policy.k_for_phase(phase), E)
-
-        # decide whether to APPLY policy here (layer/step selectors); else native top-8
-        apply = True
-        if policy.layer_selector is not None and not policy.layer_selector(getattr(self, "_kp_layer_idx", -1)):
-            apply = False
-        if apply and phase == "decode" and policy.decode_step_selector is not None \
-                and not policy.decode_step_selector(ctx.decode_step):
-            apply = False
-        eff_k = k if apply else min(self.top_k, E)
-
-        rw, selected = torch.topk(routing_weights, self.top_k if not apply else max(self.top_k, eff_k), dim=-1)
-        # We always take a pool of at least native top_k so that keep-all == native.
-        pool = rw.shape[-1]
-        # keep top eff_k of the pool
-        ar = torch.arange(pool, device=rw.device).unsqueeze(0)
-        keep = ar < eff_k  # [1, pool] broadcast -> [T, pool]
-        keep = keep.expand(rw.shape[0], pool)
-
-        base = rw / rw.sum(dim=-1, keepdim=True) if self.norm_topk_prob else rw
-        keep_f = keep.to(base.dtype)
         layer_idx = getattr(self, "_kp_layer_idx", -1)
-        # M_full = pool mass; M_K = retained mass; r = M_K/M_full (retained fraction).
-        # Using r (not M_K alone) makes native-K EXACTLY gain=1 for all modes.
-        M_full = base.sum(dim=-1, keepdim=True).clamp_min(1e-20)  # [T,1]
-        M_K = (base * keep_f).sum(dim=-1, keepdim=True).clamp_min(1e-20)  # [T,1]
-        inv_r = M_full / M_K  # = 1/r, the full-renorm gain (==1 at keep-all)
-
+        apply = policy.layer_selector is None or policy.layer_selector(layer_idx)
+        if apply and phase == "decode" and policy.decode_step_selector is not None:
+            apply = policy.decode_step_selector(ctx.decode_step)
+        native_k = self.top_k
+        requested = policy.k_for_phase(phase) if apply else native_k
+        # Historical decode_k allowed k>E (capped). Explicit compute/reference
+        # arguments are a reproducibility contract and must fail on invalid K.
+        if phase == "decode" and apply and policy.k_compute is not None and requested > self.num_experts:
+            raise ValueError("k_compute exceeds num_experts")
+        kc = min(requested, self.num_experts)
         wm = policy.weight_mode
-        if wm == "renorm_survivors" or (wm == "partial_renorm" and policy.renorm_beta == 1.0):
-            weights = base * keep_f * inv_r
-        elif wm == "no_renorm" or (wm == "partial_renorm" and policy.renorm_beta == 0.0):
-            weights = base * keep_f
-        elif wm == "partial_renorm":
-            # y = r^{-beta} * sum_{kept} w_j E_j ; interpolates no_renorm(0) <-> renorm(1)
-            weights = base * keep_f * inv_r.pow(float(policy.renorm_beta))
-        elif wm == "clipped_gain":
-            # full-renorm gain 1/r clipped at gain_clip
-            weights = base * keep_f * inv_r.clamp(max=float(policy.gain_clip))
-        elif wm == "fixed_gain":
-            # frozen per-(layer,k) mean gain from calibration (isolates avg scale)
-            s = policy.calib_scalars.get(f"{layer_idx},{int(eff_k)}", 1.0)
-            weights = base * keep_f * float(s)
-        elif wm == "shuffled_gain":
-            # per-token gain drawn from a calibration pool (breaks token correspondence)
-            if policy.gain_provider is not None:
-                g = policy.gain_provider(layer_idx, phase, ctx.decode_step, base.shape[0], base.device)
-            else:
-                g = inv_r
-            weights = base * keep_f * g
-        elif wm == "calibrated_norm_match" or wm == "decode_norm_match":
-            # frozen per-(layer,k) scalar; decode_norm_match loads DECODE-calibrated
-            # scalars (see decode_norm_calib.py), calibrated_norm_match the old
-            # prefill-calibrated ones. Same math, different frozen dict.
-            s = policy.calib_scalars.get(f"{layer_idx},{int(eff_k)}", 1.0)
-            weights = base * keep_f * float(s)
-        elif wm == "position_bin_gain":
-            # frozen per-(layer, decode-position-bin, k) mean gain
-            b = _position_bin(ctx.decode_step) if phase == "decode" else 0
-            s = policy.calib_scalars.get(f"{layer_idx},{b},{int(eff_k)}")
-            if s is None:
-                s = policy.calib_scalars.get(f"{layer_idx},{int(eff_k)}", 1.0)
-            weights = base * keep_f * float(s)
-        else:  # fold_mass_to_top1
-            dropped = (base * (~keep).to(base.dtype)).sum(dim=-1, keepdim=True)
-            weights = base * keep_f
-            weights[:, 0:1] = weights[:, 0:1] + dropped
-        weights = weights.to(hidden_states.dtype)
-
-        # PHYSICAL skip: dropped (token, rank) removed from the mask
-        expert_mask = F.one_hot(selected, num_classes=self.num_experts).permute(2, 1, 0).bool()  # [E, pool, T]
-        expert_mask &= keep.transpose(0, 1).unsqueeze(0)  # [1, pool, T]
-
-        final = torch.zeros((bsz * seqlen, hdim), dtype=hidden_states.dtype, device=hidden_states.device)
-        expert_hit = torch.greater(expert_mask.sum(dim=(-1, -2)), 0).nonzero()
-        for expert_idx in expert_hit:
-            expert_layer = self.experts[expert_idx]
-            idx, top_x = torch.where(expert_mask[expert_idx].squeeze(0))
-            cur = hidden_states[None, top_x].reshape(-1, hdim)
-            out = expert_layer(cur) * weights[top_x, idx, None]
-            final.index_add_(0, top_x, out.to(hidden_states.dtype))
-
-        # sync-free counters
-        ksum = keep.sum()
-        if phase == "prefill":
-            self._kp_ksum_prefill = self._kp_ksum_prefill + ksum
-            self._kp_tok_prefill += keep.shape[0]
+        explicit_reference = apply and phase == "decode" and policy.k_reference is not None
+        if not apply:
+            kr = native_k
+        elif explicit_reference:
+            kr = policy.k_reference
+        elif wm == "renorm_survivors" or (wm == "partial_renorm" and policy.renorm_beta == 1.0):
+            kr = kc
         else:
-            self._kp_ksum_decode = self._kp_ksum_decode + ksum
-            self._kp_tok_decode += keep.shape[0]
-
-        return final.reshape(bsz, seqlen, hdim), router_logits
+            kr = max(native_k, kc)
+        identity = kc == native_k and kr == native_k
+        # All frozen calibration and shuffled/random providers are decode-only
+        # and only affect selected reduced-compute branches.
+        calibrate = apply and phase == "decode" and kc < native_k
+        legacy_transform = None
+        if apply and not identity and not explicit_reference:
+            def legacy_transform(weights, route_info):
+                top = route_info["top_probabilities"]
+                mass_native = top[:, :max(native_k, kc)].sum(-1, keepdim=True)
+                inv_r = mass_native / top[:, :kc].sum(-1, keepdim=True)
+                # norm_topk_prob=False historically retained the pool's raw mass
+                # during survivor renormalization; preserve that legacy meaning.
+                if wm == "renorm_survivors" and not self.norm_topk_prob:
+                    return weights * inv_r
+                if wm == "partial_renorm":
+                    if policy.renorm_beta == 1.0 and self.norm_topk_prob:
+                        return weights
+                    return weights * inv_r.pow(float(policy.renorm_beta))
+                if wm == "clipped_gain":
+                    return weights * inv_r.clamp(max=float(policy.gain_clip))
+                if wm == "shuffled_gain" and calibrate:
+                    gain = inv_r if policy.gain_provider is None else policy.gain_provider(
+                        layer_idx, phase, ctx.decode_step, weights.shape[0], weights.device
+                    )
+                    return weights * gain
+                if wm == "fold_mass_to_top1":
+                    dropped = top[:, kc:max(native_k, kc)].sum(-1, keepdim=True)
+                    if self.norm_topk_prob:
+                        dropped = dropped / mass_native
+                    weights = weights.clone()
+                    weights[:, :1] = weights[:, :1] + dropped
+                return weights
+        native = ctx.original_forwards.get(id(self))
+        # CPU toys without a defined forward still exercise the shared path.
+        can_call_native = getattr(ctx.orig_forward, "__name__", "") != "_forward_unimplemented"
+        if identity and not policy.force_native_execution and can_call_native:
+            result = native(hidden_states)
+            if not isinstance(result, tuple) or len(result) != 2:
+                raise TypeError("Unsupported native MoE return format: expected (output, router_logits)")
+            final, router_logits = result
+            route_info = {"adapter": "original_forward", "k_compute": kc, "k_reference": kr}
+        else:
+            final, router_logits, route_info = route_and_aggregate(
+                self, hidden_states, kc, kr, legacy_transform
+            )
+        if calibrate:
+            if wm in ("calibrated_norm_match", "decode_norm_match", "fixed_gain", "position_bin_gain"):
+                scalar = policy.calib_scalars.get(f"{layer_idx},{kc}", 1.0)
+                if wm == "position_bin_gain":
+                    scalar = policy.calib_scalars.get(f"{layer_idx},{_position_bin(ctx.decode_step)},{kc}", scalar)
+                final = apply_post_calibration(final, scale=scalar)
+            if policy.output_transform is not None:
+                transformed = policy.output_transform(layer_idx, phase, ctx.decode_step, final)
+                if transformed.shape != final.shape or transformed.dtype != final.dtype \
+                        or transformed.device != final.device:
+                    raise ValueError("output_transform must preserve MoE output shape, dtype and device")
+                final = transformed
+        token_count = hidden_states.shape[0] * hidden_states.shape[1]
+        if phase == "prefill":
+            self._kp_ksum_prefill = self._kp_ksum_prefill + token_count * kc
+            self._kp_tok_prefill += token_count
+        else:
+            self._kp_ksum_decode = self._kp_ksum_decode + token_count * kc
+            self._kp_tok_decode += token_count
+        if policy.observer is not None:
+            # Passing independent copies prevents observer-side in-place changes
+            # from altering tensors actually propagated through the network.
+            policy.observer(self, hidden_states.detach().clone(), final.detach().clone(),
+                            phase, layer_idx, ctx.decode_step, route_info)
+        return final, router_logits
 
     return forward
 
@@ -248,38 +228,43 @@ def _make_moe_forward(ctx: PolicyContext):
 def _find_moe_blocks(model):
     from transformers.models.qwen3_moe import modeling_qwen3_moe as M
     blocks = [m for m in model.modules() if isinstance(m, M.Qwen3MoeSparseMoeBlock)]
+    if not blocks:
+        raise TypeError("No supported Qwen3MoeSparseMoeBlock modules found")
     return blocks, M.Qwen3MoeSparseMoeBlock
 
 
 def attach_policy(model, policy: KPolicy) -> PolicyContext:
     blocks, block_cls = _find_moe_blocks(model)
+    # Fail before changing any forwards; packed experts require another adapter.
+    for block in blocks:
+        validate_block_layout(block)
+        if getattr(block, "_kp_attached", False):
+            raise RuntimeError("A policy is already attached; detach it before changing arms")
     ctx = PolicyContext(policy, blocks, block_cls, block_cls.forward)
     ctx.reset_counters()
     fwd = _make_moe_forward(ctx)
-    for b in blocks:
-        b.forward = types.MethodType(fwd, b)
+    for block in blocks:
+        block.forward = types.MethodType(fwd, block)
+        block._kp_attached = True
 
-    # top-level pre-hook: set phase from cache state, advance decode step counter
     def pre_hook(module, args, kwargs):
         phase = _phase_from_cache(kwargs)
         _PHASE.set(phase)
-        if phase == "decode":
-            ctx.decode_step += 1
-        else:
-            ctx.decode_step = 0
-        return None
+        ctx.decode_step = ctx.decode_step + 1 if phase == "decode" else 0
 
     ctx.hook_handle = model.register_forward_pre_hook(pre_hook, with_kwargs=True)
     return ctx
 
 
 def detach_policy(model, ctx: PolicyContext):
-    for b in ctx.blocks:
-        try:
-            del b.forward
-        except AttributeError:
-            pass
-    ctx.block_cls.forward = ctx.orig_forward
+    for block in ctx.blocks:
+        original = ctx.original_instance_forwards[id(block)]
+        if original is _MISSING:
+            block.__dict__.pop("forward", None)
+        else:
+            block.forward = original
+        block.__dict__.pop("_kp_attached", None)
     if ctx.hook_handle is not None:
         ctx.hook_handle.remove()
         ctx.hook_handle = None
+    _PHASE.set("prefill")

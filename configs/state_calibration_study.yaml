@@ -1,0 +1,52 @@
+study_id: state_calibration_study
+model_id: Qwen/Qwen3-30B-A3B-Instruct-2507
+model_revision: 0d7cf23991f47feeb3a57ecb4c9cee8ea4a17bfe
+model_path: /scratch/jgu7/models/Qwen3-30B-A3B-Instruct-2507
+dataset_revision: 740312add88f781978c0658806c59bc2815b9866
+data_dir: /scratch/jgu7/moe-state-study/data
+results_root: /scratch/jgu7/moe-state-study/runs
+precision: bfloat16
+attention_backend: eager
+batch_size: 1
+do_sample: false
+seed: 20261019
+native_k: 8
+decode_k: 4
+prefill: native
+main_max_new_tokens: 2048
+smoke_max_new_tokens: 128
+followup_max_new_tokens: 4096
+followup_truncation_trigger: 0.01
+followup_select_prompts: 128
+baseline_arms: [N, F, R8, R16, M_N, L_N]
+chosen_calibration_family: lda
+chosen_student: L_N
+chosen_mismatch_metric: E_moment
+native_match_tolerance: 0.05
+state_effect_tolerance: 0.01
+tolerance_rationale: >-
+  Predeclared study-specific bounds on the dimensionless relative joint
+  mean/std RMS discrepancy E_moment: 0.05 for held-out native matching and
+  0.01 for additional state-source error. These are engineering choices, not
+  a norm-ratio band or a field consensus. Implementation noise is measured
+  separately before use. No NEGATIVE or matching claim if noise is material
+  relative to these bounds; report continuous effect intervals instead.
+bootstrap_resamples: 10000
+bootstrap_seed: 20261019
+fit_range: [0, 128]
+diag_range: [128, 256]
+select_range: [256, 512]
+validate_range: [512, 1024]
+pilot_fit: 16
+pilot_diag: 16
+pilot_select: 32
+max_method_updates: 1
+max_method_arms: 8
+downstream_selection_rule: >-
+  Best reference by max(min(strict accuracy,tolerant accuracy)), then lower
+  mean generated tokens, then fixed reference arm ID; D_select only.
+quality_constraint_for_internal_validation: >-
+  Exploratory request-cost benefit is not quality preservation. Report both
+  paired accuracy CIs; quality evidence is INCONCLUSIVE unless both lower
+  bounds exceed a prospectively frozen noninferiority margin. No default
+  2pp noninferiority claim is authorized by this protocol.

@@ -1,0 +1,41 @@
+{
+  "schema_version": "observer_delivery_cli2_focused_after_fix.v1",
+  "observed_at_utc": "2026-10-19T12:48:18.636725+00:00",
+  "command": [
+    "/scratch/jgu7/envs/moe-state/bin/python",
+    "-m",
+    "pytest",
+    "-q",
+    "tests/test_state_study_supplement_ops.py",
+    "tests/test_state_study_continuation.py"
+  ],
+  "environment_overrides": {
+    "CUDA_VISIBLE_DEVICES": "",
+    "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "OMP_NUM_THREADS": "1",
+    "OPENBLAS_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1"
+  },
+  "exit_code": 0,
+  "stdout": "....................................................................     [100%]\n68 passed in 39.67s\n",
+  "stderr": "",
+  "elapsed_seconds": 40.84008105285466,
+  "source_sha256_before": {
+    "scripts/state_study_supplement_ops.py": "f34902a127fbbb3881825d5d5eabf16b2ce217e7c7c7cd1f51157c9a0003b946",
+    "scripts/state_study_continuation.py": "88648afdb3e32b32f1423b88d4db865606ac532917c54aeacb4860bffebf2b59",
+    "scripts/launch_state_study_resume.py": "465811c8842b0b49233d4aaf772d05e0b490469eb3c7b55dda5883c0065adb6b",
+    "tests/test_state_study_supplement_ops.py": "3385cfa795f201a3cf9eebcae7bce0b7927e51cdc2065c1e959137154404eb3f",
+    "tests/test_state_study_continuation.py": "1af1d50385d2d894e12c4038f0c2d524a318a4413dbc922a4dcd3c5c6f82b2c2",
+    "docs/2026-10-19/state_slurm_resume.md": "5b19508e9180a827e3b200b22ca2fc196dbaa58e0deaf6f643b909effaa79ec5"
+  },
+  "source_sha256_after": {
+    "scripts/state_study_supplement_ops.py": "f34902a127fbbb3881825d5d5eabf16b2ce217e7c7c7cd1f51157c9a0003b946",
+    "scripts/state_study_continuation.py": "88648afdb3e32b32f1423b88d4db865606ac532917c54aeacb4860bffebf2b59",
+    "scripts/launch_state_study_resume.py": "465811c8842b0b49233d4aaf772d05e0b490469eb3c7b55dda5883c0065adb6b",
+    "tests/test_state_study_supplement_ops.py": "3385cfa795f201a3cf9eebcae7bce0b7927e51cdc2065c1e959137154404eb3f",
+    "tests/test_state_study_continuation.py": "1af1d50385d2d894e12c4038f0c2d524a318a4413dbc922a4dcd3c5c6f82b2c2",
+    "docs/2026-10-19/state_slurm_resume.md": "5b19508e9180a827e3b200b22ca2fc196dbaa58e0deaf6f643b909effaa79ec5"
+  },
+  "scope": "Affected ops2 focused tests plus actual frozen CLI Pending-return and registered full512 boundary under fake CPU inputs. No model, real replay/bootstrap, actual writer, scheduler submission or signal."
+}

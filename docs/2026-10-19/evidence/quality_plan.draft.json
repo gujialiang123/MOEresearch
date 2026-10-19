@@ -1,0 +1,89 @@
+{
+  "schema_version": "state_study_quality_plan.v1",
+  "status": "DRAFT_NOT_FROZEN",
+  "created_at_utc": "2026-10-19T10:43:43.957703+00:00",
+  "run_dir": "/scratch/jgu7/moe-state-study/runs/20261019_bf16_eager_v4",
+  "protocol_hash": "9f91034da8a586becdba351a9303e957588eb24e9f5218e7d327ea96bf64de8c",
+  "source": {
+    "frozen_source_hash": "7bc7eeeb9493e165fe430080026bf71384c9ce467e76948949494d726b3bc835",
+    "analysis_source_hashes": {
+      "scripts/freeze_state_study_quality_plan.py": "fcda984de0db3cd6c38ec9557665b395e2e8bd5bc2d18c647e122f8f6711e370",
+      "scripts/state_study_positive_gate.py": "fcf2f26d80c416394557e2926758a5f9a31dc75ff917742a00b6bcd5bfe658fe",
+      "scripts/state_study_positive_evidence.py": "106ced402b441c3e8dfd39ef461ccccb112661280032424da3ea07b8185f44e7",
+      "scripts/summarize_state_study_results.py": "78b4e8ff156ea583f76993a0f538dd24a98038455d9d4526305b3fd2d19b1c21",
+      "docs/2026-10-19/state_quality_plan.md": "e15a23ff5bae594b091f1513ffa8a270438b969831418ea7fe00df84f7a7f140"
+    },
+    "analysis_source_hash": "3a56bc06b69d788d7b6dbed6730744d1fccf6778b3e4273d6066d51cd211e889",
+    "analysis_archive_relative_dir": "quality_analysis_sources/3a56bc06b69d788d7b6dbed6730744d1fccf6778b3e4273d6066d51cd211e889"
+  },
+  "analysis_spec": {
+    "quality_route": "strict_quality_superiority_no_noninferiority_margin",
+    "quality_scores": [
+      "strict_correct",
+      "tolerant_correct"
+    ],
+    "quality_controls": [
+      "M_NT",
+      "strongest_existing_baseline"
+    ],
+    "quality_method": "simultaneous_bonferroni_clopper_pearson_difference.v1",
+    "quality_family_alpha": 0.05,
+    "quality_family_comparisons": 4,
+    "quality_per_tail_alpha": 0.00625,
+    "quality_condition": "all four exact lower bounds > 0",
+    "cost_endpoint": "relative_complete_generated_token_reduction",
+    "cost_formula": "1 - sum(T_M_ST) / sum(T_control)",
+    "cost_controls": [
+      "M_NT",
+      "strongest_existing_baseline"
+    ],
+    "cost_method": "paired_prompt_ratio_of_sums_percentile_bootstrap.v1",
+    "cost_family_alpha": 0.05,
+    "cost_family_comparisons": 2,
+    "cost_per_tail_alpha": 0.0125,
+    "bootstrap_resamples": 10000,
+    "bootstrap_seed": 20261019,
+    "undefined_draw_policy": "withhold interval and pass; never discard zero-denominator/nonfinite draws",
+    "minimum_useful_relative_token_reduction": 0.05,
+    "cost_condition": "both simultaneous interval lower bounds >= 0.05",
+    "cost_interval_coverage": "nominal simultaneous percentile-bootstrap approximation, not finite-sample exact coverage",
+    "downstream_gate_role": "D_validate fixed512 only; D_select complete8 arms supplies selection and exploratory descriptions",
+    "state_update_condition": "E_moment(M_ST own)-E_moment(M_NT own) saved 95% CI upper < 0 on C_diag and fixed validation state subset",
+    "state_full_trace_required": true,
+    "state_weighting": "token; prompt equal-weight sensitivity remains reported",
+    "administrative_cap_policy": "2048 observed request costs remain cap-censored; if >1% selection cap trigger, complete fixed128 cap4096 finalists; any negative relative-token benefit or negative strict/tolerant accuracy difference against NT/strongest withholds positive; never pool caps",
+    "confirmation": "POSITIVE_EXPLORATORY only; never unseal P6 or assert historical independence/power automatically",
+    "selection_rule": "greatest min(strict,tolerant), then lower mean generated tokens, then fixed baseline ID order; references fixed F/R8/R16",
+    "initial_calibration": "L_N",
+    "primary_method": "M_ST",
+    "same_text_control": "M_NT",
+    "noninferiority_margin": null
+  },
+  "analysis_supplement": {
+    "type": "prospective_analysis_supplement_and_correction_before_D_validate",
+    "basis": "Original user plan section11.4 permits an explicit quality-superiority constraint; implementation NI-only text narrowed that requirement.",
+    "original_protocol_constraint": "Exploratory request-cost benefit is not quality preservation. Report both paired accuracy CIs; quality evidence is INCONCLUSIVE unless both lower bounds exceed a prospectively frozen noninferiority margin. No default 2pp noninferiority claim is authorized by this protocol.",
+    "original_NI_only_condition_satisfied": false,
+    "original_NI_margin_remains_None": true,
+    "corrected_scope": "Quality-superiority decision and executable POSITIVE_EXPLORATORY report chain only.",
+    "additional_sensitivity_requirement": "The 4096 no-adverse-point-direction veto is an explicitly new prospective supplement, not an original-plan per-score veto.",
+    "unchanged": "Frozen measurement/model/dtype/arms/sample ranges/main state thresholds and original validation_freeze.json.",
+    "original_protocol_hash": "9f91034da8a586becdba351a9303e957588eb24e9f5218e7d327ea96bf64de8c",
+    "original_source_hash": "7bc7eeeb9493e165fe430080026bf71384c9ce467e76948949494d726b3bc835",
+    "not_an_original_protocol_condition": true,
+    "no_P6_authorization": true
+  },
+  "prevalidation_absence": {
+    "checked_at_utc": "2026-10-19T10:43:43.957542+00:00",
+    "formal_validate_files": [],
+    "formal_validation_state_files": [],
+    "absence_verified": true
+  },
+  "formal_selection_output_absent_at_draft": true,
+  "note": "Prospective analysis supplement; not a frozen final comparison, no observed outcome claim.",
+  "analysis_source_archive": {
+    "directory": "/scratch/jgu7/moe-state-study/reports/20261019_bf16_eager_v4/quality_analysis_sources/3a56bc06b69d788d7b6dbed6730744d1fccf6778b3e4273d6066d51cd211e889",
+    "manifest_sha256": "8cb903a5f6721862cbd88ebb33136bb0d135c15107c0a5c5a353d89edb226564"
+  },
+  "plan_hash": "020ff12e379727479e593fa68a2b79cde35e9e2b6235cd917ab213777af8685f"
+}

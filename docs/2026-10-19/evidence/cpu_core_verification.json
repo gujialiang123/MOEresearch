@@ -1,0 +1,19 @@
+{
+  "status": "PASSED",
+  "tests_passed": 78,
+  "duration_seconds": 44.0,
+  "verified_utc": "2026-10-19T08:12:08.757585+00:00",
+  "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONDONTWRITEBYTECODE=1 TMPDIR=/scratch/jgu7/tmp OMP_NUM_THREADS=8 OPENBLAS_NUM_THREADS=8 MKL_NUM_THREADS=8 /scratch/jgu7/envs/moe-state/bin/python -m pytest -q -p no:cacheprovider tests/test_state_driver.py tests/test_state_runner.py tests/test_state_calibration.py tests/test_state_collection.py tests/test_state_study_analysis.py tests/test_state_reporting.py tests/test_state_adapter.py tests/test_state_preflight.py",
+  "source_hashes_match_frozen_run": true,
+  "test_source_sha256": {
+    "tests/test_state_driver.py": "400d43f9f7ac0dc3faa8f99d587c61c2682acd472293e5d88272c75a0c16e1af",
+    "tests/test_state_runner.py": "b5f43b6c5ca31d9c9f91f46dd9d6c9280f33517a40b39a346910d33412f3d069",
+    "tests/test_state_calibration.py": "5f41724994403676d82e5c20dd0543c47ed75f3234ba5a16ee1862ae50869655",
+    "tests/test_state_collection.py": "3fae96b960dc4294bb9b0b2a23ff3fb896f136ce058151b0acbc67190bab10e7",
+    "tests/test_state_study_analysis.py": "e0d515279eccc2d1798742f6e25a600f2e85214951bcb320f4d07f34c4dff266",
+    "tests/test_state_reporting.py": "46ebcf761a5ac238094ccd1afbb6228c84af8639996ccf77971e40a5f1a2f42f",
+    "tests/test_state_adapter.py": "ea344ca82c49fb9ee46096946be7291f418e999f9d6bdc7da41cd3f2d458757f",
+    "tests/test_state_preflight.py": "54e3b1c2f246b66de673f66e67da8c0f09650309d11c0a397f27943e959d4b52"
+  },
+  "scope": "CPU toy, provenance, numerical/error and statistical-boundary checks; official real-BF16 P0 still required"
+}

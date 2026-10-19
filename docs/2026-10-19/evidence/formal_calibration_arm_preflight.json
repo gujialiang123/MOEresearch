@@ -1,0 +1,101 @@
+{
+  "status": "PASSED",
+  "protocol_hash": "9f91034da8a586becdba351a9303e957588eb24e9f5218e7d327ea96bf64de8c",
+  "calibration_hashes": {
+    "M_N": "1175c7006125692cf25af4e58e07dd1b728757a26aad93d57a315cf09854c82e",
+    "L_N": "a3aa4a8381f7a499e3c44a604175d949f0b3389a89158c573a97e02bfe0d7e7a"
+  },
+  "engineering_cap": 8,
+  "arms": {
+    "N": {
+      "logits": {
+        "max_abs": 0.0,
+        "relative_l2": 0.0,
+        "max_abs_relative_to_reference_max": 0.0,
+        "elements": 1215488,
+        "fixed_prefix_kl_mean": 0.0,
+        "fixed_prefix_kl_max": 0.0,
+        "argmax_agreement": 1.0,
+        "positions": 8
+      },
+      "shadow_max_abs": 0.0,
+      "observed_layer_calls": 384,
+      "calibration_hash": null
+    },
+    "F": {
+      "logits": {
+        "max_abs": 0.0,
+        "relative_l2": 0.0,
+        "max_abs_relative_to_reference_max": 0.0,
+        "elements": 1215488,
+        "fixed_prefix_kl_mean": 0.0,
+        "fixed_prefix_kl_max": 0.0,
+        "argmax_agreement": 1.0,
+        "positions": 8
+      },
+      "shadow_max_abs": 0.0,
+      "observed_layer_calls": 384,
+      "calibration_hash": null
+    },
+    "R8": {
+      "logits": {
+        "max_abs": 0.0,
+        "relative_l2": 0.0,
+        "max_abs_relative_to_reference_max": 0.0,
+        "elements": 1215488,
+        "fixed_prefix_kl_mean": 0.0,
+        "fixed_prefix_kl_max": 0.0,
+        "argmax_agreement": 1.0,
+        "positions": 8
+      },
+      "shadow_max_abs": 0.0,
+      "observed_layer_calls": 384,
+      "calibration_hash": null
+    },
+    "R16": {
+      "logits": {
+        "max_abs": 0.0,
+        "relative_l2": 0.0,
+        "max_abs_relative_to_reference_max": 0.0,
+        "elements": 1215488,
+        "fixed_prefix_kl_mean": 0.0,
+        "fixed_prefix_kl_max": 0.0,
+        "argmax_agreement": 1.0,
+        "positions": 8
+      },
+      "shadow_max_abs": 0.0,
+      "observed_layer_calls": 384,
+      "calibration_hash": null
+    },
+    "M_N": {
+      "logits": {
+        "max_abs": 0.0,
+        "relative_l2": 0.0,
+        "max_abs_relative_to_reference_max": 0.0,
+        "elements": 1215488,
+        "fixed_prefix_kl_mean": 0.0,
+        "fixed_prefix_kl_max": 0.0,
+        "argmax_agreement": 1.0,
+        "positions": 8
+      },
+      "shadow_max_abs": 0.0,
+      "observed_layer_calls": 384,
+      "calibration_hash": "1175c7006125692cf25af4e58e07dd1b728757a26aad93d57a315cf09854c82e"
+    },
+    "L_N": {
+      "logits": {
+        "max_abs": 0.0,
+        "relative_l2": 0.0,
+        "max_abs_relative_to_reference_max": 0.0,
+        "elements": 1215488,
+        "fixed_prefix_kl_mean": 0.0,
+        "fixed_prefix_kl_max": 0.0,
+        "argmax_agreement": 1.0,
+        "positions": 8
+      },
+      "shadow_max_abs": 0.0,
+      "observed_layer_calls": 384,
+      "calibration_hash": "a3aa4a8381f7a499e3c44a604175d949f0b3389a89158c573a97e02bfe0d7e7a"
+    }
+  }
+}

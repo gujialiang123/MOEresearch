@@ -1,5 +1,7 @@
 # HANDOFF / 续作交接文档
 
+> 2026-10-19 新一轮工作以 [状态来源校准执行计划](docs/2026-10-19/state_calibration_execution_plan.md) 和 [当前实验交接](docs/2026-10-19/state_study_progress.md) 为准。下文保留原有历史背景；不得把历史结果或工程预检当作本轮正式结果。
+
 > 目的:让**另一台机器上全新的 Copilot 会话**能立刻接手这条 MoE 研究线,无需回看历史对话。
 > 更新时间:2026-07-17 · 最新 commit 见 `git log`。
 

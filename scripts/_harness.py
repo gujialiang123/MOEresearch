@@ -8,8 +8,8 @@ from moe_research import answer_parsing as AP
 from moe_research import trace_schema as TS
 from moe_research import stats as ST
 
-MODEL = "/data/hf/models/Qwen3-30B-A3B-Instruct-2507"
-DEV = "cuda:0"
+MODEL = os.environ.get("MOE_MODEL_PATH", "Qwen/Qwen3-30B-A3B-Instruct-2507")
+DEV = os.environ.get("MOE_DEVICE", "cuda:0")
 SUFFIX = "\nPlease reason step by step, and put your final answer after '#### '."
 
 # Frozen sample-ID protocol
@@ -19,13 +19,17 @@ SMOKE_RANGE = (128, 160)      # first 32 development prompts
 TEST_RANGE = (0, 500)         # GSM8K test[0:500] (matches v23-v28 .select(range(500)))
 
 
-def load_model():
+def load_model(model_path=None, *, revision=None, device=None, attention_backend=None):
     from transformers import AutoModelForCausalLM, AutoTokenizer
-    tok = AutoTokenizer.from_pretrained(MODEL, trust_remote_code=True, padding_side="left")
+    source = model_path or MODEL
+    revision = revision or os.environ.get("MOE_MODEL_REVISION")
+    tok = AutoTokenizer.from_pretrained(source, revision=revision, padding_side="left")
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
-    model = AutoModelForCausalLM.from_pretrained(MODEL, trust_remote_code=True,
-                                                 dtype=torch.bfloat16).to(DEV)
+    backend = attention_backend or os.environ.get("MOE_ATTENTION_BACKEND", "eager")
+    model = AutoModelForCausalLM.from_pretrained(source, revision=revision,
+              dtype=torch.bfloat16, attn_implementation=backend,
+              device_map={"": device or DEV})
     model.eval()
     return model, tok
 
@@ -44,9 +48,13 @@ def make_prompts(tok, ds):
     return prompts, golds, questions
 
 
-def eos_set_of(tok):
-    e = tok.eos_token_id
-    return set(e) if isinstance(e, list) else {e}
+def eos_set_of(tok, model=None):
+    ids = set()
+    for obj in (getattr(model, "generation_config", None), tok):
+        e = getattr(obj, "eos_token_id", None)
+        if e is not None:
+            ids.update(e if isinstance(e, (list, tuple, set)) else [e])
+    return ids
 
 
 def find_subseq(seq, sub):
@@ -83,7 +91,9 @@ def build_row(gi, seq, gold, eos_set, hash_ids, max_new, baseline_seq=None, extr
     row = {"id": gi, "gold": gold,
            "pred_strict": ps, "strict_correct": (ps == gold and ps is not None),
            "pred_tol": pt, "tolerant_correct": (pt == gold and pt is not None),
-           "generated_tokens": glen, "eos_pos": eos_pos, "hit_max": glen >= max_new,
+           "generated_tokens": glen, "eos_pos": eos_pos,
+           "hit_max": eos_pos < 0 and glen >= max_new,
+           "stop_reason": "eos" if eos_pos >= 0 else ("max_new_tokens" if glen >= max_new else "error"),
            "first_marker_pos": hp if hp >= 0 else None,
            "parsed_answer_pos": hp if hp >= 0 else None,
            "L_post_marker": (glen - hp) if hp >= 0 else None,

@@ -1,0 +1,47 @@
+{
+  "schema_version": "state_study_figures.v1",
+  "generated_at_utc": "2026-10-19T12:18:36.313483+00:00",
+  "run_dir": "/scratch/jgu7/moe-state-study/runs/20261019_bf16_eager_v4",
+  "selected_scope": "/scratch/jgu7/moe-state-study/runs/20261019_bf16_eager_v4/pilot",
+  "generation_role": "select",
+  "source_summaries": [
+    {
+      "path": "/scratch/jgu7/moe-state-study/runs/20261019_bf16_eager_v4/pilot/summaries/diagnostic_summary.json",
+      "sha256": "a5baaa4c0412b7ea0e9a906a861b86d71463cbac90dc8fba53336d4af7b59924"
+    },
+    {
+      "path": "/scratch/jgu7/moe-state-study/runs/20261019_bf16_eager_v4/pilot/select/summaries/generation_summary.json",
+      "sha256": "03d54487ead20c1e2f5ef017a8707d4b315c9c8125e7f6b855c70e164d947d5c"
+    }
+  ],
+  "figures": [
+    {
+      "name": "01_state_mismatch_pilot_632f1ccf6a",
+      "files": [
+        "/scratch/jgu7/moe-state-study/reports/20261019_bf16_eager_v4/figures_pilot_complete_20261019T121800Z/01_state_mismatch_pilot_632f1ccf6a.pdf",
+        "/scratch/jgu7/moe-state-study/reports/20261019_bf16_eager_v4/figures_pilot_complete_20261019T121800Z/01_state_mismatch_pilot_632f1ccf6a.png"
+      ],
+      "description": "A/B and D/C use their own fixed texts; bands condition on frozen calibration. The two text-source panels can cover different trace lengths.",
+      "omitted_panels": []
+    },
+    {
+      "name": "03_quality_request_cost_pilot_632f1ccf6a",
+      "files": [
+        "/scratch/jgu7/moe-state-study/reports/20261019_bf16_eager_v4/figures_pilot_complete_20261019T121800Z/03_quality_request_cost_pilot_632f1ccf6a.pdf",
+        "/scratch/jgu7/moe-state-study/reports/20261019_bf16_eager_v4/figures_pilot_complete_20261019T121800Z/03_quality_request_cost_pilot_632f1ccf6a.png"
+      ],
+      "description": "No arm-level confidence intervals are invented from paired-difference CIs. Accuracy retains request failures as specified by the scoring summary; available cost measurements have explicit counts. Administrative caps censor natural output length. Timing excludes observers and debug-logit runs and applies only to the measured backend.",
+      "omitted_panels": []
+    }
+  ],
+  "skipped_figures": [
+    {
+      "name": "updated_own_trajectories",
+      "reason": "Updated models have not produced own-trajectory or generation summaries."
+    }
+  ],
+  "matplotlib_version": "3.10.7",
+  "scope_pooling": false,
+  "data_policy": "Measured summaries only; missing panels omitted; no synthetic values or intervals.",
+  "status": "GENERATED"
+}

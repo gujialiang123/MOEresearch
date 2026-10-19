@@ -1,0 +1,85 @@
+{
+  "schema_version": "p0_readonly_audit.v1",
+  "status": "PASSED",
+  "audited_at_utc": "2026-10-19T08:18:26.715208+00:00",
+  "run_dir": "/scratch/jgu7/moe-state-study/runs/20261019_bf16_eager_v4",
+  "raw_preflight": "/scratch/jgu7/moe-state-study/runs/20261019_bf16_eager_v4/preflight/preflight.json",
+  "raw_preflight_sha256": "2a4c9690b0ddc4efe5642f4f2a2af5957663df7f8f44d0fd551e40d61d2aa2eb",
+  "summary_preflight_sha256": "39660197cae1c3915420dea429842949c0ab647c196e5e371e55ef7aa7a1925f",
+  "protocol_hash": "9f91034da8a586becdba351a9303e957588eb24e9f5218e7d327ea96bf64de8c",
+  "checkpoint_revision": "0d7cf23991f47feeb3a57ecb4c9cee8ea4a17bfe",
+  "adapter": "qwen-modulelist-fixed-native-selection-fp32-reference-native-dtype-aggregate-v2",
+  "engineering_cap": 8,
+  "case_count": 52,
+  "sample_ids": [
+    128,
+    129,
+    130,
+    131
+  ],
+  "cases_per_sample": {
+    "128": 13,
+    "129": 13,
+    "130": 13,
+    "131": 13
+  },
+  "counts": {
+    "assertions": 669143,
+    "local_layer_forward_comparisons": 14976,
+    "prefill_layer_checks": 1152,
+    "shadow_layer_forward_comparisons": 9216,
+    "actual_routing_and_reference_checks": 6720,
+    "unobserved_arm_traces_checked": 24
+  },
+  "maxima": {
+    "logits_max_abs": 0.0,
+    "fixed_prefix_kl_max": 0.0,
+    "native_repeat_noise_max_abs": 0.0,
+    "local_max_abs": 0.0,
+    "local_h_max_abs": 0.0,
+    "local_output_max_abs": 0.0,
+    "local_router_logits_max_abs": 0.0,
+    "local_native_weights_max_abs": 0.0,
+    "local_residual_max_abs": 0.0,
+    "shadow_max_abs": 0.0,
+    "actual_router_weights_max_abs": 0.0,
+    "reference_mass_max_abs": 0.0
+  },
+  "tolerances": {
+    "logits_max_abs": 0.0001,
+    "local_max_abs": 0.0001,
+    "router_weights_max_abs": 1e-07,
+    "argmax_agreement_min": 1.0,
+    "fixed_prefix_kl_max": 1e-08
+  },
+  "frozen_source_files_checked": 18,
+  "all_source_and_archive_hashes_match": true,
+  "all_loaded_code_fingerprints_match": true,
+  "p0_source_fingerprints": {
+    "state_preflight": "3b5fa8ea6fc20193a208ff286b07e3f573f193470c68507cad7e29713bcfa79d",
+    "k_policy": "4e8957bd32f919226d35cbca5c3154b99477f5f0dd9adbc9f86151ce251105b0",
+    "state_adapter": "b8622fc6186769c0a0f6480cb151926d7a886b9efc9065d6380a7dfeddf0605e",
+    "state_calibration": "9c7eb4bd28052f9af73685245abb5657a4e8629aeef54e831bb9a22192c4e232",
+    "state_driver": "d110576399496f6f7be36ee27a88df9737d7a8ec93d3f28d31a337ee4d47e820"
+  },
+  "loaded_code_fingerprints_match": {
+    "StudyDriver.__init__": true,
+    "StudyDriver.generate": true,
+    "StudyDriver.replay": true,
+    "StudyDriver.policy": true,
+    "KPolicy.__post_init__": true,
+    "_make_moe_forward": true,
+    "attach_policy": true,
+    "detach_policy": true,
+    "execute_branches": true,
+    "route_and_aggregate": true,
+    "shadow_branches": true,
+    "FrozenStateCalibration.apply": true
+  },
+  "manifest_p0_status": "complete",
+  "prior_preflights_used": false,
+  "scope": "P0 implementation correctness only; 8-token engineering checks provide no mechanism, accuracy, natural-stop, or deployment-throughput conclusion.",
+  "run_evidence_modified": false,
+  "gpu_model_or_generation_started_by_audit": false,
+  "failures": []
+}

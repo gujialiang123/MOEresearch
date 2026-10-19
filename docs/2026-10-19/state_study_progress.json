@@ -1,0 +1,273 @@
+{
+  "schema_version": "state_study_github_progress.v1",
+  "generated_at_utc": "2026-10-19T17:12:54.685907+00:00",
+  "run_dir": "/scratch/jgu7/moe-state-study/runs/20261019_bf16_eager_v4",
+  "run_id": "20261019_bf16_eager_v4",
+  "disposition": "INCONCLUSIVE_PENDING_FORMAL_RESULTS",
+  "model": "Qwen/Qwen3-30B-A3B-Instruct-2507",
+  "precision": "bfloat16",
+  "model_revision": "0d7cf23991f47feeb3a57ecb4c9cee8ea4a17bfe",
+  "protocol_hash": "9f91034da8a586becdba351a9303e957588eb24e9f5218e7d327ea96bf64de8c",
+  "source_hash": "7bc7eeeb9493e165fe430080026bf71384c9ce467e76948949494d726b3bc835",
+  "environment_versions": {
+    "torch": "2.11.0",
+    "transformers": "4.57.1",
+    "tokenizers": "0.22.1",
+    "huggingface-hub": "0.36.2",
+    "safetensors": "0.9.0rc0",
+    "numpy": "2.3.5",
+    "kernels": "0.10.3",
+    "accelerate": "1.12.0",
+    "pytest": "8.4.2",
+    "matplotlib": "3.10.7"
+  },
+  "runtime": {
+    "python": "3.12.9 (main, Aug 14 2025, 00:00:00) [GCC 14.2.1 20250110 (Red Hat 14.2.1-7)]",
+    "torch": "2.11.0+cu130",
+    "transformers": "4.57.1",
+    "cuda": "13.0",
+    "gpu": "NVIDIA B200",
+    "dtype": "torch.bfloat16",
+    "attention_backend": "eager",
+    "expert_backend": "qwen-modulelist-fixed-native-selection-fp32-reference-native-dtype-aggregate-v2",
+    "device_map": "{'': 'cuda:0'}"
+  },
+  "sample_plan": {
+    "C_fit": 128,
+    "C_diag": 128,
+    "D_select": 256,
+    "D_validate": 512
+  },
+  "formal_select_counts": {
+    "N": 48,
+    "F": 48,
+    "R8": 48,
+    "R16": 46,
+    "M_N": 40,
+    "L_N": 40
+  },
+  "formal_select_observed_prefixes": {
+    "N": {
+      "complete_rows": 48,
+      "prefix_bytes": 261890,
+      "prefix_sha256": "8a3e6875ac91ec02d003b4f924816a0901002378659824c9774a3a15fc1bee6b",
+      "unterminated_tail_observed": false
+    },
+    "F": {
+      "complete_rows": 48,
+      "prefix_bytes": 276304,
+      "prefix_sha256": "03d56105e1697ca4e7007c687bdb5591f0ceeffef73237b9004523043121c529",
+      "unterminated_tail_observed": false
+    },
+    "R8": {
+      "complete_rows": 48,
+      "prefix_bytes": 259087,
+      "prefix_sha256": "af82f17f1891e3f3332aa77b674c187471765440bb45c93f3465cd80f2d1f094",
+      "unterminated_tail_observed": false
+    },
+    "R16": {
+      "complete_rows": 46,
+      "prefix_bytes": 224046,
+      "prefix_sha256": "b0ca2847e6c1aa82562692b205a81610b5a848925e7db740ab0a593536bbb07b",
+      "unterminated_tail_observed": false
+    },
+    "M_N": {
+      "complete_rows": 40,
+      "prefix_bytes": 201789,
+      "prefix_sha256": "5183b152f67a6c2defb6b5ed2615768d4ef63471f6c5ccae8289c8ed385e9242",
+      "unterminated_tail_observed": false
+    },
+    "L_N": {
+      "complete_rows": 40,
+      "prefix_bytes": 213052,
+      "prefix_sha256": "4777c9560141bc9cad75f9ee7858116108529c01e66db5140477608f3f6b7ffc",
+      "unterminated_tail_observed": false
+    }
+  },
+  "stages": {
+    "P0": {
+      "status": "complete",
+      "detail": {
+        "report": "/scratch/jgu7/moe-state-study/runs/20261019_bf16_eager_v4/preflight.json",
+        "status": "PASSED",
+        "case_count": 52
+      },
+      "utc": "2026-10-19T08:16:27.053225+00:00"
+    },
+    "formal/fit_native": {
+      "status": "complete",
+      "detail": {
+        "N": 128
+      },
+      "utc": "2026-10-19T12:58:01.134889+00:00"
+    },
+    "formal/calibration": {
+      "status": "complete",
+      "detail": {
+        "M_N": "1175c7006125692cf25af4e58e07dd1b728757a26aad93d57a315cf09854c82e",
+        "L_N": "a3aa4a8381f7a499e3c44a604175d949f0b3389a89158c573a97e02bfe0d7e7a"
+      },
+      "utc": "2026-10-19T15:24:09.140156+00:00"
+    },
+    "formal/select": {
+      "status": "running",
+      "detail": {
+        "N": 48,
+        "F": 48,
+        "R8": 48,
+        "R16": 44,
+        "M_N": 40,
+        "L_N": 40
+      },
+      "utc": "2026-10-19T17:11:53.137659+00:00"
+    }
+  },
+  "pilot_baselines": {
+    "N": {
+      "n": 32,
+      "strict_correct": 25,
+      "tolerant_correct": 30,
+      "mean_generated_tokens": 301.5625,
+      "natural_eos": 31,
+      "administrative_cap": 1,
+      "calibration_hashes": [
+        null
+      ]
+    },
+    "F": {
+      "n": 32,
+      "strict_correct": 28,
+      "tolerant_correct": 30,
+      "mean_generated_tokens": 316.0625,
+      "natural_eos": 31,
+      "administrative_cap": 1,
+      "calibration_hashes": [
+        null
+      ]
+    },
+    "R8": {
+      "n": 32,
+      "strict_correct": 27,
+      "tolerant_correct": 30,
+      "mean_generated_tokens": 302.40625,
+      "natural_eos": 31,
+      "administrative_cap": 1,
+      "calibration_hashes": [
+        null
+      ]
+    },
+    "R16": {
+      "n": 32,
+      "strict_correct": 27,
+      "tolerant_correct": 31,
+      "mean_generated_tokens": 239.1875,
+      "natural_eos": 32,
+      "administrative_cap": 0,
+      "calibration_hashes": [
+        null
+      ]
+    },
+    "M_N": {
+      "n": 32,
+      "strict_correct": 27,
+      "tolerant_correct": 30,
+      "mean_generated_tokens": 306.71875,
+      "natural_eos": 31,
+      "administrative_cap": 1,
+      "calibration_hashes": [
+        "1b95b79262696e851d7ab66f4700f97e6ed21dc252f82cc539ce1085b61f0935"
+      ]
+    },
+    "L_N": {
+      "n": 32,
+      "strict_correct": 25,
+      "tolerant_correct": 30,
+      "mean_generated_tokens": 292.9375,
+      "natural_eos": 31,
+      "administrative_cap": 1,
+      "calibration_hashes": [
+        "74cadbb676d7c09fc98228965d1ca183a714e025d0d57c689a05d14f0c26972c"
+      ]
+    }
+  },
+  "pilot_raw_evidence": {
+    "pilot/select/generations/N.jsonl": {
+      "sha256": "b0b8f19470b15acecce05708943f3c55e0c1e4e5de29975409f931b4a9a241d2",
+      "bytes": 168742
+    },
+    "pilot/select/generations/F.jsonl": {
+      "sha256": "8ff37fe29b4c055c286d8ff8c95540b74a8c19b7e8ccce699976ce84abb6bf44",
+      "bytes": 175631
+    },
+    "pilot/select/generations/R8.jsonl": {
+      "sha256": "09c94762f08d9e5381fc22d938fdba0cac4a0ab991e1e6de66a631e4412303c8",
+      "bytes": 172494
+    },
+    "pilot/select/generations/R16.jsonl": {
+      "sha256": "32c916daf88db883e221394c380ce13802f4d5a0a177c0eaef5ecbfcc13a97df",
+      "bytes": 152912
+    },
+    "pilot/select/generations/M_N.jsonl": {
+      "sha256": "5606e50985b39770ea015fe0472517b9463ec6dd87bff1d1e223e707e4cdad66",
+      "bytes": 175261
+    },
+    "pilot/select/generations/L_N.jsonl": {
+      "sha256": "9f242bbcdedd6706351dede94552edcd1818ad4a934912207e40faa6a10f1e91",
+      "bytes": 170965
+    }
+  },
+  "pilot_diagnostic": {
+    "scope": "ENGINEERING_PILOT_ONLY",
+    "prompt_count": 16,
+    "metric": "E_moment",
+    "weighting": "token",
+    "position_group": "all",
+    "bootstrap": {
+      "unit": "prompt",
+      "paired": true,
+      "resamples": 1000,
+      "seed": 20261019,
+      "confidence_level": 0.95,
+      "chunk_size": 128,
+      "recompute_ratios_and_population_moments_each_draw": true,
+      "calibration_parameters_refitted": false,
+      "includes_empty_and_inactive_prompt_ids": true,
+      "zero_effective_token_draw_policy": "undefined; withhold CI and scientific gate, never discard draw",
+      "uncertainty_scope": "evaluation prompt sampling conditional on frozen calibration"
+    },
+    "contrasts": {
+      "C_minus_D": {
+        "estimate": 0.0006387885455847765,
+        "ci_low": -0.00023610529945072668,
+        "ci_high": 0.0009972703309902126,
+        "status": "ok"
+      },
+      "B_minus_A": {
+        "estimate": 0.0006917592556761401,
+        "ci_low": -0.00016512541414979482,
+        "ci_high": 0.000844269910279917,
+        "status": "ok"
+      }
+    },
+    "saved_engineering_label": "NEGATIVE",
+    "gate_recalibration": false,
+    "source_sha256": "a5baaa4c0412b7ea0e9a906a861b86d71463cbac90dc8fba53336d4af7b59924"
+  },
+  "formal_calibrations": {
+    "M_N": "1175c7006125692cf25af4e58e07dd1b728757a26aad93d57a315cf09854c82e",
+    "L_N": "a3aa4a8381f7a499e3c44a604175d949f0b3389a89158c573a97e02bfe0d7e7a"
+  },
+  "formal_calibration_cost": {
+    "replay_seconds": 8738.658833669964,
+    "rollout_seconds": 2454.8118560691364,
+    "fit_decode_token_count": 30660,
+    "shadow_expert_token_assignments": 11773440
+  },
+  "quality_final_exists": false,
+  "restrictions": [
+    "Pilot parameters use16 prompts; formal parameters are refitted on fixed128 prompts (includes pilot prefix) with different calibration hashes.",
+    "Pilot is not pooled with formal results; no partial formal ranking or confirmatory claim.",
+    "Snapshot includes only completed physical-LF selection prefixes; live files continue appending.",
+    "Fixed-parameter prompt bootstrap does not include calibration-refitting uncertainty."
+  ]
+}

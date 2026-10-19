@@ -1,0 +1,52 @@
+{
+  "cpu_core_verification.json": {
+    "source": "/scratch/jgu7/moe-state-study/runs/20261019_bf16_eager_v4/cpu_verification.json",
+    "sha256": "939536c816c60ba389db7868f0329bb1f8353ff9f8865852bee0f06063468c93",
+    "bytes": 1634
+  },
+  "bf16_preflight_audit.json": {
+    "source": "/scratch/jgu7/moe-state-study/reports/20261019_bf16_eager_v4/p0_audit.json",
+    "sha256": "86d5f63a330e3c161f743c6d0a85d98e49ce84dcddbbb1bcaec5a2fb6debeca9",
+    "bytes": 3179
+  },
+  "environment_versions.json": {
+    "source": "/scratch/jgu7/moe-state-study/environment_versions.json",
+    "sha256": "b1648515da1de8859eb1dcf0c9a3c9a3fb939f54748aba1a4fe9c3b4d628d35b",
+    "bytes": 254
+  },
+  "formal_calibration_arm_preflight.json": {
+    "source": "/scratch/jgu7/moe-state-study/runs/20261019_bf16_eager_v4/formal/calibration/calibration_arm_preflight.json",
+    "sha256": "aa8471b6a06bba089a8d4d5a3699994ae679c28ff3571b25411fd4b68e7cc14a",
+    "bytes": 2871
+  },
+  "formal_calibration_complete_audit.json": {
+    "source": "/scratch/jgu7/moe-state-study/reports/20261019_bf16_eager_v4/formal_calibration_complete_audit.json",
+    "sha256": "b54b5468ac0a3dac2967f8e43a2796bf9bc5f282cc802fabf2cfd1960ada926f",
+    "bytes": 89672
+  },
+  "formal_first_block_binding_check.json": {
+    "source": "/scratch/jgu7/moe-state-study/reports/20261019_bf16_eager_v4/formal_first_block_binding_check.json",
+    "sha256": "5d74e6333cc8ee50a67f3c414580a04575452f4ddc99d1d921f7192637883ee4",
+    "bytes": 46441
+  },
+  "ops_cli2_68_checks.json": {
+    "source": "/scratch/jgu7/moe-state-study/reports/20261019_bf16_eager_v4/observer_delivery_cli2_focused_after_fix_v1.json",
+    "sha256": "fd3373ac6378e2050ce56ba1c7943bd0ef46403ec66b2e642c03df147d0e3ebc",
+    "bytes": 2382
+  },
+  "quality_plan.draft.json": {
+    "source": "/scratch/jgu7/moe-state-study/reports/20261019_bf16_eager_v4/quality_plan.draft.json",
+    "sha256": "f400c7d682f1ee5537963b02b87444ed32a21ca5457a501e64253cadd8a02367",
+    "bytes": 5742
+  },
+  "validation512.plan.json": {
+    "source": "/scratch/jgu7/moe-state-study/reports/20261019_bf16_eager_v4/validation512/plan.json",
+    "sha256": "ca90bceba14ac723be1e343701eaeeb171762d2784dd23535a31860b9e584c5c",
+    "bytes": 10980
+  },
+  "observer_cost.plan.json": {
+    "source": "/scratch/jgu7/moe-state-study/reports/20261019_bf16_eager_v4/observer_cost/plan.json",
+    "sha256": "cea00d620e260109676894f62b59c2ab8c588610b2fa0f327182b3f408bcb2df",
+    "bytes": 5107
+  }
+}
